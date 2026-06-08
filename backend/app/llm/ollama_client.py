@@ -1,0 +1,170 @@
+"""
+LLM Client Module
+Uses Google Gemini API for AI content generation.
+Fast, free tier: 1,500 requests/day.
+
+Get a free API key at https://aistudio.google.com/apikey
+Set GEMINI_API_KEY in your .env file.
+"""
+
+import json
+import time
+
+import requests
+
+from app.config import settings
+from app.utils.exceptions import LLMConnectionError
+from app.utils.logger import logger
+
+# HTTP status codes worth retrying (transient Gemini overload / server errors)
+_RETRYABLE_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+class LLMClient:
+    """
+    LLM client for AI content generation via Google Gemini API.
+
+    Gemini is the sole provider — fast, free, no local model needed.
+    """
+
+    def __init__(self):
+        self.temperature = settings.TEMPERATURE
+
+    def generate(self, prompt: str, **kwargs) -> str:
+        """
+        Generate text using Google Gemini API.
+
+        Args:
+            prompt: The prompt to send to the LLM
+            **kwargs: Additional parameters (temperature, etc.)
+
+        Returns:
+            Generated text string
+
+        Raises:
+            LLMConnectionError: If generation fails
+        """
+        temperature = kwargs.get("temperature", self.temperature)
+        return self._generate_gemini(prompt, temperature)
+
+    def _generate_gemini(self, prompt: str, temperature: float) -> str:
+        """Generate text via Google Gemini API (free, fast)."""
+        if not settings.GEMINI_API_KEY:
+            raise LLMConnectionError(
+                "Gemini API key not configured. "
+                "Set GEMINI_API_KEY in your .env file. "
+                "Get a free key at https://aistudio.google.com/apikey"
+            )
+
+        models = [settings.GEMINI_MODEL]
+        if settings.GEMINI_FALLBACK_MODEL and settings.GEMINI_FALLBACK_MODEL not in models:
+            models.append(settings.GEMINI_FALLBACK_MODEL)
+
+        last_error: Exception | None = None
+        for model_index, model in enumerate(models):
+            try:
+                return self._generate_gemini_with_retries(prompt, temperature, model)
+            except LLMConnectionError as e:
+                last_error = e
+                if model_index < len(models) - 1:
+                    logger.warning(
+                        f"Gemini model {model} failed ({e}). "
+                        f"Trying fallback: {models[model_index + 1]}"
+                    )
+                    continue
+                raise
+
+        raise LLMConnectionError(f"Gemini API request failed: {last_error}") from last_error
+
+    def _generate_gemini_with_retries(
+        self, prompt: str, temperature: float, model: str
+    ) -> str:
+        """Call a single Gemini model with retries for transient failures."""
+        logger.info(f"Generating via Google Gemini (model: {model})")
+
+        url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{model}:generateContent"
+            f"?key={settings.GEMINI_API_KEY}"
+        )
+
+        payload = {
+            "contents": [{
+                "parts": [{"text": prompt}]
+            }],
+            "generationConfig": {
+                "temperature": temperature,
+                "maxOutputTokens": settings.MAX_TOKENS,
+                "topP": settings.TOP_P,
+            }
+        }
+
+        max_retries = settings.GEMINI_MAX_RETRIES
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = requests.post(
+                    url,
+                    json=payload,
+                    timeout=settings.GEMINI_TIMEOUT,
+                )
+
+                if response.status_code == 429:
+                    raise LLMConnectionError(
+                        "Gemini API rate limit exceeded. "
+                        "Free tier allows ~1,500 requests/day. "
+                        "Try again tomorrow."
+                    )
+
+                if response.status_code in _RETRYABLE_STATUS_CODES:
+                    error_msg = response.text[:200]
+                    if attempt < max_retries:
+                        delay = 2 ** attempt
+                        logger.warning(
+                            f"Gemini {model} returned {response.status_code} "
+                            f"(attempt {attempt}/{max_retries}). Retrying in {delay}s..."
+                        )
+                        time.sleep(delay)
+                        continue
+                    raise LLMConnectionError(
+                        f"Gemini API unavailable ({response.status_code}): {error_msg}"
+                    )
+
+                response.raise_for_status()
+                data = response.json()
+
+                candidates = data.get("candidates", [])
+                if not candidates:
+                    raise LLMConnectionError(
+                        f"Gemini returned no candidates. Response: {json.dumps(data)[:200]}"
+                    )
+
+                parts = candidates[0].get("content", {}).get("parts", [])
+                if not parts:
+                    raise LLMConnectionError("Gemini returned empty content")
+
+                return parts[0].get("text", "")
+
+            except requests.exceptions.Timeout as e:
+                if attempt < max_retries:
+                    delay = 2 ** attempt
+                    logger.warning(
+                        f"Gemini {model} timed out (attempt {attempt}/{max_retries}). "
+                        f"Retrying in {delay}s..."
+                    )
+                    time.sleep(delay)
+                    continue
+                raise LLMConnectionError(
+                    f"Gemini API request timed out after {settings.GEMINI_TIMEOUT}s"
+                ) from e
+            except requests.exceptions.RequestException as e:
+                raise LLMConnectionError(f"Gemini API request failed: {str(e)}") from e
+
+        raise LLMConnectionError(f"Gemini API request failed after {max_retries} attempts")
+
+    def health_check(self) -> bool:
+        """Check if the Gemini API key is configured."""
+        return bool(settings.GEMINI_API_KEY)
+
+
+# Keep backward compatibility alias
+OllamaClient = LLMClient

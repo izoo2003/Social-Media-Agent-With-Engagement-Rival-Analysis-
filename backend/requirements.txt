@@ -1,0 +1,40 @@
+# Core FastAPI & ASGI
+fastapi>=0.100
+uvicorn[standard]>=0.20
+python-multipart>=0.0.5
+
+# Database
+sqlalchemy>=2.0
+psycopg>=3.1
+
+# Validation
+pydantic>=2.0
+pydantic-settings>=2.0
+
+# HTTP Client (for LinkedIn, Facebook, Instagram APIs, Ollama)
+requests>=2.31
+
+# Web scraping / feeds
+beautifulsoup4>=4.12
+feedparser>=6.0
+
+# Supabase Storage
+supabase>=2.0
+
+# Scheduling (scrapers)
+APScheduler>=3.10
+
+# Logging
+structlog>=23.0
+
+# Utilities
+python-dotenv>=1.0
+pytz>=2023
+
+# Async HTTP
+aiohttp>=3.9
+
+# Dev & Testing
+pytest>=7.4
+pytest-asyncio>=0.21
+pytest-cov>=4.1

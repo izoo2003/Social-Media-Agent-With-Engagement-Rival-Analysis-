@@ -1,0 +1,10 @@
+/* Theme variables */
+:root {
+  --primary-color: #6b1515;
+  --accent-color: #c9a227;
+  --secondary-color: #d4af37;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+  --warning-color: #c9a227;
+  --info-color: #64748b;
+}

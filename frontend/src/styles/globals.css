@@ -1,0 +1,26 @@
+/* Global Styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Kafi brand theme — maroon, gold, slate */
+:root {
+  --color-brand: #6b1515;
+  --color-brand-dark: #4a0a0a;
+  --color-gold: #c9a227;
+  --color-gold-light: #d4af37;
+  --color-text: #1e293b;
+  --color-text-muted: #64748b;
+}
+
+body {
+  @apply antialiased text-slate-800;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  @apply font-sans text-slate-900;
+}
+
+button {
+  @apply transition-all duration-200;
+}
