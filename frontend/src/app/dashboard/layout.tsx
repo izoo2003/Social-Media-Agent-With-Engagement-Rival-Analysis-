@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Toaster } from 'react-hot-toast';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -24,7 +25,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
 
   return (
-    <div className="flex h-screen bg-slate-50">
+    <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
       <Toaster position="top-right" />
       {/* Sidebar — Kafi maroon/red brand */}
       <aside className="w-64 bg-brand-900 text-white shadow-lg flex flex-col">
@@ -81,9 +82,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
       {/* Main Content */}
       <main className="flex-1 overflow-auto">
-        <header className="bg-white shadow">
+        <header className="bg-white shadow dark:bg-slate-900 dark:shadow-slate-950/50 dark:border-b dark:border-slate-800">
           <div className="px-6 py-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Dashboard</h1>
+            <ThemeToggle />
           </div>
         </header>
 

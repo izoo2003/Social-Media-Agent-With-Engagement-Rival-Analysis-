@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ThemeToggle } from '@/components/ThemeToggle';
+import { useTheme } from '@/contexts/ThemeContext';
 import { API_ENDPOINTS } from '@/lib/api-client';
 import { LinkedInAccountInfo } from '@/lib/types';
 
@@ -11,6 +13,7 @@ interface PlatformConfig {
 }
 
 export default function SettingsPage() {
+  const { theme } = useTheme();
   const [config, setConfig] = useState<PlatformConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,9 +31,25 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <h1 className="text-3xl font-bold text-slate-900">Settings</h1>
+      <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Settings</h1>
 
-      <div className="bg-white rounded-lg shadow p-6">
+      <div className="bg-white rounded-lg shadow p-6 dark:bg-slate-800 dark:border dark:border-slate-700">
+        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">Appearance</h2>
+        <p className="text-sm text-gray-500 dark:text-slate-400 mb-4">
+          Choose light mode or night mode. Your preference is saved on this device.
+        </p>
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 dark:border-slate-600 dark:bg-slate-900/60">
+          <div>
+            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">Theme</p>
+            <p className="text-xs text-gray-500 dark:text-slate-400 mt-1">
+              Currently using {theme === 'dark' ? 'Night' : 'Light'} mode
+            </p>
+          </div>
+          <ThemeToggle variant="segmented" />
+        </div>
+      </div>
+
+      <div className="bg-white rounded-lg shadow p-6 dark:bg-slate-800 dark:border dark:border-slate-700">
         <h2 className="text-lg font-semibold text-slate-900 mb-4">Connected Platforms</h2>
 
         {loading && <p className="text-gray-500 text-sm">Loading configuration...</p>}
