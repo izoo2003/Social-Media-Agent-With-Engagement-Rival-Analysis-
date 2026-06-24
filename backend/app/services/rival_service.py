@@ -9,11 +9,13 @@ from the UI - it's only used to bootstrap an empty table.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.database.db import SessionLocal
 from app.database.models import Rival, RivalSnapshot
 from app.services import rival_collectors
 from app.utils.logger import logger
@@ -150,8 +152,8 @@ class RivalService:
         logger.info(f"Refreshed rival '{rival.name}' (id={rival.id})")
         return self.rival_with_latest(rival)
 
-    def refresh_all(self) -> list[dict]:
-        rivals = self.list_rivals(active_only=True)
+    def refresh_all(self, *, active_only: bool = False) -> list[dict]:
+        rivals = self.list_rivals(active_only=active_only)
         out = []
         for rival in rivals:
             try:
@@ -161,6 +163,59 @@ class RivalService:
             except Exception as exc:  # noqa: BLE001
                 logger.error(f"Failed to refresh rival {rival.id}: {exc}")
         return out
+
+    def needs_auto_refresh(self, rival: Rival) -> bool:
+        """
+        True when cached snapshots are missing or YouTube stats are stale/empty
+        but we can now collect them (e.g. after OAuth was configured).
+        """
+        latest = self.latest_snapshots(rival.id)
+        if not latest:
+            return True
+
+        has_yt_target = bool(
+            (rival.youtube_channel_id or "").strip() or (rival.youtube_handle or "").strip()
+        )
+        if not has_yt_target or not rival_collectors.youtube_is_configured():
+            return False
+
+        yt = latest.get("youtube")
+        if yt is None:
+            return True
+
+        metrics = yt.metrics or {}
+        has_views = bool(metrics.get("total_views"))
+        has_subs = bool(metrics.get("subscribers"))
+
+        if yt.status != "ok":
+            return True
+        if not has_views and not has_subs:
+            return True
+        return False
+
+    @staticmethod
+    def refresh_rival_isolated(rival_id: int) -> None:
+        """Refresh one rival using its own DB session (safe for thread pool)."""
+        db = SessionLocal()
+        try:
+            RivalService(db).refresh_rival(rival_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.error(f"Auto-refresh rival {rival_id} failed: {exc}")
+        finally:
+            db.close()
+
+    def auto_refresh_stale(self, rivals: list[Rival], *, max_workers: int = 4) -> int:
+        """Refresh rivals with missing/stale YouTube snapshots. Returns count refreshed."""
+        stale_ids = [r.id for r in rivals if self.needs_auto_refresh(r)]
+        if not stale_ids:
+            return 0
+
+        workers = min(max_workers, len(stale_ids))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            list(pool.map(self.refresh_rival_isolated, stale_ids))
+
+        logger.info(f"Auto-refreshed {len(stale_ids)} rival(s) with stale YouTube data")
+        return len(stale_ids)
 
     def latest_snapshots(self, rival_id: int) -> dict[str, RivalSnapshot]:
         """Map of platform -> most recent snapshot for that platform."""

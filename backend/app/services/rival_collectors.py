@@ -70,25 +70,68 @@ def _to_int(value: Any) -> int:
 # YouTube
 # ---------------------------------------------------------------------------
 
+def youtube_auth_mode() -> str | None:
+    """How rival YouTube stats are authenticated: api_key, oauth, or None."""
+    if settings.YOUTUBE_DATA_API_KEY.strip():
+        return "api_key"
+    if (
+        settings.YOUTUBE_CLIENT_ID.strip()
+        and settings.YOUTUBE_CLIENT_SECRET.strip()
+        and settings.YOUTUBE_REFRESH_TOKEN.strip()
+    ):
+        return "oauth"
+    return None
+
+
+def youtube_is_configured() -> bool:
+    return youtube_auth_mode() is not None
+
+
+def _youtube_api_auth() -> tuple[dict[str, str], dict[str, str]]:
+    """
+    Return (query_params, headers) for YouTube Data API v3.
+
+    Prefers YOUTUBE_DATA_API_KEY (free public stats key). Falls back to the
+    existing YouTube upload OAuth credentials when the data key is not set.
+    """
+    api_key = settings.YOUTUBE_DATA_API_KEY.strip()
+    if api_key:
+        return {"key": api_key}, {}
+
+    from app.services.social_publisher import YouTubeClient
+
+    client = YouTubeClient()
+    if not client.is_configured:
+        return {}, {}
+
+    headers = client._get_headers()
+    if headers.get("Authorization"):
+        return {}, headers
+    return {}, {}
+
+
 def collect_youtube(rival) -> dict:
     """Public channel stats + recent video engagement (YouTube Data API v3)."""
-    api_key = settings.YOUTUBE_DATA_API_KEY.strip()
     channel_id = (rival.youtube_channel_id or "").strip()
     handle = (rival.youtube_handle or "").strip()
+    auth_params, auth_headers = _youtube_api_auth()
 
     if not channel_id and not handle:
         return _result(
             "youtube", "not_configured",
             message="No YouTube channel ID or handle set for this rival.",
         )
-    if not api_key:
+    if not auth_params.get("key") and not auth_headers.get("Authorization"):
         return _result(
             "youtube", "not_configured",
-            message="Set YOUTUBE_DATA_API_KEY to collect competitor YouTube stats.",
+            message=(
+                "Set YOUTUBE_DATA_API_KEY in backend .env, or configure YouTube OAuth "
+                "(YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN)."
+            ),
         )
 
     try:
-        params = {"part": "snippet,statistics,contentDetails", "key": api_key}
+        params = {"part": "snippet,statistics,contentDetails", **auth_params}
         if channel_id:
             params["id"] = channel_id
         else:
@@ -97,6 +140,7 @@ def collect_youtube(rival) -> dict:
         resp = requests.get(
             f"{YOUTUBE_API_BASE}/channels",
             params=params,
+            headers=auth_headers,
             timeout=settings.SCRAPER_TIMEOUT,
         )
         resp.raise_for_status()
@@ -124,7 +168,7 @@ def collect_youtube(rival) -> dict:
         }
 
         recent_items = (
-            _youtube_recent_videos(uploads_playlist, api_key)
+            _youtube_recent_videos(uploads_playlist, auth_params, auth_headers)
             if uploads_playlist
             else []
         )
@@ -147,7 +191,12 @@ def collect_youtube(rival) -> dict:
         return _result("youtube", "error", message=str(exc))
 
 
-def _youtube_recent_videos(uploads_playlist: str, api_key: str, max_results: int = 5) -> list:
+def _youtube_recent_videos(
+    uploads_playlist: str,
+    auth_params: dict[str, str],
+    auth_headers: dict[str, str],
+    max_results: int = 5,
+) -> list:
     """Fetch the most recent uploads and their per-video engagement."""
     pl = requests.get(
         f"{YOUTUBE_API_BASE}/playlistItems",
@@ -155,8 +204,9 @@ def _youtube_recent_videos(uploads_playlist: str, api_key: str, max_results: int
             "part": "contentDetails",
             "playlistId": uploads_playlist,
             "maxResults": max_results,
-            "key": api_key,
+            **auth_params,
         },
+        headers=auth_headers,
         timeout=settings.SCRAPER_TIMEOUT,
     )
     pl.raise_for_status()
@@ -170,7 +220,12 @@ def _youtube_recent_videos(uploads_playlist: str, api_key: str, max_results: int
 
     vresp = requests.get(
         f"{YOUTUBE_API_BASE}/videos",
-        params={"part": "snippet,statistics", "id": ",".join(video_ids), "key": api_key},
+        params={
+            "part": "snippet,statistics",
+            "id": ",".join(video_ids),
+            **auth_params,
+        },
+        headers=auth_headers,
         timeout=settings.SCRAPER_TIMEOUT,
     )
     vresp.raise_for_status()

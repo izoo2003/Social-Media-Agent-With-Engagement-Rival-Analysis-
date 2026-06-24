@@ -8,7 +8,7 @@ router = APIRouter()
 
 
 @router.get("/social/linkedin/accounts")
-async def list_linkedin_accounts():
+def list_linkedin_accounts():
     """Return configured LinkedIn account labels for the frontend account picker."""
     accounts = load_linkedin_accounts()
     return [
@@ -22,7 +22,7 @@ async def list_linkedin_accounts():
 
 
 @router.get("/social/platforms/config")
-async def get_platform_config():
+def get_platform_config():
     """Return which social platforms are configured and ready to post."""
     publisher = SocialPublisher(draft_mode=True)
     config = publisher.check_platform_config()

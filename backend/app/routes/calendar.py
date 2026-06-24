@@ -31,7 +31,7 @@ router = APIRouter()
 
 
 @router.get("/calendar/events", response_model=list[CalendarEventResponse])
-async def get_calendar_events(
+def get_calendar_events(
     start_date: Optional[datetime] = Query(
         None, description="Filter events scheduled on/after this UTC datetime"
     ),

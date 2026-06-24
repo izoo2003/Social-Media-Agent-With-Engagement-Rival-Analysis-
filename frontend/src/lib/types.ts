@@ -331,6 +331,20 @@ export interface RivalInsight {
   priority: 'high' | 'medium' | 'low' | string;
 }
 
+export interface RivalPlatformConfig {
+  configured: boolean;
+  hint: string;
+  auth_mode?: string | null;
+  api_key_set?: boolean;
+  oauth_set?: boolean;
+}
+
+export interface RivalsConfigResponse {
+  youtube: RivalPlatformConfig;
+  instagram: RivalPlatformConfig;
+  website: RivalPlatformConfig;
+}
+
 export interface RivalInsightsResponse {
   generated_at: string;
   rival_count: number;
@@ -356,9 +370,19 @@ export interface ChatRequest {
   messages: { role: ChatRole; content: string }[];
 }
 
+export interface MatchedProduct {
+  id: string;
+  name: string;
+  brand: string;
+  category: string;
+  description: string;
+  packaging: string[];
+}
+
 export interface ChatResponse {
   model: string;
   reply: string;
+  matched_product?: MatchedProduct | null;
 }
 
 export interface CreationModel {

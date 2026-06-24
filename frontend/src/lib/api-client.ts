@@ -70,6 +70,7 @@ export const API_ENDPOINTS = {
   RIVAL_SNAPSHOTS: (id: number) =>
     `${API_BASE_URL}/api/${API_VERSION}/rivals/${id}/snapshots`,
   RIVALS_INSIGHTS: `${API_BASE_URL}/api/${API_VERSION}/rivals/insights`,
+  RIVALS_CONFIG: `${API_BASE_URL}/api/${API_VERSION}/rivals/config`,
 
   // Uploads
   UPLOADS: `${API_BASE_URL}/uploads`,
@@ -78,7 +79,23 @@ export const API_ENDPOINTS = {
 export const API_CONFIG = {
   baseURL: API_BASE_URL,
   timeout: 120000, // 2 min timeout for generation
+  readTimeout: 10000, // 10s for dashboard/list reads — fail fast instead of hanging
   headers: {
     'Content-Type': 'application/json',
   },
 };
+
+/** Fetch with an abort timeout so slow/unreachable backends don't freeze the UI. */
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init?: RequestInit & { timeoutMs?: number },
+): Promise<Response> {
+  const { timeoutMs = API_CONFIG.readTimeout, ...fetchInit } = init ?? {};
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(input, { ...fetchInit, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}

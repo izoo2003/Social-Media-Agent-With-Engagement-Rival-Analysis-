@@ -15,17 +15,22 @@ GET    /rivals/{id}/snapshots   - Historical snapshots (for trend charts)
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.dependencies import get_db
 from app.schemas.rival import RivalCreate, RivalUpdate
-from app.services import rival_insights
+from app.services import rival_collectors, rival_insights
 from app.services.rival_service import RivalService, serialize_snapshot
 
 router = APIRouter()
 
 
 @router.get("/rivals")
-async def list_rivals(
+def list_rivals(
     active_only: bool = False,
+    auto_refresh: bool = Query(
+        True,
+        description="Refresh rivals with missing/stale YouTube snapshots before returning",
+    ),
     db: Session = Depends(get_db),
 ):
     """List tracked rivals with their latest per-platform analytics.
@@ -33,9 +38,14 @@ async def list_rivals(
     Seeds the curated default rivals on first use so the dashboard isn't empty.
     """
     service = RivalService(db)
-    if not service.list_rivals():
-        service.seed_defaults()
     rivals = service.list_rivals(active_only=active_only)
+    if not rivals:
+        service.seed_defaults()
+        rivals = service.list_rivals(active_only=active_only)
+
+    if auto_refresh and rivals:
+        service.auto_refresh_stale(rivals)
+
     return [service.rival_with_latest(rival) for rival in rivals]
 
 
@@ -50,6 +60,46 @@ async def create_rival(
     return service.rival_with_latest(rival)
 
 
+@router.get("/rivals/config")
+def get_rivals_config():
+    """Public integration status for the Rival Review collectors (no secrets)."""
+    youtube_mode = rival_collectors.youtube_auth_mode()
+    instagram_ready = bool(
+        settings.INSTAGRAM_ACCOUNT_ID.strip()
+        and settings.FACEBOOK_PAGE_ACCESS_TOKEN.strip()
+    )
+    return {
+        "youtube": {
+            "configured": youtube_mode is not None,
+            "auth_mode": youtube_mode,
+            "api_key_set": bool(settings.YOUTUBE_DATA_API_KEY.strip()),
+            "oauth_set": bool(
+                settings.YOUTUBE_CLIENT_ID.strip()
+                and settings.YOUTUBE_CLIENT_SECRET.strip()
+                and settings.YOUTUBE_REFRESH_TOKEN.strip()
+            ),
+            "hint": (
+                "Ready — rival YouTube stats use your "
+                + ("Data API key." if youtube_mode == "api_key" else "YouTube OAuth credentials.")
+                if youtube_mode
+                else "Add YOUTUBE_DATA_API_KEY or complete YouTube OAuth in backend .env."
+            ),
+        },
+        "instagram": {
+            "configured": instagram_ready,
+            "hint": (
+                "Ready — uses INSTAGRAM_ACCOUNT_ID + FACEBOOK_PAGE_ACCESS_TOKEN."
+                if instagram_ready
+                else "Set INSTAGRAM_ACCOUNT_ID and FACEBOOK_PAGE_ACCESS_TOKEN in backend .env."
+            ),
+        },
+        "website": {
+            "configured": True,
+            "hint": "Uses each rival's website / RSS URL (no extra API key).",
+        },
+    }
+
+
 @router.get("/rivals/insights")
 async def get_rival_insights(
     rival_id: int | None = Query(default=None, description="Scope insights to one rival"),
@@ -61,10 +111,10 @@ async def get_rival_insights(
 
 
 @router.post("/rivals/refresh-all")
-async def refresh_all_rivals(
+def refresh_all_rivals(
     db: Session = Depends(get_db),
 ):
-    """Refresh analytics snapshots for every active rival."""
+    """Refresh analytics snapshots for every rival."""
     service = RivalService(db)
     results = service.refresh_all()
     return {"refreshed": len(results), "rivals": results}
@@ -111,7 +161,7 @@ async def delete_rival(
 
 
 @router.post("/rivals/{rival_id}/refresh")
-async def refresh_rival(
+def refresh_rival(
     rival_id: int,
     db: Session = Depends(get_db),
 ):

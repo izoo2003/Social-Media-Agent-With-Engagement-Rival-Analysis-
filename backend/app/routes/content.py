@@ -343,7 +343,7 @@ async def post_content_to_socials(
 
 
 @router.get("/content/history", response_model=list[ContentHistoryResponse])
-async def get_content_history(
+def get_content_history(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     platform: str = Query(None, description="Filter by platform"),
@@ -355,11 +355,9 @@ async def get_content_history(
     try:
         logger.info(f"Fetching content history: skip={skip}, limit={limit}, platform={platform}")
 
-        service = ContentService(db)
-        contents = service.list_content(platform=platform, limit=limit)
-
-        # Apply skip for pagination
-        contents = contents[skip:]
+        # Lightweight list query — avoids spinning up ContentService / LLM client.
+        contents = ContentService(db, with_llm=False).list_content(platform=platform, limit=limit + skip)
+        contents = contents[skip:limit + skip]
 
         return [
             ContentHistoryResponse(

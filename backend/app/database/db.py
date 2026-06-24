@@ -14,8 +14,11 @@ from app.config import settings
 # - pool_recycle proactively refreshes connections the pooler may have closed
 # - pool_timeout / connect_timeout ensure we fail fast instead of hanging forever
 # - statement_timeout (server-side) caps any single query so one slow/stuck query
-#   can never freeze the whole app (the route handlers are async but do blocking
-#   DB I/O, so an unbounded query would otherwise block the entire event loop).
+#   can never freeze the whole app.
+#
+# Sync SQLAlchemy routes should be declared with plain `def` (not `async def`) so
+# FastAPI runs blocking DB I/O in a thread pool instead of blocking the event loop.
+_connect_timeout = max(3, settings.DATABASE_CONNECT_TIMEOUT)
 engine = create_engine(
     settings.DATABASE_URL,
     echo=settings.DATABASE_ECHO,
@@ -24,10 +27,10 @@ engine = create_engine(
     pool_recycle=300,
     pool_size=5,
     max_overflow=5,
-    pool_timeout=10,
+    pool_timeout=8,
     connect_args={
-        "connect_timeout": 10,
-        "options": "-c statement_timeout=30000",  # 30s hard cap per statement
+        "connect_timeout": _connect_timeout,
+        "options": "-c statement_timeout=15000",  # 15s hard cap per statement
     },
 )
 

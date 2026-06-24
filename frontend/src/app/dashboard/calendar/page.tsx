@@ -13,7 +13,7 @@ import {
   startOfWeek,
   subMonths,
 } from 'date-fns';
-import { API_ENDPOINTS } from '@/lib/api-client';
+import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
 import { CalendarEvent } from '@/lib/types';
 import ScheduleModal from '@/components/calendar/ScheduleModal';
 import EventDetailModal from '@/components/calendar/EventDetailModal';
@@ -37,12 +37,12 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 const STATUS_CHIP: Record<string, string> = {
-  pending: 'bg-amber-50 border-amber-300 text-amber-800',
-  publishing: 'bg-blue-50 border-blue-300 text-blue-800',
-  published: 'bg-green-50 border-green-300 text-green-800',
-  partial: 'bg-orange-50 border-orange-300 text-orange-800',
-  failed: 'bg-red-50 border-red-300 text-red-800',
-  cancelled: 'bg-gray-50 border-gray-300 text-gray-500 line-through',
+  pending: 'bg-amber-50 border-amber-300 text-amber-800 dark:bg-amber-950/40 dark:border-amber-700 dark:text-amber-300',
+  publishing: 'bg-blue-50 border-blue-300 text-blue-800 dark:bg-blue-950/40 dark:border-blue-700 dark:text-blue-300',
+  published: 'bg-green-50 border-green-300 text-green-800 dark:bg-emerald-950/40 dark:border-emerald-700 dark:text-emerald-300',
+  partial: 'bg-orange-50 border-orange-300 text-orange-800 dark:bg-orange-950/40 dark:border-orange-700 dark:text-orange-300',
+  failed: 'bg-red-50 border-red-300 text-red-800 dark:bg-red-950/40 dark:border-red-700 dark:text-red-300',
+  cancelled: 'bg-gray-50 border-gray-300 text-gray-500 line-through dark:bg-slate-800 dark:border-slate-600 dark:text-slate-500',
 };
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -76,7 +76,7 @@ export default function CalendarPage() {
         end_date: gridEnd.toISOString(),
         limit: '500',
       });
-      const res = await fetch(`${API_ENDPOINTS.CALENDAR_EVENTS}?${params.toString()}`);
+      const res = await fetchWithTimeout(`${API_ENDPOINTS.CALENDAR_EVENTS}?${params.toString()}`);
       if (res.ok) {
         const data: CalendarEvent[] = await res.json();
         setEvents(data);
@@ -97,7 +97,7 @@ export default function CalendarPage() {
   // Refresh while events are pending/publishing; back off when idle (less load in dev)
   useEffect(() => {
     const hasActive = events.some((e) => ['pending', 'publishing'].includes(e.status));
-    const ms = hasActive ? 30000 : 120000;
+    const ms = hasActive ? 45000 : 180000;
     const id = setInterval(() => fetchEvents({ background: true }), ms);
     return () => clearInterval(id);
   }, [fetchEvents, events]);
@@ -168,7 +168,7 @@ export default function CalendarPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Calendar grid */}
-        <div className="lg:col-span-3 bg-white rounded-lg shadow p-4">
+        <div className="lg:col-span-3 bg-white rounded-lg shadow p-4 dark:bg-slate-800 dark:border dark:border-slate-700">
           {/* Month nav */}
           <div className="flex items-center justify-between mb-4">
             <button
@@ -183,7 +183,7 @@ export default function CalendarPage() {
               </h2>
               <button
                 onClick={() => setCursor(new Date())}
-                className="text-xs px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600"
+                className="text-xs px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300"
               >
                 Today
               </button>
@@ -219,7 +219,7 @@ export default function CalendarPage() {
                   key={key}
                   onClick={() => openNewSchedule(day)}
                   className={`min-h-[96px] rounded-lg border p-1.5 cursor-pointer transition-colors ${
-                    inMonth ? 'bg-white border-gray-200 hover:border-brand-300' : 'bg-gray-50 border-gray-100'
+                    inMonth ? 'bg-white border-gray-200 hover:border-brand-300 dark:bg-slate-800 dark:border-slate-600 dark:hover:border-gold-500/50' : 'bg-gray-50 border-gray-100 dark:bg-slate-900/50 dark:border-slate-700'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">

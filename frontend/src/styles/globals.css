@@ -52,38 +52,136 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .dark .bg-slate-50,
-.dark .bg-gray-50 {
-  @apply bg-slate-900;
+.dark .bg-slate-100,
+.dark .bg-gray-50,
+.dark .bg-gray-100,
+.dark .bg-gray-200 {
+  @apply bg-slate-800;
 }
 
-.dark .bg-blue-50 {
-  @apply bg-slate-800/80;
+.dark .bg-blue-50,
+.dark .bg-green-50,
+.dark .bg-red-50,
+.dark .bg-amber-50,
+.dark .bg-orange-50,
+.dark .bg-yellow-50,
+.dark .bg-purple-50 {
+  @apply bg-slate-800/90;
 }
 
-.dark .bg-green-50 {
-  @apply bg-emerald-950/40;
+.dark .bg-brand-50,
+.dark .bg-brand-100,
+.dark .bg-gold-50,
+.dark .bg-gold-100 {
+  @apply bg-brand-950/50;
+}
+
+.dark .bg-green-100,
+.dark .bg-emerald-100 {
+  @apply bg-emerald-950/55;
+}
+
+.dark .bg-amber-100,
+.dark .bg-yellow-100 {
+  @apply bg-amber-950/55;
+}
+
+.dark .bg-red-100 {
+  @apply bg-red-950/55;
+}
+
+.dark .bg-blue-100 {
+  @apply bg-blue-950/55;
 }
 
 .dark .text-slate-900,
+.dark .text-slate-800,
+.dark .text-slate-700,
+.dark .text-gray-900,
 .dark .text-gray-800,
 .dark .text-gray-700 {
   @apply text-slate-100;
 }
 
+.dark .text-slate-600,
 .dark .text-slate-500,
-.dark .text-gray-500,
-.dark .text-gray-600 {
+.dark .text-gray-600,
+.dark .text-gray-500 {
   @apply text-slate-400;
 }
 
+.dark .text-brand-900,
+.dark .text-brand-800 {
+  @apply text-brand-200;
+}
+
+.dark .text-brand-700 {
+  @apply text-brand-300;
+}
+
+.dark .text-gold-700,
+.dark .text-gold-800 {
+  @apply text-gold-300;
+}
+
+.dark .text-green-700,
+.dark .text-green-800 {
+  @apply text-emerald-300;
+}
+
+.dark .text-amber-700,
+.dark .text-amber-800 {
+  @apply text-amber-300;
+}
+
+.dark .text-red-700,
+.dark .text-red-800 {
+  @apply text-red-300;
+}
+
+.dark .text-blue-700,
+.dark .text-blue-800 {
+  @apply text-blue-300;
+}
+
+.dark .text-yellow-800 {
+  @apply text-yellow-300;
+}
+
+.dark .text-orange-800 {
+  @apply text-orange-300;
+}
+
 .dark .border-gray-200,
-.dark .border-blue-100,
-.dark .border-green-200 {
+.dark .border-gray-100,
+.dark .border-gray-300,
+.dark .border-slate-200,
+.dark .border-slate-300 {
   @apply border-slate-600;
+}
+
+.dark .border-blue-100,
+.dark .border-blue-200,
+.dark .border-green-200,
+.dark .border-red-200,
+.dark .border-brand-100,
+.dark .border-brand-200,
+.dark .border-gold-200 {
+  @apply border-slate-600;
+}
+
+.dark .border-amber-300,
+.dark .border-blue-300,
+.dark .border-green-300,
+.dark .border-orange-300,
+.dark .border-red-300,
+.dark .border-purple-300 {
+  @apply border-slate-500;
 }
 
 .dark .shadow,
 .dark .shadow-sm,
+.dark .shadow-md,
 .dark .shadow-lg,
 .dark .shadow-xl {
   --tw-shadow-color: rgb(0 0 0 / 0.35);
@@ -97,6 +195,24 @@ h1, h2, h3, h4, h5, h6 {
 
 .dark code {
   @apply bg-slate-700 text-gold-300 px-1 rounded;
+}
+
+.dark .hover\:bg-gray-50:hover,
+.dark .hover\:bg-gray-100:hover {
+  @apply bg-slate-700;
+}
+
+.dark .hover\:bg-gray-200:hover,
+.dark .hover\:bg-gray-300:hover {
+  @apply bg-slate-600;
+}
+
+.dark .hover\:bg-brand-50:hover {
+  @apply bg-brand-950/60;
+}
+
+.dark .hover\:bg-purple-50\/50:hover {
+  @apply bg-slate-700/80;
 }
 
 button {

@@ -30,6 +30,7 @@ backend/.internal_api_key
 out/
 frontend/.next/
 frontend/out/
+*.tsbuildinfo
 
 # Logs
 *.log

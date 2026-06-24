@@ -14,6 +14,7 @@ Design notes:
 - Times are compared in UTC (scheduled_date is stored in UTC).
 """
 
+import threading
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -210,15 +211,18 @@ def start_scheduler() -> None:
     if _scheduler and _scheduler.running:
         return
 
-    # On startup, nothing can legitimately be mid-publish, so any 'publishing'
-    # rows are leftovers from a previous (interrupted) run — mark them failed.
-    db = SessionLocal()
-    try:
-        reclaim_stuck_events(db, stale_minutes=None)
-    except Exception as e:
-        logger.error(f"Startup reclaim failed: {e}")
-    finally:
-        db.close()
+    # Reclaim orphaned 'publishing' rows in the background so API startup is not
+    # blocked waiting on a slow/unreachable database.
+    def _startup_reclaim() -> None:
+        db = SessionLocal()
+        try:
+            reclaim_stuck_events(db, stale_minutes=None)
+        except Exception as e:
+            logger.error(f"Startup reclaim failed: {e}")
+        finally:
+            db.close()
+
+    threading.Thread(target=_startup_reclaim, name="scheduler-startup-reclaim", daemon=True).start()
 
     interval = max(5, settings.SCHEDULER_POLL_INTERVAL_SECONDS)
     _scheduler = BackgroundScheduler(timezone="UTC")

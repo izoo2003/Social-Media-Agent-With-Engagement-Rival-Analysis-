@@ -43,9 +43,9 @@ export default function GeneratorPage() {
       <ContentGenerationForm />
 
       {/* Info Box */}
-      <div className="mt-8 bg-brand-50 border border-brand-100 rounded-lg p-6">
-        <h3 className="font-semibold text-brand-900 mb-2">💡 How This Works</h3>
-        <ul className="text-sm text-slate-700 space-y-1.5">
+      <div className="mt-8 bg-brand-50 border border-brand-100 rounded-lg p-6 dark:bg-brand-950/40 dark:border-brand-800/60">
+        <h3 className="font-semibold text-brand-900 dark:text-brand-200 mb-2">💡 How This Works</h3>
+        <ul className="text-sm text-slate-700 dark:text-slate-300 space-y-1.5">
           <li>• <strong>Graphic designer</strong> creates the image/video in their design tools (Photoshop, Canva, etc.)</li>
           <li>• <strong>Upload the media file</strong> here — the system stores it locally</li>
           <li>• <strong>AI generates a caption</strong> optimized for each platform&apos;s audience and format</li>

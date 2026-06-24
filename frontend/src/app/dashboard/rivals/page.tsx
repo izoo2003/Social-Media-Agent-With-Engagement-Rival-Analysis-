@@ -27,11 +27,12 @@ import {
   Youtube,
 } from 'lucide-react';
 
-import { API_ENDPOINTS } from '@/lib/api-client';
+import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
 import type {
   Rival,
   RivalCreate,
   RivalInsightsResponse,
+  RivalsConfigResponse,
   RivalSnapshot,
 } from '@/lib/types';
 
@@ -69,29 +70,30 @@ function formatNumber(value?: number | string | null): string {
 function statusBadge(status?: string) {
   switch (status) {
     case 'ok':
-      return 'bg-green-100 text-green-700';
+      return 'bg-green-100 text-green-700 dark:bg-emerald-950/50 dark:text-emerald-300';
     case 'unavailable':
-      return 'bg-amber-100 text-amber-700';
+      return 'bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300';
     case 'error':
-      return 'bg-red-100 text-red-700';
+      return 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300';
     default:
-      return 'bg-gray-100 text-gray-500';
+      return 'bg-gray-100 text-gray-500 dark:bg-slate-700 dark:text-slate-400';
   }
 }
 
 function priorityBadge(priority: string) {
   switch (priority) {
     case 'high':
-      return 'bg-red-100 text-red-700 border-red-200';
+      return 'bg-red-100 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-800';
     case 'medium':
-      return 'bg-amber-100 text-amber-700 border-amber-200';
+      return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800';
     default:
-      return 'bg-blue-100 text-blue-700 border-blue-200';
+      return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800';
   }
 }
 
 export default function RivalReviewPage() {
   const [rivals, setRivals] = useState<Rival[]>([]);
+  const [rivalsConfig, setRivalsConfig] = useState<RivalsConfigResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [refreshingId, setRefreshingId] = useState<number | null>(null);
@@ -113,7 +115,7 @@ export default function RivalReviewPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const res = await fetch(API_ENDPOINTS.RIVALS);
+      const res = await fetchWithTimeout(API_ENDPOINTS.RIVALS, { timeoutMs: 120000 });
       if (!res.ok) throw new Error(`Failed to load rivals (${res.status})`);
       setRivals((await res.json()) as Rival[]);
     } catch (err) {
@@ -125,6 +127,13 @@ export default function RivalReviewPage() {
 
   useEffect(() => {
     loadRivals();
+    fetchWithTimeout(API_ENDPOINTS.RIVALS_CONFIG)
+      .then(async (res) => {
+        if (res.ok) setRivalsConfig((await res.json()) as RivalsConfigResponse);
+      })
+      .catch(() => {
+        /* non-fatal */
+      });
   }, [loadRivals]);
 
   const handleRefresh = async (id: number) => {
@@ -273,6 +282,10 @@ export default function RivalReviewPage() {
         </div>
       </div>
 
+      {rivalsConfig && (
+        <RivalsConfigPanel config={rivalsConfig} />
+      )}
+
       {error && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
           <AlertCircle className="h-5 w-5" />
@@ -285,8 +298,10 @@ export default function RivalReviewPage() {
       )}
 
       {isLoading ? (
-        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-gray-500 shadow-sm">
-          Loading rivals...
+        <div className="rounded-xl border border-gray-200 bg-white p-10 text-center text-gray-500 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+          <span className="inline-block w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mb-3" />
+          <p>Loading rivals and fetching YouTube stats…</p>
+          <p className="mt-1 text-xs text-gray-400">First load can take 20–30 seconds while channels refresh.</p>
         </div>
       ) : rivals.length === 0 ? (
         <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-gray-600">
@@ -326,6 +341,57 @@ export default function RivalReviewPage() {
   );
 }
 
+function RivalsConfigPanel({ config }: { config: RivalsConfigResponse }) {
+  const items = [
+    { key: 'youtube', label: 'YouTube', icon: <Youtube className="h-4 w-4" />, data: config.youtube },
+    { key: 'instagram', label: 'Instagram', icon: <Instagram className="h-4 w-4" />, data: config.instagram },
+    { key: 'website', label: 'Website / RSS', icon: <Globe className="h-4 w-4" />, data: config.website },
+  ] as const;
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+      <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Data source configuration</h2>
+      <p className="mt-1 text-xs text-gray-500 dark:text-slate-400">
+        Rival Review uses separate keys from Content Posting. After updating backend <code>.env</code>, restart the server and click <strong>Refresh all</strong>.
+      </p>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {items.map(({ key, label, icon, data }) => (
+          <div
+            key={key}
+            className={`rounded-lg border px-4 py-3 ${
+              data.configured
+                ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/30'
+                : 'border-amber-200 bg-amber-50 dark:border-amber-800/60 dark:bg-amber-950/30'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-sm font-medium text-slate-800 dark:text-slate-100">
+                {icon}
+                {label}
+              </span>
+              <span
+                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                  data.configured
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300'
+                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300'
+                }`}
+              >
+                {data.configured ? 'Ready' : 'Not configured'}
+              </span>
+            </div>
+            <p className="mt-2 text-xs text-gray-600 dark:text-slate-400">{data.hint}</p>
+            {key === 'youtube' && data.configured && data.auth_mode === 'oauth' && (
+              <p className="mt-1 text-[11px] text-gray-500 dark:text-slate-500">
+                Using YouTube OAuth (upload credentials) because <code>YOUTUBE_DATA_API_KEY</code> is empty.
+              </p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function RivalCard({
   rival,
   refreshing,
@@ -351,7 +417,7 @@ function RivalCard({
         <div>
           <h2 className="text-lg font-semibold text-gray-900">{rival.name}</h2>
           {rival.category && (
-            <span className="mt-1 inline-block rounded-full bg-gold-50 px-2 py-0.5 text-xs font-medium text-gold-700 border border-gold-200 capitalize">
+            <span className="mt-1 inline-block rounded-full bg-gold-50 px-2 py-0.5 text-xs font-medium text-gold-700 border border-gold-200 capitalize dark:bg-gold-950/40 dark:text-gold-300 dark:border-gold-800/60">
               {rival.category}
             </span>
           )}
@@ -373,8 +439,16 @@ function RivalCard({
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3">
-        <Metric label="YT subscribers" value={formatNumber(yt?.metrics?.subscribers as number)} />
-        <Metric label="YT total views" value={formatNumber(yt?.metrics?.total_views as number)} />
+        <Metric
+          label="YT subscribers"
+          value={formatNumber(yt?.metrics?.subscribers as number)}
+          hint={yt?.status !== 'ok' ? yt?.message : undefined}
+        />
+        <Metric
+          label="YT total views"
+          value={formatNumber(yt?.metrics?.total_views as number)}
+          hint={yt?.status !== 'ok' ? yt?.message : undefined}
+        />
         <Metric label="IG followers" value={formatNumber(ig?.metrics?.followers as number)} />
         <Metric
           label="IG avg engagement"
@@ -415,17 +489,22 @@ function PlatformStatusRow({
         className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadge(snapshot?.status)}`}
         title={snapshot?.message ?? undefined}
       >
-        {snapshot?.status ?? 'no data'}
+        {snapshot?.status ?? 'not refreshed'}
       </span>
     </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value, hint }: { label: string; value: string; hint?: string | null }) {
   return (
-    <div className="rounded-lg bg-gray-50 px-3 py-2">
-      <p className="text-xs text-gray-500">{label}</p>
-      <p className="mt-0.5 text-lg font-semibold text-gray-900">{value}</p>
+    <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-slate-900/60" title={hint ?? undefined}>
+      <p className="text-xs text-gray-500 dark:text-slate-400">{label}</p>
+      <p className="mt-0.5 text-lg font-semibold text-gray-900 dark:text-slate-100">{value}</p>
+      {hint && value === '-' && (
+        <p className="mt-1 text-[10px] leading-tight text-amber-700 dark:text-amber-300 line-clamp-2">
+          {hint}
+        </p>
+      )}
     </div>
   );
 }

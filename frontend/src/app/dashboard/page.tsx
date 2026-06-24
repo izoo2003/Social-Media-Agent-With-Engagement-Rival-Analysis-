@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { API_ENDPOINTS } from '@/lib/api-client';
+import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
 
 interface ContentItem {
   id: number;
@@ -114,35 +114,32 @@ export default function DashboardPage() {
     onConfirm: () => void;
   }>({ open: false, title: '', message: '', confirmLabel: '', onConfirm: () => {} });
 
-  const fetchContent = useCallback(async () => {
-    try {
-      const res = await fetch(API_ENDPOINTS.CONTENT_HISTORY + '?limit=50');
-      if (res.ok) {
-        const data: ContentItem[] = await res.json();
-        setContents(data);
-        const posted = data.filter(isPosted).length;
-        setStats({ total: data.length, drafted: data.length - posted, posted });
-      }
-    } catch (err) {
-      console.error('Failed to fetch content:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    const [contentResult, qaResult] = await Promise.allSettled([
+      fetchWithTimeout(API_ENDPOINTS.CONTENT_HISTORY + '?limit=50'),
+      fetchWithTimeout(API_ENDPOINTS.APPROVAL_STATS),
+    ]);
 
-  const fetchQaStats = useCallback(async () => {
-    try {
-      const res = await fetch(API_ENDPOINTS.APPROVAL_STATS);
-      if (res.ok) setQaStats(await res.json());
-    } catch {
-      // non-fatal
+    if (contentResult.status === 'fulfilled' && contentResult.value.ok) {
+      const data: ContentItem[] = await contentResult.value.json();
+      setContents(data);
+      const posted = data.filter(isPosted).length;
+      setStats({ total: data.length, drafted: data.length - posted, posted });
+    } else if (contentResult.status === 'rejected') {
+      console.error('Failed to fetch content:', contentResult.reason);
     }
+
+    if (qaResult.status === 'fulfilled' && qaResult.value.ok) {
+      setQaStats(await qaResult.value.json());
+    }
+
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    fetchContent();
-    fetchQaStats();
-  }, [fetchContent, fetchQaStats]);
+    loadDashboard();
+  }, [loadDashboard]);
 
   const clearAll = async () => {
     setClearing(true);
@@ -294,7 +291,7 @@ export default function DashboardPage() {
               </button>
             )}
             <button
-              onClick={() => { fetchContent(); fetchQaStats(); }}
+              onClick={loadDashboard}
               className="text-sm text-brand-700 hover:text-brand-800 font-medium"
             >
               ↻ Refresh

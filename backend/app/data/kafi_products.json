@@ -1,0 +1,630 @@
+[
+  {
+    "id": "mango-pickle",
+    "name": "Mango Pickle",
+    "brand": "Essence",
+    "category": "Pickles",
+    "description": "Authentic Pakistani-style mango pickle crafted from premium raw mangoes blended with aromatic spices and traditional recipes. Bold, tangy, and rich in flavour — a staple condiment for rice, roti, and grilled dishes. Available in both family-size pet bottles and convenient smaller glass jars.",
+    "packaging": [
+      "1000 GMS × 6 PET Bottle packed in Master Carton",
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["mango pickle", "aam achar", "mango achar", "aam ka achar", "mango pickle essence", "achar mango"]
+  },
+  {
+    "id": "mix-pickle",
+    "name": "Mix Pickle",
+    "brand": "Essence",
+    "category": "Pickles",
+    "description": "A delightful blend of mixed vegetables pickled in aromatic spices and oil. This all-in-one pickle combines the flavours of mango, lemon, chilli, and other vegetables, making it a versatile condiment for every meal.",
+    "packaging": [
+      "1000 GMS × 6 PET Bottle packed in Master Carton",
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["mix pickle", "mixed pickle", "mixed achar", "mix achar", "sabzi achar", "assorted pickle"]
+  },
+  {
+    "id": "lemon-pickle",
+    "name": "Lemon Pickle",
+    "brand": "Essence",
+    "category": "Pickles",
+    "description": "Zesty and sharp lemon pickle made with whole lemons preserved in a blend of traditional spices and oil. Adds a punch of citrusy tang to biryanis, curries, and parathas. A classic Pakistani household favourite.",
+    "packaging": [
+      "1000 GMS × 6 PET Bottle packed in Master Carton",
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["lemon pickle", "nimbu achar", "lemon achar", "lime pickle", "nimbu ka achar"]
+  },
+  {
+    "id": "hyderabadi-pickle",
+    "name": "Hyderabadi Pickle",
+    "brand": "Essence",
+    "category": "Pickles",
+    "description": "A rich, spicy pickle inspired by the famous Hyderabadi culinary tradition. Packed with whole spices, chilli, and a robust blend of aromatics — this pickle brings the bold flavours of the subcontinent to any meal.",
+    "packaging": [
+      "1000 GMS × 6 PET Bottle packed in Master Carton",
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["hyderabadi pickle", "hyderabad pickle", "hyderabadi achar", "hydrabadi pickle", "hyderabadi", "hyderi pickle"]
+  },
+  {
+    "id": "green-chilli-chutney",
+    "name": "Green Chilli Chutney",
+    "brand": "Essence",
+    "category": "Chutneys",
+    "description": "Fiery and vibrant green chilli chutney made from fresh green chillies, herbs, and spices. The perfect spicy accompaniment for samosas, kebabs, sandwiches, and grilled meats. Adds an intense kick of heat and freshness.",
+    "packaging": [
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["green chilli chutney", "hari chutney", "green chutney", "chilli chutney", "hari mirch chutney", "green chili chutney"]
+  },
+  {
+    "id": "mint-chutney",
+    "name": "Mint Chutney",
+    "brand": "Essence",
+    "category": "Chutneys",
+    "description": "A refreshing and aromatic mint chutney blended with fresh mint leaves, green chilli, and spices. The classic dip for pakoras, samosas, and tikkas. Bright green colour with a cooling, herby flavour profile.",
+    "packaging": [
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["mint chutney", "pudina chutney", "mint sauce chutney", "pudina chatni", "green mint chutney"]
+  },
+  {
+    "id": "dates-tamarind-chutney",
+    "name": "Dates & Tamarind Chutney",
+    "brand": "Essence",
+    "category": "Chutneys",
+    "description": "A classic sweet and tangy chutney combining the natural sweetness of dates with the sourness of tamarind. An essential chaat condiment used on gol gappay, dahi puri, and pakoras. Rich, thick, and deeply flavoured.",
+    "packaging": [
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["dates tamarind chutney", "khajoor imli chutney", "imli chutney", "tamarind chutney", "dates chutney", "khajoor chutney", "sweet chutney", "meethi chutney"]
+  },
+  {
+    "id": "plum-chutney",
+    "name": "Plum Chutney",
+    "brand": "Essence",
+    "category": "Chutneys",
+    "description": "A uniquely flavoured plum chutney made from ripe plums combined with spices and a touch of sweetness. Pairs beautifully with roasted meats, cheese boards, and sandwiches. A premium product with a distinctive fruity-tangy taste.",
+    "packaging": [
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["plum chutney", "aloo bukhara chutney", "plum sauce", "plum condiment"]
+  },
+  {
+    "id": "mango-chutney",
+    "name": "Mango Chutney",
+    "brand": "Essence",
+    "category": "Chutneys",
+    "description": "Sweet, tangy mango chutney made from ripe mangoes cooked down with sugar, vinegar, and warming spices. A versatile condiment that pairs with crackers, cheese, grilled chicken, curries, and more. Popular in both South Asian and international cuisines.",
+    "packaging": [
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["mango chutney", "aam chutney", "sweet mango chutney", "mango relish", "aam ki chutney"]
+  },
+  {
+    "id": "garlic-paste",
+    "name": "Garlic Paste",
+    "brand": "Essence",
+    "category": "Pastes",
+    "description": "Premium quality garlic paste made from carefully selected fresh garlic cloves, processed and packed hygienically. Saves valuable kitchen prep time and delivers consistent, bold garlic flavour for curries, marinades, and stir-fries. A commercial kitchen essential.",
+    "packaging": [
+      "1 KG × 6 PET Jar packed in Master Carton",
+      "750 GMS × 12 PET Jar packed in Master Carton",
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["garlic paste", "lehsan paste", "garlic puree", "minced garlic", "crushed garlic", "lahsan paste"]
+  },
+  {
+    "id": "ginger-paste",
+    "name": "Ginger Paste",
+    "brand": "Essence",
+    "category": "Pastes",
+    "description": "Freshly prepared ginger paste made from premium quality ginger roots. Delivers the authentic sharp, warm, and peppery flavour of fresh ginger without any preparation hassle. Ideal for curries, marinades, soups, teas, and Asian cooking.",
+    "packaging": [
+      "1 KG × 6 PET Jar packed in Master Carton",
+      "750 GMS × 12 PET Jar packed in Master Carton",
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["ginger paste", "adrak paste", "ginger puree", "minced ginger", "crushed ginger", "adrak"]
+  },
+  {
+    "id": "garlic-ginger-paste",
+    "name": "Garlic & Ginger Paste",
+    "brand": "Essence",
+    "category": "Pastes",
+    "description": "A perfectly balanced blend of fresh garlic and ginger, the two most essential ingredients in South Asian cooking. This ready-to-use combination paste eliminates double prep and ensures consistent flavour in every dish — from biryani to marinades.",
+    "packaging": [
+      "1 KG × 6 PET Jar packed in Master Carton",
+      "750 GMS × 12 PET Jar packed in Master Carton",
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["garlic ginger paste", "ginger garlic paste", "adrak lehsan paste", "lehsan adrak paste", "ginger and garlic paste", "ginger & garlic paste"]
+  },
+  {
+    "id": "onion-paste",
+    "name": "Onion Paste",
+    "brand": "Essence",
+    "category": "Pastes",
+    "description": "Smooth, ready-to-use onion paste made from premium fresh onions. Forms the flavour base of countless South Asian and Middle Eastern dishes. Saves significant prep time in commercial and home kitchens while delivering a consistent, authentic taste.",
+    "packaging": [
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["onion paste", "pyaz paste", "onion puree", "pyaaz paste", "pureed onion"]
+  },
+  {
+    "id": "papaya-paste",
+    "name": "Papaya Paste",
+    "brand": "Essence",
+    "category": "Pastes",
+    "description": "Raw papaya paste, the secret ingredient in tenderising meats. Widely used in BBQ marinades, particularly for tikkas and seekh kebabs. The natural enzymes in raw papaya break down tough meat fibres, resulting in exceptionally tender and juicy results.",
+    "packaging": [
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["papaya paste", "raw papaya paste", "green papaya paste", "meat tenderizer", "papaya marinade", "kachri papaya"]
+  },
+  {
+    "id": "green-chilli-paste",
+    "name": "Green Chilli Paste",
+    "brand": "Essence",
+    "category": "Pastes",
+    "description": "Smooth and intensely flavoured green chilli paste made from fresh green chillies. Adds a bright, spicy heat to curries, chutneys, marinades, and sauces. A convenient alternative to chopping or blending chillies from scratch.",
+    "packaging": [
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["green chilli paste", "hari mirch paste", "green chili paste", "chilli paste green", "green pepper paste"]
+  },
+  {
+    "id": "red-chilli-paste",
+    "name": "Red Chilli Paste",
+    "brand": "Essence",
+    "category": "Pastes",
+    "description": "Rich and deeply coloured red chilli paste made from premium quality red chillies. Delivers intense heat and a vibrant red colour to curries, tikkas, and marinades. A versatile ingredient in South Asian, Chinese, and Mexican-inspired cooking.",
+    "packaging": [
+      "330 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["red chilli paste", "lal mirch paste", "red chili paste", "chilli paste red", "red pepper paste", "lal mirch"]
+  },
+  {
+    "id": "peri-peri-hot-sauce",
+    "name": "Peri Peri Hot Sauce",
+    "brand": "Essence",
+    "category": "Sauces",
+    "description": "A bold and fiery Peri Peri hot sauce inspired by the famous African bird's eye chilli. This smoky, tangy, and intensely spicy sauce is perfect as a dip, marinade, or drizzle over grilled chicken, burgers, and seafood.",
+    "packaging": [
+      "300 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["peri peri sauce", "piri piri sauce", "peri peri hot sauce", "peri-peri sauce", "hot sauce", "african hot sauce", "chilli hot sauce"]
+  },
+  {
+    "id": "mint-sauce",
+    "name": "Mint Sauce",
+    "brand": "Essence",
+    "category": "Sauces",
+    "description": "A classic cooling mint sauce made from fresh mint leaves, vinegar, and a touch of sugar. The traditional accompaniment to roast lamb and grilled meats. Also great as a dip for spring rolls, dumplings, and kebabs.",
+    "packaging": [
+      "300 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["mint sauce", "pudina sauce", "mint dip", "mint condiment"]
+  },
+  {
+    "id": "tamarind-sauce",
+    "name": "Tamarind Sauce",
+    "brand": "Essence",
+    "category": "Sauces",
+    "description": "Sweet, tangy, and slightly sour tamarind sauce made from pure tamarind pulp. An essential condiment for chaat, gol gappay, and fried snacks. Also used in marinades, stir-fries, and as a glaze for meats.",
+    "packaging": [
+      "300 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["tamarind sauce", "imli sauce", "imli chutney sauce", "tamarind dip", "amli sauce", "sour tamarind sauce"]
+  },
+  {
+    "id": "green-chilli-sauce",
+    "name": "Green Chilli Sauce",
+    "brand": "Essence",
+    "category": "Sauces",
+    "description": "A vibrant and spicy green chilli sauce made from fresh green chillies with a smooth, pourable consistency. Ideal as a table sauce, dipping sauce, or cooking ingredient. Delivers a clean, herby heat.",
+    "packaging": [
+      "300 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["green chilli sauce", "green chili sauce", "hari mirch sauce", "green pepper sauce", "spicy green sauce"]
+  },
+  {
+    "id": "chipotle-sauce",
+    "name": "Chipotle Sauce",
+    "brand": "Essence",
+    "category": "Sauces",
+    "description": "A rich and smoky chipotle sauce made from smoke-dried jalapeño chillies. Delivers a complex combination of heat, smokiness, and a hint of sweetness. Perfect for burgers, wraps, tacos, and as a gourmet dipping sauce.",
+    "packaging": [
+      "300 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["chipotle sauce", "chipotle", "smoky chilli sauce", "smoked chilli sauce", "chipotle dip"]
+  },
+  {
+    "id": "italian-pizza-pasta-sauce",
+    "name": "Italian Pizza Pasta Sauce",
+    "brand": "Essence",
+    "category": "Sauces",
+    "description": "A rich, herb-infused tomato-based Italian pizza and pasta sauce. Made with ripe tomatoes, garlic, basil, oregano, and Italian herbs. Suitable as a pizza base, pasta sauce, or dipping sauce. Brings authentic Italian flavour to every dish.",
+    "packaging": [
+      "300 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["pizza pasta sauce", "italian sauce", "pizza sauce", "pasta sauce", "marinara sauce", "tomato sauce", "italian pizza sauce"]
+  },
+  {
+    "id": "honey-mustard-sauce",
+    "name": "Honey Mustard Sauce",
+    "brand": "Essence",
+    "category": "Sauces",
+    "description": "A smooth and sweet honey mustard sauce that balances the sharpness of mustard with the natural sweetness of honey. A versatile all-rounder — use it as a salad dressing, dipping sauce for chicken tenders, sandwich spread, or glaze for baked meats.",
+    "packaging": [
+      "300 GMS × 12 Glass Bottle packed in Master Carton"
+    ],
+    "aliases": ["honey mustard sauce", "honey mustard", "mustard sauce", "honey mustard dip", "mustard dipping sauce"]
+  },
+  {
+    "id": "himalayan-pink-salt-fine",
+    "name": "Himalayan Light Pink Salt — Fine Grain",
+    "brand": "Essence",
+    "category": "Himalayan Salt",
+    "description": "Premium Himalayan Light Pink Salt in fine grain form, sourced directly from the Khewra Salt Mine in Pakistan — the second largest salt mine in the world. Specifications: Grain Size 0.25–1.0mm, Colour: Dark Pink, Purity: 98%, Usage: Edible. Rich in trace minerals, this salt is prized globally for its clean flavour and health associations. Available in a wide range of export-grade packaging formats.",
+    "packaging": [
+      "500 GMS × 20 Pcs Fliptop PET Bottle packed in Master Carton",
+      "800 GMS × 12 Standy Pouches packed in Master Carton",
+      "1 KG × 9 Square Jar PET Bottle packed in Master Carton",
+      "1 KG × 10 Pencil Jar packed in Master Carton",
+      "500 GMS × 20 Round PET Bottle packed in Master Carton",
+      "110 GMS Cone Shaker × 12 Bottles (12 Bottle × 8 Small CTN) packed in Master Carton",
+      "300 GMS Cone Shaker × 6 Bottles (6 Bottle × 5 Small CTN) packed in Master Carton",
+      "700 GMS Cone Shaker × 14 Bottles packed in Master Carton"
+    ],
+    "aliases": ["himalayan pink salt fine", "pink salt fine", "himalayan salt fine", "fine grain pink salt", "himalayan light pink salt", "khewra salt fine", "pink salt", "himalayan salt"]
+  },
+  {
+    "id": "himalayan-pink-salt-coarse",
+    "name": "Himalayan Light Pink Salt — Coarse Grain",
+    "brand": "Essence",
+    "category": "Himalayan Salt",
+    "description": "Premium Himalayan Light Pink Salt in coarse grain form. Specifications: Grain Size 2.0–5.0mm, Colour: Light Pink, Purity: 98%, Usage: Edible. Ideal for salt grinders, BBQ grilling, and gourmet presentation. Sourced from the Khewra Salt Mine, Pakistan. Coarse texture makes it perfect for table grinders and finishing salts.",
+    "packaging": [
+      "800 GMS × 12 Standy Pouches packed in Master Carton",
+      "1 KG × 9 Square Jar PET Bottle packed in Master Carton",
+      "200 GMS × 12 Glass Grinder packed in Master Carton",
+      "500 GMS × 20 Round PET Bottle packed in Master Carton",
+      "110 GMS Acrylic Grinder × 6 Bottles (6 Bottle × 8 Small CTN) packed in Master Carton"
+    ],
+    "aliases": ["himalayan pink salt coarse", "pink salt coarse", "himalayan salt coarse", "coarse grain pink salt", "himalayan coarse salt", "pink salt grinder", "coarse himalayan"]
+  },
+  {
+    "id": "himalayan-pink-salt-iodized",
+    "name": "Himalayan Pink Salt Iodized",
+    "brand": "Essence",
+    "category": "Himalayan Salt",
+    "description": "Himalayan Pink Salt with added iodine to meet dietary iodine requirements. Combines the natural mineral richness of authentic Himalayan salt with the nutritional benefits of iodization. Suitable for everyday cooking and table use.",
+    "packaging": [
+      "1 KG × 9 Square Jar PET Bottle packed in Master Carton",
+      "500 GMS × 20 Pcs Fliptop PET Bottle packed in Master Carton"
+    ],
+    "aliases": ["himalayan pink salt iodized", "iodized pink salt", "iodised himalayan salt", "himalayan iodized salt", "iodized salt", "iodised salt pink"]
+  },
+  {
+    "id": "himalayan-black-salt",
+    "name": "Himalayan Black Salt",
+    "brand": "Essence",
+    "category": "Himalayan Salt",
+    "description": "Authentic Himalayan Black Salt (Kala Namak), known for its distinctive sulphurous aroma and complex savoury flavour. A staple in South Asian cuisine used in chaat masala, raitas, fruit salads, and vegan egg alternatives. Fine grain for easy use.",
+    "packaging": [
+      "1 KG × 9 Square Jar PET Bottle packed in Master Carton",
+      "500 GMS × 20 Pcs Fliptop PET Bottle packed in Master Carton",
+      "200 GMS × 20 Pcs Fliptop PET Bottle packed in Master Carton"
+    ],
+    "aliases": ["himalayan black salt", "kala namak", "black salt", "kala salt", "sulphur salt", "black himalayan salt"]
+  },
+  {
+    "id": "natural-sea-salt",
+    "name": "Natural Sea Salt",
+    "brand": "Essence",
+    "category": "Salt",
+    "description": "Pure, naturally harvested sea salt with a clean, crisp flavour. Free from artificial additives and minimally processed to retain natural trace minerals. Suitable for everyday cooking, baking, brining, and as a finishing salt.",
+    "packaging": [
+      "1 KG × 9 Square Jar PET Bottle packed in Master Carton",
+      "500 GMS × 20 Pcs Fliptop PET Bottle packed in Master Carton",
+      "200 GMS × 20 Pcs Fliptop PET Bottle packed in Master Carton",
+      "1 KG × 12 Pouch packed in Master Carton",
+      "500 GMS × 24 Pouch packed in Master Carton"
+    ],
+    "aliases": ["natural sea salt", "sea salt", "ocean salt", "marine salt", "sea salt natural"]
+  },
+  {
+    "id": "italian-herbs-salt",
+    "name": "Italian Herbs Salt",
+    "brand": "Essence",
+    "category": "Specialty Salts",
+    "description": "A fragrant blend of Himalayan salt with Italian herbs including basil, oregano, rosemary, and thyme. Ideal as a finishing salt for pasta, pizza, grilled vegetables, focaccia bread, and salads. Adds an instant burst of Mediterranean flavour.",
+    "packaging": [
+      "200 GMS × 24 PET Grinder packed in Master Carton"
+    ],
+    "aliases": ["italian herbs salt", "herb salt", "italian salt", "herbs salt", "seasoned salt italian", "mediterranean salt"]
+  },
+  {
+    "id": "citrus-salt",
+    "name": "Citrus Salt",
+    "brand": "Essence",
+    "category": "Specialty Salts",
+    "description": "A zesty and bright citrus-infused salt blending Himalayan salt with natural citrus extracts. Perfect as a finishing salt on seafood, salads, grilled chicken, and cocktail rims. Adds a fresh, tangy flavour dimension.",
+    "packaging": [
+      "200 GMS × 24 PET Grinder packed in Master Carton"
+    ],
+    "aliases": ["citrus salt", "lemon salt", "lime salt", "citrus infused salt", "citrus seasoning"]
+  },
+  {
+    "id": "spicy-salt",
+    "name": "Spicy Salt",
+    "brand": "Essence",
+    "category": "Specialty Salts",
+    "description": "A fiery blend of Himalayan salt with chilli and spices. Adds heat and flavour in one shake — great on popcorn, chips, corn on the cob, and grilled meats. A favourite for spice lovers and creative home cooks.",
+    "packaging": [
+      "200 GMS × 24 PET Grinder packed in Master Carton"
+    ],
+    "aliases": ["spicy salt", "chilli salt", "hot salt", "spiced salt", "chili salt"]
+  },
+  {
+    "id": "garlic-salt",
+    "name": "Garlic Salt",
+    "brand": "Essence",
+    "category": "Specialty Salts",
+    "description": "A convenient blend of Himalayan salt and garlic powder. Adds bold garlic flavour and seasoning in a single ingredient. Ideal for seasoning meats, vegetables, pasta, bread, and everything in between.",
+    "packaging": [
+      "200 GMS × 24 PET Grinder packed in Master Carton"
+    ],
+    "aliases": ["garlic salt", "garlic seasoning salt", "salted garlic", "garlic powder salt"]
+  },
+  {
+    "id": "smoked-salt",
+    "name": "Smoked Salt",
+    "brand": "Essence",
+    "category": "Specialty Salts",
+    "description": "Himalayan salt with a deep, natural smoky flavour. Used as a finishing salt to add a BBQ-like smokiness to meats, vegetables, eggs, and even cocktails — without any actual smoking required. A premium gourmet product.",
+    "packaging": [
+      "200 GMS × 24 PET Grinder packed in Master Carton"
+    ],
+    "aliases": ["smoked salt", "smoke salt", "bbq salt", "smoky salt", "smoked himalayan salt"]
+  },
+  {
+    "id": "coarse-salt",
+    "name": "Coarse Salt",
+    "brand": "Essence",
+    "category": "Specialty Salts",
+    "description": "Premium coarse Himalayan salt in a convenient grinder format. Ideal for table use, BBQ grilling, pasta water, and pickling. The chunky texture makes it perfect for grinding to order, ensuring maximum freshness and flavour.",
+    "packaging": [
+      "200 GMS × 24 PET Grinder packed in Master Carton"
+    ],
+    "aliases": ["coarse salt", "rock salt", "coarse himalayan salt", "kosher style salt", "grinding salt"]
+  },
+  {
+    "id": "u-shape-vermicelli",
+    "name": "U-Shape Vermicelli",
+    "brand": "Essence",
+    "category": "Vermicelli & Sweets",
+    "description": "Traditional roasted U-shape vermicelli (seviyan) used in classic South Asian desserts such as sheer korma, kheer, and meethi seviyan. Made from premium wheat, this vermicelli cooks quickly and delivers an authentic, nutty flavour when toasted in butter.",
+    "packaging": [
+      "150 GMS × 48 Polythene packed in Master Carton"
+    ],
+    "aliases": ["u shape vermicelli", "u-shape vermicelli", "seviyan", "sevaiyan", "wheat vermicelli", "vermicelli u", "eid seviyan", "sheer korma vermicelli"]
+  },
+  {
+    "id": "colour-vermicelli",
+    "name": "Colour Vermicelli",
+    "brand": "Essence",
+    "category": "Vermicelli & Sweets",
+    "description": "Colourful and festive vermicelli made in a range of vibrant natural colours. Used to make eye-catching sweet dishes, Rangoon vermicelli puddings, and festive desserts. A popular product during Ramadan and Eid celebrations.",
+    "packaging": [
+      "200 GMS × 48 Polythene packed in Master Carton"
+    ],
+    "aliases": ["colour vermicelli", "color vermicelli", "coloured vermicelli", "rangoon vermicelli", "colored seviyan", "rainbow vermicelli", "multicolour vermicelli"]
+  },
+  {
+    "id": "kunafa",
+    "name": "Kunafa",
+    "brand": "Essence",
+    "category": "Vermicelli & Sweets",
+    "description": "Ready-to-use Kunafa dough strands for making the famous Middle Eastern dessert. Fine, crispy pastry strands (kataifi/kadayif) that, when soaked in sugar syrup and layered with cheese or cream, create the beloved golden Kunafa dish. Popular across the Middle East and South Asia.",
+    "packaging": [
+      "200 GMS × 24 Pouch packed in Master Carton"
+    ],
+    "aliases": ["kunafa", "kunafeh", "knafeh", "kataifi", "kadayif", "kunafa dough", "kunafa strands"]
+  },
+  {
+    "id": "phenni",
+    "name": "Phenni",
+    "brand": "Essence",
+    "category": "Vermicelli & Sweets",
+    "description": "Traditional Pakistani Phenni — delicate, crispy, and flaky fried wheat strands used in festive sweet dishes. Typically served with warm sweetened milk during Eid, Ramadan, and special occasions. A beloved cultural food item with a rich heritage.",
+    "packaging": [
+      "200 GMS × 24 Pouch packed in Master Carton"
+    ],
+    "aliases": ["phenni", "pheni", "feni", "phenee", "eid phenni", "pheonni", "crispy vermicelli sweets"]
+  },
+  {
+    "id": "fried-onion",
+    "name": "Fried Onion (Premium Quality)",
+    "brand": "Essence",
+    "category": "Fried Onion",
+    "description": "Premium quality crispy fried onions made from the finest selected onions, fried to golden perfection. An essential garnish and flavour base for biryanis, pulao, kebabs, and curries. Saves hours of kitchen prep time. Available in a wide range of sizes to suit retail, food service, and bulk export.",
+    "packaging": [
+      "100 GMS × 20 Bottles in Master Carton",
+      "100 GMS × 48 Pouches in Master Carton",
+      "200 GMS × 48 Pouches in Master Carton",
+      "400 GMS × 24 Pouch packed in Master Carton",
+      "1 KG × 10 Pouch packed in Master Carton",
+      "4.5 KG × 2 Poly Bag packed in Master Carton",
+      "5 KG × 2 Poly Bag packed in Master Carton"
+    ],
+    "aliases": ["fried onion", "crispy onion", "barista", "birista", "beresta", "fried onions", "golden fried onion", "crispy fried onion", "biryani onion", "onion flakes fried"]
+  },
+  {
+    "id": "moringa-leaf-powder",
+    "name": "Moringa Leaf Powder",
+    "brand": "Essence",
+    "category": "Moringa Products",
+    "description": "Pure Moringa Oleifera leaf powder — often called the 'miracle tree' superfood. Packed with vitamins A, B, C, E, iron, calcium, and antioxidants. Used in smoothies, teas, cooking, and as a dietary supplement. A globally trending health and wellness product.",
+    "packaging": [
+      "250 GMS × 24 Pouch packed in Master Carton"
+    ],
+    "aliases": ["moringa powder", "moringa leaf powder", "moringa oleifera powder", "moringa", "drumstick leaf powder", "moringa supplement", "green moringa powder"]
+  },
+  {
+    "id": "moringa-cinnamon-tea",
+    "name": "Moringa Cinnamon Tea",
+    "brand": "Essence",
+    "category": "Moringa Products",
+    "description": "A warming and aromatic herbal tea blending the superfood benefits of Moringa with the sweet warmth of cinnamon. Antioxidant-rich with natural anti-inflammatory properties. Caffeine-free and suitable for daily consumption. Great for immune support and digestive health.",
+    "packaging": [
+      "25 Tea Pouches packed in Small Box, 24 Small Box packed in Master Carton"
+    ],
+    "aliases": ["moringa cinnamon tea", "moringa tea cinnamon", "cinnamon moringa", "moringa herbal tea"]
+  },
+  {
+    "id": "moringa-fennel-cardamom-tea",
+    "name": "Moringa Fennel & Cardamom Tea",
+    "brand": "Essence",
+    "category": "Moringa Products",
+    "description": "A digestive and fragrant blend of Moringa with fennel seeds and cardamom. Traditionally used to aid digestion, reduce bloating, and freshen breath. A soothing post-meal herbal tea with a naturally sweet, aromatic flavour.",
+    "packaging": [
+      "25 Tea Pouches packed in Small Box, 24 Small Box packed in Master Carton"
+    ],
+    "aliases": ["moringa fennel tea", "moringa cardamom tea", "moringa fennel cardamom", "fennel cardamom moringa tea"]
+  },
+  {
+    "id": "moringa-mint-tea",
+    "name": "Moringa Mint Tea",
+    "brand": "Essence",
+    "category": "Moringa Products",
+    "description": "A refreshing and cooling blend of Moringa with peppermint. This herbal infusion is perfect for relaxation, digestive relief, and a fresh energy boost without caffeine. A popular health tea for modern wellness-conscious consumers.",
+    "packaging": [
+      "25 Tea Pouches packed in Small Box, 24 Small Box packed in Master Carton"
+    ],
+    "aliases": ["moringa mint tea", "moringa peppermint tea", "mint moringa", "moringa mint herbal tea"]
+  },
+  {
+    "id": "moringa-cardamom-tea",
+    "name": "Moringa Cardamom Tea",
+    "brand": "Essence",
+    "category": "Moringa Products",
+    "description": "A rich and aromatic blend of Moringa leaves with pure cardamom. Cardamom adds a warm, spicy-sweet note while enhancing the health benefits of Moringa. A Middle Eastern and South Asian favourite for its comforting and uplifting aroma.",
+    "packaging": [
+      "25 Tea Pouches packed in Small Box, 24 Small Box packed in Master Carton"
+    ],
+    "aliases": ["moringa cardamom tea", "cardamom moringa tea", "moringa elaichi tea"]
+  },
+  {
+    "id": "moringa-ginger-tea",
+    "name": "Moringa Ginger Tea",
+    "brand": "Essence",
+    "category": "Moringa Products",
+    "description": "A powerful immune-boosting herbal blend combining Moringa with the warming properties of ginger. Ideal for cold and flu relief, improved circulation, and digestive health. A spicy, energising tea with a clean, natural taste.",
+    "packaging": [
+      "25 Tea Pouches packed in Small Box, 24 Small Box packed in Master Carton"
+    ],
+    "aliases": ["moringa ginger tea", "ginger moringa tea", "moringa adrak tea", "moringa ginger herbal"]
+  },
+  {
+    "id": "moringa-bitter-ground-tea",
+    "name": "Moringa Bitter Ground Tea",
+    "brand": "Essence",
+    "category": "Moringa Products",
+    "description": "A health-focused herbal tea blend incorporating Moringa with bitter gourd (karela). Known for its blood sugar management properties and detoxifying effects. A wellness tea targeted at health-conscious consumers and those managing diabetes.",
+    "packaging": [
+      "25 Tea Pouches packed in Small Box, 24 Small Box packed in Master Carton"
+    ],
+    "aliases": ["moringa bitter ground tea", "moringa bitter gourd tea", "moringa karela tea", "bitter gourd moringa", "karela moringa tea"]
+  },
+  {
+    "id": "moringa-chamomile-tea",
+    "name": "Moringa Chamomile Tea",
+    "brand": "Essence",
+    "category": "Moringa Products",
+    "description": "A calming and soothing blend of Moringa with chamomile flowers. Known for its relaxation and sleep-promoting properties. A perfect bedtime tea that combines the nutritional power of Moringa with chamomile's gentle sedative effects.",
+    "packaging": [
+      "25 Tea Pouches packed in Small Box, 24 Small Box packed in Master Carton"
+    ],
+    "aliases": ["moringa chamomile tea", "chamomile moringa tea", "moringa relaxing tea", "calming moringa tea"]
+  },
+  {
+    "id": "moringa-pepper-mint-tea",
+    "name": "Moringa Pepper Mint Tea",
+    "brand": "Essence",
+    "category": "Moringa Products",
+    "description": "A fresh and invigorating blend of Moringa with strong peppermint. This cooling herbal tea is great for headache relief, freshening breath, and digestive comfort. A popular wellness beverage with a bold minty flavour.",
+    "packaging": [
+      "25 Tea Pouches packed in Small Box, 24 Small Box packed in Master Carton"
+    ],
+    "aliases": ["moringa pepper mint tea", "moringa peppermint tea", "pepper mint moringa", "moringa strong mint tea"]
+  },
+  {
+    "id": "moringa-shampoo",
+    "name": "Moringa Shampoo",
+    "brand": "Essence",
+    "category": "Moringa Beauty & Personal Care",
+    "description": "A nourishing hair care shampoo enriched with Moringa seed oil extract. Moringa is rich in oleic acid and zinc, which promote hair strength, reduce breakage, and add shine. Suitable for all hair types including dry and damaged hair. A premium natural beauty product.",
+    "packaging": [
+      "200 ML Each × 12 Pcs packed in Master Carton"
+    ],
+    "aliases": ["moringa shampoo", "moringa hair shampoo", "moringa shampoo essence"]
+  },
+  {
+    "id": "moringa-seed-oil",
+    "name": "Moringa Seed Oil",
+    "brand": "Essence",
+    "category": "Moringa Beauty & Personal Care",
+    "description": "Pure cold-pressed Moringa seed oil (Ben oil), extracted from the seeds of Moringa Oleifera. Rich in oleic acid, behenic acid, and antioxidants. Used as a skin moisturiser, hair serum, anti-ageing treatment, and cooking oil. A premium multi-purpose natural oil.",
+    "packaging": [
+      "40 ML Each × 12 Pcs packed in Master Carton"
+    ],
+    "aliases": ["moringa seed oil", "moringa oil", "ben oil", "moringa extract oil", "moringa hair oil serum"]
+  },
+  {
+    "id": "moringa-face-serum",
+    "name": "Moringa Face Serum",
+    "brand": "Essence",
+    "category": "Moringa Beauty & Personal Care",
+    "description": "A lightweight and nourishing face serum formulated with Moringa extract. Rich in antioxidants, vitamins A and E, and oleic acid to hydrate, brighten, and protect skin. Reduces fine lines, evens skin tone, and gives a healthy glow. Suitable for all skin types.",
+    "packaging": [
+      "20 ML Each × 12 Pcs packed in Master Carton"
+    ],
+    "aliases": ["moringa face serum", "moringa serum", "moringa skin serum", "face serum moringa", "moringa facial serum"]
+  },
+  {
+    "id": "moringa-hair-oil",
+    "name": "Moringa Hair Oil",
+    "brand": "Essence",
+    "category": "Moringa Beauty & Personal Care",
+    "description": "A deeply nourishing hair oil enriched with Moringa extract and essential oils. Promotes hair growth, reduces dandruff, strengthens hair roots, and adds a natural shine. Suitable for regular use on all hair types. A bestselling natural hair care product.",
+    "packaging": [
+      "120 ML Each × 12 Pcs packed in Master Carton"
+    ],
+    "aliases": ["moringa hair oil", "moringa oil hair", "hair oil moringa", "moringa hair treatment"]
+  },
+  {
+    "id": "bombay-biryani-masala",
+    "name": "Bombay Biryani Masala",
+    "brand": "Essence",
+    "category": "Masalas & Spice Blends",
+    "description": "An authentic and aromatic Bombay Biryani spice blend made from whole and ground spices including star anise, cardamom, cinnamon, and cloves. Delivers the bold, rich, and layered flavours characteristic of the famous Bombay-style biryani. Each packet seasons a full pot of biryani.",
+    "packaging": [
+      "65 GMS × 48 Pkts packed in Master Carton"
+    ],
+    "aliases": ["bombay biryani masala", "biryani masala bombay", "bombay biryani spice", "biryani masala", "biryani mix"]
+  },
+  {
+    "id": "sindhi-biryani-masala",
+    "name": "Sindhi Biryani Masala",
+    "brand": "Essence",
+    "category": "Masalas & Spice Blends",
+    "description": "A specially crafted spice blend for authentic Sindhi Biryani — a spicier, tangier style of Pakistani biryani distinguished by the use of yogurt, tomatoes, and plums. This masala captures the unique Sindhi flavour profile, making it easy to prepare restaurant-quality Sindhi biryani at home.",
+    "packaging": [
+      "65 GMS × 48 Pkts packed in Master Carton"
+    ],
+    "aliases": ["sindhi biryani masala", "biryani masala sindhi", "sindhi biryani spice", "sindhi masala", "sindhi biryani mix"]
+  }
+]

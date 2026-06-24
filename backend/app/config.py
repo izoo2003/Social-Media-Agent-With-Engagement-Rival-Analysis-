@@ -62,6 +62,8 @@ class Settings(BaseSettings):
     # Database Settings
     DATABASE_URL: str = "postgresql://user:password@localhost:5432/kafi_social_agent"
     DATABASE_ECHO: bool = False  # Set to True to log SQL queries
+    # Fail fast when the DB host is unreachable (seconds). Lower in dev avoids long UI spinners.
+    DATABASE_CONNECT_TIMEOUT: int = 5
 
     # Supabase Settings (Optional)
     SUPABASE_URL: str = ""

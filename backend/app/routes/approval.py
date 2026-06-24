@@ -23,6 +23,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -106,16 +107,23 @@ def _to_response(approval: ApprovalRequest, db: Session) -> ApprovalResponse:
 
 
 @router.get("/approvals/stats")
-async def get_approval_stats(db: Session = Depends(get_db)):
+def get_approval_stats(db: Session = Depends(get_db)):
     """
     Return approval counts used for the dashboard QA Pass Rate stat.
     pass_rate = approved / (approved + rejected) * 100, or null when no decisions yet.
     """
-    total     = db.query(ApprovalRequest).count()
-    pending   = db.query(ApprovalRequest).filter(ApprovalRequest.status == ApprovalStatus.PENDING).count()
-    approved  = db.query(ApprovalRequest).filter(ApprovalRequest.status == ApprovalStatus.APPROVED).count()
-    rejected  = db.query(ApprovalRequest).filter(ApprovalRequest.status == ApprovalStatus.REJECTED).count()
-    decided   = approved + rejected
+    row = db.query(
+        func.count(ApprovalRequest.id).label("total"),
+        func.sum(case((ApprovalRequest.status == ApprovalStatus.PENDING, 1), else_=0)).label("pending"),
+        func.sum(case((ApprovalRequest.status == ApprovalStatus.APPROVED, 1), else_=0)).label("approved"),
+        func.sum(case((ApprovalRequest.status == ApprovalStatus.REJECTED, 1), else_=0)).label("rejected"),
+    ).one()
+
+    total = int(row.total or 0)
+    pending = int(row.pending or 0)
+    approved = int(row.approved or 0)
+    rejected = int(row.rejected or 0)
+    decided = approved + rejected
     pass_rate = round(approved / decided * 100) if decided > 0 else None
     return {
         "total": total,

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { useTheme } from '@/contexts/ThemeContext';
-import { API_ENDPOINTS } from '@/lib/api-client';
+import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
 import { LinkedInAccountInfo } from '@/lib/types';
 
 interface PlatformConfig {
@@ -19,7 +19,7 @@ export default function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(API_ENDPOINTS.PLATFORM_CONFIG)
+    fetchWithTimeout(API_ENDPOINTS.PLATFORM_CONFIG)
       .then(async (res) => {
         if (!res.ok) throw new Error('Failed to load platform config');
         return res.json() as Promise<PlatformConfig>;

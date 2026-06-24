@@ -22,9 +22,9 @@ from app.utils.logger import logger
 class ContentService:
     """Service for generating and managing content."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, *, with_llm: bool = True):
         self.db = db
-        self.llm_client = LLMClient()
+        self.llm_client = LLMClient() if with_llm else None
         self.temperature = 0.7  # Balance between creativity and consistency
 
     def generate_content(

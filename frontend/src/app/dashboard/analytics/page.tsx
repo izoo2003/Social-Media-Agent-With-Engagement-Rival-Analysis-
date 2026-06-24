@@ -20,7 +20,7 @@ import {
   Users,
 } from 'lucide-react';
 
-import { API_ENDPOINTS } from '@/lib/api-client';
+import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
 import type {
   AnalyticsPlatform,
   AnalyticsSummaryResponse,
@@ -89,8 +89,9 @@ export default function AnalyticsPage() {
         setIsLoading(true);
         setError(null);
 
-        const response = await fetch(API_ENDPOINTS.ANALYTICS_SUMMARY(range), {
+        const response = await fetchWithTimeout(API_ENDPOINTS.ANALYTICS_SUMMARY(range), {
           signal: controller.signal,
+          timeoutMs: 15000,
         });
 
         if (!response.ok) {
@@ -142,15 +143,15 @@ export default function AnalyticsPage() {
           </p>
         </div>
 
-        <div className="flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm">
+        <div className="flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm dark:border-slate-600 dark:bg-slate-800">
           {ranges.map((option) => (
             <button
               key={option.value}
               onClick={() => setRange(option.value)}
               className={`rounded-md px-4 py-2 text-sm font-medium transition ${
                 range === option.value
-                  ? 'bg-gray-900 text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
+                  ? 'bg-gray-900 text-white dark:bg-slate-600'
+                  : 'text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700'
               }`}
             >
               {option.label}
@@ -171,8 +172,8 @@ export default function AnalyticsPage() {
           <button
             key={id}
             onClick={() => setActivePlatform(id)}
-            className={`rounded-xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md ${
-              activePlatform === id ? 'border-gray-900' : 'border-gray-200'
+            className={`rounded-xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md dark:bg-slate-800 dark:border-slate-600 ${
+              activePlatform === id ? 'border-gray-900 dark:border-gold-500' : 'border-gray-200'
             }`}
           >
             <div className="flex items-center justify-between">
@@ -180,8 +181,8 @@ export default function AnalyticsPage() {
               <span
                 className={`rounded-full px-2 py-1 text-xs font-medium ${
                   data.status === 'ok'
-                    ? 'bg-green-100 text-green-700'
-                    : 'bg-gold-50 text-gold-700 border border-gold-200'
+                    ? 'bg-green-100 text-green-700 dark:bg-emerald-950/50 dark:text-emerald-300'
+                    : 'bg-gold-50 text-gold-700 border border-gold-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60'
                 }`}
               >
                 {statusLabel(data.status)}
@@ -219,7 +220,7 @@ export default function AnalyticsPage() {
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm xl:col-span-2">
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm xl:col-span-2 dark:border-slate-600 dark:bg-slate-800">
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold text-gray-900">
@@ -274,8 +275,8 @@ export default function AnalyticsPage() {
           )}
         </div>
 
-        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="text-xl font-semibold text-gray-900">Breakdown</h2>
+        <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-slate-100">Breakdown</h2>
           <div className="mt-5 space-y-4">
             <BreakdownRow label="Impressions" value={totals.impressions} />
             <BreakdownRow label="Reach" value={totals.reach} />
@@ -300,12 +301,12 @@ function MetricCard({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700">
+    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-slate-200">
         {icon}
       </div>
-      <p className="text-sm font-medium text-gray-500">{label}</p>
-      <p className="mt-2 text-3xl font-bold text-gray-900">{value}</p>
+      <p className="text-sm font-medium text-gray-500 dark:text-slate-400">{label}</p>
+      <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-slate-100">{value}</p>
     </div>
   );
 }
@@ -320,12 +321,12 @@ function BreakdownRow({
   icon?: ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3">
-      <div className="flex items-center gap-2 text-sm font-medium text-gray-600">
+    <div className="flex items-center justify-between rounded-lg bg-gray-50 px-4 py-3 dark:bg-slate-900/60">
+      <div className="flex items-center gap-2 text-sm font-medium text-gray-600 dark:text-slate-400">
         {icon && <span className="h-4 w-4 text-gray-400">{icon}</span>}
         {label}
       </div>
-      <span className="font-semibold text-gray-900">{formatNumber(value)}</span>
+      <span className="font-semibold text-gray-900 dark:text-slate-100">{formatNumber(value)}</span>
     </div>
   );
 }

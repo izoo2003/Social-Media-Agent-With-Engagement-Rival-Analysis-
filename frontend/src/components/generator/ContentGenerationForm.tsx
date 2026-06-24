@@ -506,7 +506,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
           </p>
 
           {/* Draft Mode Toggle */}
-          <div className="flex items-center gap-3 mb-6 bg-gold-50 border border-gold-200 rounded-lg p-4">
+          <div className="flex items-center gap-3 mb-6 bg-gold-50 border border-gold-200 rounded-lg p-4 dark:bg-gold-950/30 dark:border-gold-800/50">
             <button
               type="button"
               onClick={() => setDraftMode(!draftMode)}
@@ -798,7 +798,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
 
   // Input mode
   return (
-    <div className="bg-white rounded-lg shadow-md p-8">
+    <div className="bg-white rounded-lg shadow-md p-8 dark:bg-slate-800 dark:border dark:border-slate-700">
       <form onSubmit={handleGenerate} className="space-y-6">
         {/* Error Message */}
         {error && (
@@ -808,7 +808,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
         )}
 
         {/* Step 1: Upload Media (from Graphic Designer) */}
-        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-dashed border-purple-300 rounded-xl p-6">
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-2 border-dashed border-purple-300 rounded-xl p-6 dark:from-slate-800 dark:to-slate-800 dark:border-slate-500">
           <label className="block text-sm font-semibold text-gray-700 mb-3">
             🖼️ Step 1: Upload Media from Graphic Designer
           </label>
@@ -819,7 +819,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
           {!mediaPreview ? (
             <div
               onClick={() => fileInputRef.current?.click()}
-              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-all"
+              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-all dark:border-slate-500 dark:hover:border-gold-500/60 dark:hover:bg-slate-700/80"
             >
               <div className="text-4xl mb-2">📁</div>
               <p className="text-sm font-medium text-gray-600">

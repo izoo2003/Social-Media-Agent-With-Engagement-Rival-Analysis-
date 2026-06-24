@@ -23,7 +23,7 @@ def _range_to_days(range_value: str) -> int:
 
 
 @router.get("/analytics/summary")
-async def get_analytics_summary(
+def get_analytics_summary(
     range_value: str = Query("30d", alias="range", pattern="^(7d|30d|90d)$"),
     db: Session = Depends(get_db),
 ):

@@ -43,14 +43,14 @@ export default function CreationPage() {
       <ChatInterface />
 
       {/* Info Box */}
-      <div className="mt-8 bg-brand-50 border border-brand-100 rounded-lg p-6">
-        <h3 className="font-semibold text-brand-900 mb-2">💡 How This Works</h3>
-        <ul className="text-sm text-slate-700 space-y-1.5">
+      <div className="mt-8 bg-brand-50 border border-brand-100 rounded-lg p-6 dark:bg-brand-950/40 dark:border-brand-800/60">
+        <h3 className="font-semibold text-brand-900 dark:text-brand-200 mb-2">💡 How This Works</h3>
+        <ul className="text-sm text-slate-700 dark:text-slate-300 space-y-1.5">
           <li>• <strong>Chat</strong> uses its own Gemini key (<code>CREATION_GEMINI_API_KEY</code>) — separate from Content Posting</li>
           <li>• <strong>Copy any message</strong> to reuse it as a prompt elsewhere</li>
           <li>• <strong>Create Image / Video in Gemini</strong> — both buttons open Google Gemini in a new tab</li>
           <li>• This chatbot only chats — image and video creation happen in Gemini</li>
-          <li>• Get a <strong>2nd free key</strong> at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-brand-700 underline">aistudio.google.com/apikey</a> and paste it in <code>CREATION_GEMINI_API_KEY</code></li>
+          <li>• Get a <strong>2nd free key</strong> at <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer" className="text-brand-700 dark:text-gold-300 underline">aistudio.google.com/apikey</a> and paste it in <code>CREATION_GEMINI_API_KEY</code></li>
         </ul>
       </div>
     </div>

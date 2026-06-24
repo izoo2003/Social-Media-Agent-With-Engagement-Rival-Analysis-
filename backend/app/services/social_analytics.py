@@ -7,6 +7,7 @@ and normalizes them into one response shape for the dashboard.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
@@ -26,11 +27,13 @@ class SocialAnalyticsService:
     LINKEDIN_V2_URL = "https://api.linkedin.com/v2"
     YOUTUBE_TOKEN_URL = "https://oauth2.googleapis.com/token"
     YOUTUBE_ANALYTICS_URL = "https://youtubeanalytics.googleapis.com/v2/reports"
+    REQUEST_TIMEOUT = 10  # seconds — keep dashboard loads snappy
 
     def get_summary(self, days: int = 30) -> dict:
         """Fetch analytics for all platforms."""
         platforms = ["linkedin", "facebook", "instagram", "youtube"]
-        results = [self.get_platform(platform, days) for platform in platforms]
+        with ThreadPoolExecutor(max_workers=len(platforms)) as pool:
+            results = list(pool.map(lambda p: self.get_platform(p, days), platforms))
 
         total_views = 0
         total_engagements = 0
@@ -134,7 +137,7 @@ class SocialAnalyticsService:
                 "timeIntervals.timeRange.start": start_ms,
                 "timeIntervals.timeRange.end": end_ms,
             },
-            timeout=30,
+            timeout=self.REQUEST_TIMEOUT,
         )
 
         if not response.ok:
@@ -258,7 +261,7 @@ class SocialAnalyticsService:
                 "until": end.isoformat(),
                 "access_token": access_token,
             },
-            timeout=30,
+            timeout=self.REQUEST_TIMEOUT,
         )
 
         expired = self._meta_token_expired_error(insights_response)
@@ -285,7 +288,7 @@ class SocialAnalyticsService:
                 "fields": "fan_count,followers_count",
                 "access_token": access_token,
             },
-            timeout=30,
+            timeout=self.REQUEST_TIMEOUT,
         )
         profile = profile_response.json() if profile_response.ok else {}
 
@@ -344,7 +347,7 @@ class SocialAnalyticsService:
                     "until": end.isoformat(),
                     "access_token": access_token,
                 },
-                timeout=30,
+                timeout=self.REQUEST_TIMEOUT,
             )
             if not response.ok:
                 logger.warning(
@@ -392,7 +395,7 @@ class SocialAnalyticsService:
                 "until": end.isoformat(),
                 "access_token": access_token,
             },
-            timeout=30,
+            timeout=self.REQUEST_TIMEOUT,
         )
 
         expired = self._meta_token_expired_error(insights_response)
@@ -419,7 +422,7 @@ class SocialAnalyticsService:
                 "fields": "followers_count,media_count",
                 "access_token": access_token,
             },
-            timeout=30,
+            timeout=self.REQUEST_TIMEOUT,
         )
         profile = profile_response.json() if profile_response.ok else {}
 
@@ -495,7 +498,7 @@ class SocialAnalyticsService:
                 "dimensions": "day",
                 "sort": "day",
             },
-            timeout=30,
+            timeout=self.REQUEST_TIMEOUT,
         )
 
         error = self._platform_error("youtube", response, days)
@@ -559,7 +562,7 @@ class SocialAnalyticsService:
                 "refresh_token": settings.YOUTUBE_REFRESH_TOKEN,
             },
             headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=30,
+            timeout=self.REQUEST_TIMEOUT,
         )
 
         if not response.ok:
