@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   Send,
-  Image as ImageIcon,
   Video,
   Copy,
   Check,
@@ -15,6 +14,9 @@ import {
   Package,
   Tag,
   Box,
+  Mic,
+  Users,
+  Clapperboard,
 } from 'lucide-react';
 import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
 import type {
@@ -24,7 +26,12 @@ import type {
   MatchedProduct,
 } from '@/lib/types';
 
-const GEMINI_FALLBACK_URL = 'https://gemini.google.com/app';
+const META_AI_FALLBACK_URL = 'https://www.meta.ai/';
+const ELEVENLABS_FALLBACK_URL = 'https://elevenlabs.io/app/speech-synthesis/text-to-speech';
+const GOOGLE_FLOW_CHARACTERS_FALLBACK_URL =
+  'https://labs.google/fx/tools/flow/project/cc16a3ce-33ec-4248-bb1a-3341c7817479/characters';
+const GOOGLE_FLOW_FINAL_PRODUCT_FALLBACK_URL =
+  'https://labs.google/fx/tools/flow/project/0b5aa7ed-bd40-490d-af9a-24208f855710';
 
 // Category colour map for the product card badge
 const CATEGORY_COLOURS: Record<string, string> = {
@@ -114,7 +121,14 @@ interface ExtendedChatMessage extends ChatMessage {
 
 export default function ChatInterface() {
   const [modelLabel, setModelLabel] = useState<string>('Loading…');
-  const [geminiUrl, setGeminiUrl] = useState<string>(GEMINI_FALLBACK_URL);
+  const [metaAiUrl, setMetaAiUrl] = useState<string>(META_AI_FALLBACK_URL);
+  const [elevenLabsUrl, setElevenLabsUrl] = useState<string>(ELEVENLABS_FALLBACK_URL);
+  const [googleFlowCharactersUrl, setGoogleFlowCharactersUrl] = useState<string>(
+    GOOGLE_FLOW_CHARACTERS_FALLBACK_URL
+  );
+  const [googleFlowFinalProductUrl, setGoogleFlowFinalProductUrl] = useState<string>(
+    GOOGLE_FLOW_FINAL_PRODUCT_FALLBACK_URL
+  );
   const [chatReady, setChatReady] = useState<boolean>(true);
 
   const [messages, setMessages] = useState<ExtendedChatMessage[]>([]);
@@ -131,7 +145,14 @@ export default function ChatInterface() {
         if (!res.ok) throw new Error('Failed to load models');
         const data: CreationModelsResponse = await res.json();
         setModelLabel(data.models[0]?.label ?? 'AI Assistant');
-        setGeminiUrl(data.gemini_web_url || GEMINI_FALLBACK_URL);
+        setMetaAiUrl(data.meta_ai_web_url || data.gemini_web_url || META_AI_FALLBACK_URL);
+        setElevenLabsUrl(data.elevenlabs_web_url || ELEVENLABS_FALLBACK_URL);
+        setGoogleFlowCharactersUrl(
+          data.google_flow_characters_url || GOOGLE_FLOW_CHARACTERS_FALLBACK_URL
+        );
+        setGoogleFlowFinalProductUrl(
+          data.google_flow_final_product_url || GOOGLE_FLOW_FINAL_PRODUCT_FALLBACK_URL
+        );
         setChatReady(data.chat_ready);
       } catch {
         toast.error('Could not load AI models. Is the backend running?');
@@ -193,8 +214,20 @@ export default function ChatInterface() {
     }
   };
 
-  const openGemini = () => {
-    window.open(geminiUrl, '_blank', 'noopener,noreferrer');
+  const openMetaAi = () => {
+    window.open(metaAiUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const openElevenLabs = () => {
+    window.open(elevenLabsUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const openGoogleFlowCharacters = () => {
+    window.open(googleFlowCharactersUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const openGoogleFlowFinalProduct = () => {
+    window.open(googleFlowFinalProductUrl, '_blank', 'noopener,noreferrer');
   };
 
   const copyMessage = async (text: string, index: number) => {
@@ -218,34 +251,50 @@ export default function ChatInterface() {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-[70vh] dark:bg-slate-800 dark:border-slate-600">
       {/* Toolbar */}
-      <div className="flex flex-wrap items-center gap-3 p-4 border-b border-slate-200 dark:border-slate-600">
-        <span className="text-sm text-slate-600 bg-slate-100 rounded-lg px-3 py-1.5 dark:bg-slate-700 dark:text-slate-200">
+      <div className="flex flex-nowrap items-center gap-2 p-4 border-b border-slate-200 overflow-x-auto dark:border-slate-600">
+        <span className="text-sm text-slate-600 bg-slate-100 rounded-lg px-3 py-1.5 shrink-0 dark:bg-slate-700 dark:text-slate-200">
           {modelLabel}
         </span>
 
-        <div className="flex-1" />
+        <div className="flex-1 min-w-2" />
 
         <button
-          onClick={openGemini}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900 border border-brand-200 hover:bg-brand-50 rounded-lg px-3 py-1.5 transition-colors dark:text-gold-300 dark:hover:text-gold-200 dark:border-slate-500 dark:hover:bg-slate-700"
-          title="Create an image in Google Gemini"
-        >
-          <ImageIcon className="w-4 h-4" />
-          Create Image in Gemini
-        </button>
-        <button
-          onClick={openGemini}
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900 border border-brand-200 hover:bg-brand-50 rounded-lg px-3 py-1.5 transition-colors dark:text-gold-300 dark:hover:text-gold-200 dark:border-slate-500 dark:hover:bg-slate-700"
-          title="Create a video in Google Gemini"
+          onClick={openMetaAi}
+          className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900 border border-brand-200 hover:bg-brand-50 rounded-lg px-3 py-1.5 transition-colors dark:text-gold-300 dark:hover:text-gold-200 dark:border-slate-500 dark:hover:bg-slate-700"
+          title="Open Meta AI to generate a video"
         >
           <Video className="w-4 h-4" />
-          Create Video in Gemini
+          Video in Meta AI
+        </button>
+        <button
+          onClick={openElevenLabs}
+          className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900 border border-brand-200 hover:bg-brand-50 rounded-lg px-3 py-1.5 transition-colors dark:text-gold-300 dark:hover:text-gold-200 dark:border-slate-500 dark:hover:bg-slate-700"
+          title="Add voice-over with ElevenLabs text-to-speech"
+        >
+          <Mic className="w-4 h-4" />
+          Add Voice-Over In ElevenLabs
+        </button>
+        <button
+          onClick={openGoogleFlowCharacters}
+          className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900 border border-brand-200 hover:bg-brand-50 rounded-lg px-3 py-1.5 transition-colors dark:text-gold-300 dark:hover:text-gold-200 dark:border-slate-500 dark:hover:bg-slate-700"
+          title="Create characters in Google Flow"
+        >
+          <Users className="w-4 h-4" />
+          Create Characters in Google Flow
+        </button>
+        <button
+          onClick={openGoogleFlowFinalProduct}
+          className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900 border border-brand-200 hover:bg-brand-50 rounded-lg px-3 py-1.5 transition-colors dark:text-gold-300 dark:hover:text-gold-200 dark:border-slate-500 dark:hover:bg-slate-700"
+          title="Create final product video in Google Flow"
+        >
+          <Clapperboard className="w-4 h-4" />
+          Create Final Product on Flow AI
         </button>
 
         {messages.length > 0 && (
           <button
             onClick={() => setMessages([])}
-            className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-red-600 transition-colors"
+            className="inline-flex shrink-0 items-center gap-1.5 text-sm text-slate-500 hover:text-red-600 transition-colors"
             title="Clear conversation"
           >
             <Trash2 className="w-4 h-4" />
@@ -260,18 +309,18 @@ export default function ChatInterface() {
           <div className="h-full flex flex-col items-center justify-center text-center text-slate-400">
             <Bot className="w-12 h-12 mb-3 text-slate-300" />
             <p className="text-sm max-w-md mb-4">
-              Chat with the Kafi Commodities product assistant — ask about any{' '}
-              <strong>Essence</strong> brand product and get instant details on
-              description, name, and packaging.
+              Your <strong>Essence</strong> prompt engineer — ask for Meta AI image or video prompts
+              for any product. Packaging and catalog details are built in; you get copy-paste-ready
+              prompts for generation.
             </p>
             {/* Quick-start suggestions */}
             <div className="flex flex-wrap justify-center gap-2 text-xs">
               {[
-                'Tell me about your garlic paste',
-                'What sizes does Himalayan Pink Salt come in?',
-                'Do you supply fried onions?',
-                'Tell me about Moringa teas',
-                'What pickles do you have?',
+                'Image prompt: mango pickle 330g glass jar — studio packshot for Instagram',
+                'Video prompt: Himalayan pink salt — 15s lifestyle reel',
+                'Amazon listing image: garlic paste 1kg PET bottle, white background',
+                '3 banner options for fried onions pouch — export catalog',
+                'Hero shot: mint chutney glass jar with fresh herbs',
               ].map((q) => (
                 <button
                   key={q}
@@ -356,7 +405,7 @@ export default function ChatInterface() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about any Essence product, e.g. 'Tell me about your mango pickle'…"
+            placeholder="e.g. Image prompt for Essence mango pickle glass jar — bright studio packshot for Instagram feed…"
             rows={2}
             className="flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100 dark:placeholder-slate-400"
             disabled={sending}
@@ -371,7 +420,7 @@ export default function ChatInterface() {
           </button>
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          Press Enter to send, Shift+Enter for a new line. Ask about any Kafi Commodities / Essence product.
+          Press Enter to send. Requests image/video prompts for Meta AI — product catalog is used automatically.
         </p>
       </div>
     </div>

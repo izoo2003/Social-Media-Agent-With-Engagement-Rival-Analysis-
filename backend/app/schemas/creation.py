@@ -57,8 +57,16 @@ class ModelInfo(BaseModel):
 
 
 class CreationModelsResponse(BaseModel):
-    """Available chat models + the Gemini web link for image/video."""
+    """Available chat models + external links for image/video generation."""
 
     models: list[ModelInfo]
     gemini_web_url: str
+    meta_ai_web_url: str = "https://www.meta.ai/"
+    elevenlabs_web_url: str = "https://elevenlabs.io/app/speech-synthesis/text-to-speech"
+    google_flow_characters_url: str = (
+        "https://labs.google/fx/tools/flow/project/cc16a3ce-33ec-4248-bb1a-3341c7817479/characters"
+    )
+    google_flow_final_product_url: str = (
+        "https://labs.google/fx/tools/flow/project/0b5aa7ed-bd40-490d-af9a-24208f855710"
+    )
     chat_ready: bool

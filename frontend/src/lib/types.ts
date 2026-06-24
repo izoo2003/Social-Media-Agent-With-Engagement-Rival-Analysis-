@@ -393,5 +393,9 @@ export interface CreationModel {
 export interface CreationModelsResponse {
   models: CreationModel[];
   gemini_web_url: string;
+  meta_ai_web_url?: string;
+  elevenlabs_web_url?: string;
+  google_flow_characters_url?: string;
+  google_flow_final_product_url?: string;
   chat_ready: boolean;
 }

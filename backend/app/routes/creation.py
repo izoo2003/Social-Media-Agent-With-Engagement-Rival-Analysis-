@@ -1,16 +1,14 @@
 """
 API Routes - Content Creation (chatbot)
-GET  /creation/models - Chat model info + Gemini web link
+GET  /creation/models - Chat model info + Meta AI web link
 POST /creation/chat   - Chat via dedicated CREATION_GEMINI_API_KEY
 
-Image and video creation open Google Gemini in the browser (GEMINI_WEB_URL).
+The chatbot writes copy-paste-ready image/video prompts for Meta AI, grounded in
+the Essence product catalog (packaging, descriptions). Actual generation happens in Meta AI.
 
 Product Knowledge:
-  Every chat request is checked against the Kafi Commodities / Essence product
-  catalog.  If the latest user message mentions a known product, a system prompt
-  with the product's full details is prepended so Gemini answers accurately.
-  The matched product is also returned in the response for the frontend to
-  display a highlighted product card.
+  Detects product mentions in the latest user message, injects catalog context into
+  the system prompt, and returns matched_product for the frontend product card.
 """
 
 from fastapi import APIRouter, HTTPException
@@ -24,7 +22,11 @@ from app.schemas.creation import (
     MatchedProduct,
     ModelInfo,
 )
-from app.services.product_knowledge import build_system_prompt, product_for_query
+from app.services.product_knowledge import (
+    build_system_prompt,
+    infer_prompt_media_type,
+    product_for_query,
+)
 from app.utils.exceptions import LLMConnectionError
 from app.utils.logger import logger
 
@@ -41,12 +43,16 @@ def _creation_model_label() -> str:
 
 @router.get("/creation/models", response_model=CreationModelsResponse)
 async def list_creation_models():
-    """Return the Content Creation chat model and the Gemini web link for image/video."""
+    """Return the Content Creation chat model and the Meta AI link for image/video."""
     return CreationModelsResponse(
         models=[
             ModelInfo(id=settings.CREATION_GEMINI_MODEL, label=_creation_model_label()),
         ],
         gemini_web_url=settings.GEMINI_WEB_URL,
+        meta_ai_web_url=settings.META_AI_WEB_URL,
+        elevenlabs_web_url=settings.ELEVENLABS_WEB_URL,
+        google_flow_characters_url=settings.GOOGLE_FLOW_CHARACTERS_URL,
+        google_flow_final_product_url=settings.GOOGLE_FLOW_FINAL_PRODUCT_URL,
         chat_ready=bool(settings.CREATION_GEMINI_API_KEY),
     )
 
@@ -56,9 +62,8 @@ async def creation_chat(request: ChatRequest):
     """
     Chat with Google Gemini using CREATION_GEMINI_API_KEY.
 
-    Automatically detects Kafi Commodities / Essence product mentions in the
-    latest user message, injects a product-aware system prompt, and returns
-    the matched product alongside the reply for frontend highlighting.
+    Detects Essence product mentions, injects catalog-aware prompt-engineering
+    instructions, and returns Meta AI-ready image/video prompts.
     """
     try:
         # Find the last user message to check for product mentions
@@ -68,11 +73,9 @@ async def creation_chat(request: ChatRequest):
                 last_user_text = m.content
                 break
 
-        # Detect product from user's latest message
         matched = product_for_query(last_user_text) if last_user_text else None
-
-        # Build system prompt (product-specific if matched, generic overview otherwise)
-        system_prompt = build_system_prompt(matched)
+        media_type = infer_prompt_media_type(last_user_text) if last_user_text else None
+        system_prompt = build_system_prompt(matched, media_type=media_type)
 
         # Prepend system message to the conversation
         messages: list[dict] = [{"role": "system", "content": system_prompt}]

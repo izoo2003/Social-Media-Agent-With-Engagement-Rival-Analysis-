@@ -1,8 +1,9 @@
 """
 Product Knowledge Service
 Loads the Kafi Commodities / Essence brand product catalog and provides:
-  - product_for_query()  – detect which product a user message is about
-  - build_system_prompt() – craft the system instruction injected into each chat turn
+  - product_for_query()       – detect which product a user message is about
+  - infer_prompt_media_type()   – guess image vs video from the user's request
+  - build_system_prompt()       – system instruction for the prompt-engineering chatbot
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 _CATALOG_PATH = Path(__file__).parent.parent / "data" / "kafi_products.json"
 
@@ -76,50 +77,113 @@ def get_categories() -> list[str]:
     return sorted({p.get("category", "Other") for p in CATALOG})
 
 
-def build_system_prompt(matched_product: Optional[dict] = None) -> str:
-    """
-    Build the system prompt that is injected at the start of every chat conversation.
+def infer_prompt_media_type(user_message: str) -> Optional[Literal["image", "video"]]:
+    """Infer whether the user wants an image or video prompt from their message."""
+    text = user_message.lower()
+    video_hints = (
+        "video", "reel", "motion", "clip", "animation", "pan ", "rotate",
+        "camera move", "15 sec", "30 sec", "commercial", "b-roll",
+    )
+    image_hints = (
+        "image", "photo", "picture", "packshot", "poster", "banner",
+        "thumbnail", "still", "hero shot", "product shot", "catalog",
+    )
+    if any(hint in text for hint in video_hints):
+        return "video"
+    if any(hint in text for hint in image_hints):
+        return "image"
+    return None
 
-    If a product has been detected in the user's latest message, the prompt
-    includes the full product details so Gemini gives a precise, grounded answer.
-    Otherwise it includes a summary of all available categories so Gemini can
-    still guide customers accurately.
+
+def _format_product_block(product: dict) -> str:
+    packaging_list = "\n".join(f"    • {p}" for p in product.get("packaging", []))
+    return (
+        f"  Name       : {product['name']}\n"
+        f"  Brand      : {product.get('brand', 'Essence')}\n"
+        f"  Category   : {product.get('category', '')}\n"
+        f"  Description: {product.get('description', '')}\n"
+        f"  Packaging  :\n{packaging_list}"
+    )
+
+
+def build_system_prompt(
+    matched_product: Optional[dict] = None,
+    media_type: Optional[Literal["image", "video"]] = None,
+) -> str:
     """
+    Build the system prompt for the Content Creation chatbot.
+
+    Primary job: craft copy-paste-ready Meta AI prompts for product images and videos,
+    grounded in the Essence catalog (especially packaging formats).
+    """
+    media_focus = ""
+    if media_type == "image":
+        media_focus = (
+            "The user wants an IMAGE prompt. Optimize for a single still frame / packshot / "
+            "marketing visual in Meta AI.\n"
+        )
+    elif media_type == "video":
+        media_focus = (
+            "The user wants a VIDEO prompt. Describe motion, pacing, camera movement, and "
+            "opening/closing frames suitable for Meta AI video generation.\n"
+        )
+
     base = (
-        "You are a friendly and knowledgeable product assistant for Kafi Commodities (Pvt) Ltd, "
-        "a Pakistani export company. You represent the 'Essence' brand. "
-        "Your job is to help customers and buyers learn about the products Kafi Commodities supplies.\n\n"
-        "RULES:\n"
-        "- Only answer questions about Kafi Commodities / Essence brand products.\n"
-        "- If a customer asks about a product, always mention its full name, a helpful description, "
-        "and the available packaging options.\n"
-        "- Be professional, friendly, and concise.\n"
-        "- If you are unsure which specific product the customer means, ask a short clarifying question.\n"
-        "- Do NOT make up products, prices, or packaging that is not in the catalog.\n\n"
+        "You are an expert creative prompt engineer for Kafi Commodities (Pvt) Ltd — "
+        "the Pakistani export company behind the **Essence** brand.\n\n"
+        "YOUR PRIMARY JOB:\n"
+        "Write polished, production-ready prompts that the marketing team will COPY and PASTE "
+        "into **Meta AI** to generate product images and short marketing videos.\n"
+        "You do NOT generate images or videos yourself — you only write the prompts.\n\n"
+        f"{media_focus}"
+        "BRAND & VISUAL DIRECTION (Essence):\n"
+        "- Premium export-quality food packaging; clean, appetizing, trustworthy.\n"
+        "- Typical formats: PET bottles, glass jars, pouches, master cartons — use ONLY what "
+        "appears in the product's packaging list.\n"
+        "- Label should read **Essence** (or Essence sub-brand styling); South Asian / Pakistani "
+        "heritage cues where appropriate without stereotypes.\n"
+        "- Commercial photography / ad aesthetic: sharp focus, realistic materials, no cartoon style "
+        "unless the user explicitly asks.\n\n"
+        "PROMPT ENGINEERING RULES:\n"
+        "1. Ground every prompt in the real product name, category, and packaging from the catalog.\n"
+        "2. Be visually specific: subject, packaging size/type, label, ingredients texture, "
+        "lighting (e.g. soft studio key light), background, camera angle, lens feel, color mood, "
+        "aspect ratio if relevant (1:1 feed, 4:5, 9:16 reel).\n"
+        "3. For VIDEO prompts add: duration feel (e.g. 10–15s), motion (slow pan, pour, steam), "
+        "scene beats (opening → hero → CTA), and audio mood if helpful (no copyrighted music names).\n"
+        "4. Do NOT invent SKUs, weights, or pack types that are not in the catalog.\n"
+        "5. Do NOT write long product brochures — only include catalog facts that improve the visual prompt.\n"
+        "6. If the user asks for variations, give 2–3 clearly labelled options (Option A, B, C).\n"
+        "7. If the product is ambiguous, ask ONE short clarifying question before writing prompts.\n"
+        "8. If no specific product is named, use the catalog overview and ask which product/format "
+        "they need — or draft a category-level prompt and note what to specify.\n\n"
+        "OUTPUT FORMAT — use this structure so prompts are easy to copy:\n"
+        "---\n"
+        "**Product:** [full catalog name]\n"
+        "**Type:** Image | Video\n"
+        "**Use case:** [e.g. Instagram feed, Amazon listing, trade-show banner]\n"
+        "**Meta AI prompt:**\n"
+        "[One dense paragraph — ready to paste into Meta AI. No bullet lists inside the prompt block.]\n"
+        "**Notes:** [optional — aspect ratio, packaging variant, or art-direction tweaks]\n"
+        "---\n\n"
+        "Keep assistant chatter outside the prompt block minimal. Lead with the formatted prompt.\n\n"
     )
 
     if matched_product:
-        packaging_list = "\n".join(
-            f"    • {p}" for p in matched_product.get("packaging", [])
-        )
         product_block = (
-            "PRODUCT SPOTLIGHT — answer the customer's question using THIS product:\n\n"
-            f"  Name       : {matched_product['name']}\n"
-            f"  Brand      : {matched_product.get('brand', 'Essence')}\n"
-            f"  Category   : {matched_product.get('category', '')}\n"
-            f"  Description: {matched_product.get('description', '')}\n"
-            f"  Packaging  :\n{packaging_list}\n\n"
-            "Lead with the product name, then give the description, then list the packaging options clearly."
+            "TARGET PRODUCT (catalog ground truth — use accurately):\n"
+            f"{_format_product_block(matched_product)}\n\n"
+            "When writing the Meta AI prompt, reflect the correct packaging line (PET vs glass, "
+            "size, master carton context if relevant) from the list above."
         )
         return base + product_block
-    else:
-        # Generic mode — list categories so Gemini can orient the customer
-        categories = get_categories()
-        cat_list = "\n".join(f"  • {c}" for c in categories)
-        catalog_summary = (
-            "PRODUCT CATALOG OVERVIEW — Kafi Commodities / Essence brand supplies:\n"
-            f"{cat_list}\n\n"
-            "If the customer mentions a specific product or category, describe it accurately from the catalog. "
-            "If you need more details to answer, ask what category or product they are interested in."
-        )
-        return base + catalog_summary
+
+    categories = get_categories()
+    cat_list = "\n".join(f"  • {c}" for c in categories)
+    catalog_summary = (
+        "PRODUCT CATALOG OVERVIEW — Essence brand categories:\n"
+        f"{cat_list}\n\n"
+        "No single product was detected in the user's message. Ask which product and packaging "
+        "format they need, or produce a category-level Meta AI prompt and state assumptions clearly."
+    )
+    return base + catalog_summary
