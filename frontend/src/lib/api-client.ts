@@ -2,7 +2,16 @@
  * API Client Configuration - Updated for media & social posting
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+/** Normalize API base URL (handles Vercel env pasted as `NEXT_PUBLIC_API_URL=https://...`). */
+function resolveApiBaseUrl(): string {
+  const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').trim();
+  if (raw.startsWith('NEXT_PUBLIC_API_URL=')) {
+    return raw.slice('NEXT_PUBLIC_API_URL='.length).trim();
+  }
+  return raw;
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 const API_VERSION = 'v1';
 
 export const API_ENDPOINTS = {
