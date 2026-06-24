@@ -22,10 +22,10 @@ export default function Home() {
           AI-Powered Social Media Strategy & Content Generation
         </p>
         <a
-          href="/dashboard"
+          href="/login"
           className="inline-block px-8 py-3 bg-brand-700 text-white rounded-lg hover:bg-brand-800 transition font-semibold shadow-md"
         >
-          Go to Dashboard
+          Sign in to Dashboard
         </a>
       </div>
     </main>

@@ -36,6 +36,7 @@ aiohttp>=3.9
 
 # Security
 slowapi>=0.1.9          # Rate limiting (DoS / brute-force protection)
+PyJWT>=2.8                # Dashboard JWT login
 
 # Dev & Testing
 pytest>=7.4

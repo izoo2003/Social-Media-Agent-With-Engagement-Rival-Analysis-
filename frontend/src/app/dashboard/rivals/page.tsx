@@ -27,7 +27,7 @@ import {
   Youtube,
 } from 'lucide-react';
 
-import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
+import { API_ENDPOINTS, apiFetch, fetchWithTimeout } from '@/lib/api-client';
 import type {
   Rival,
   RivalCreate,
@@ -139,7 +139,7 @@ export default function RivalReviewPage() {
   const handleRefresh = async (id: number) => {
     setRefreshingId(id);
     try {
-      const res = await fetch(API_ENDPOINTS.RIVAL_REFRESH(id), { method: 'POST' });
+      const res = await apiFetch(API_ENDPOINTS.RIVAL_REFRESH(id), { method: 'POST' });
       if (!res.ok) throw new Error(`Refresh failed (${res.status})`);
       const updated = (await res.json()) as Rival;
       setRivals((prev) => prev.map((r) => (r.id === id ? updated : r)));
@@ -155,7 +155,7 @@ export default function RivalReviewPage() {
     setRefreshingAll(true);
     const pending = toast.loading('Refreshing all rivals...');
     try {
-      const res = await fetch(API_ENDPOINTS.RIVALS_REFRESH_ALL, { method: 'POST' });
+      const res = await apiFetch(API_ENDPOINTS.RIVALS_REFRESH_ALL, { method: 'POST' });
       if (!res.ok) throw new Error(`Refresh failed (${res.status})`);
       await loadRivals();
       toast.success('All rivals refreshed', { id: pending });
@@ -170,7 +170,7 @@ export default function RivalReviewPage() {
     setInsightsLoading(true);
     const pending = toast.loading('Analyzing rivals with AI...');
     try {
-      const res = await fetch(API_ENDPOINTS.RIVALS_INSIGHTS);
+      const res = await apiFetch(API_ENDPOINTS.RIVALS_INSIGHTS);
       if (!res.ok) throw new Error(`Insights failed (${res.status})`);
       const data = (await res.json()) as RivalInsightsResponse;
       setInsights(data);
@@ -216,7 +216,7 @@ export default function RivalReviewPage() {
     try {
       const isEdit = modal.editId !== null;
       const url = isEdit ? API_ENDPOINTS.RIVAL_DETAIL(modal.editId as number) : API_ENDPOINTS.RIVALS;
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method: isEdit ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -238,7 +238,7 @@ export default function RivalReviewPage() {
   const handleDelete = async (rival: Rival) => {
     if (!window.confirm(`Remove ${rival.name} from Rival Review?`)) return;
     try {
-      const res = await fetch(API_ENDPOINTS.RIVAL_DETAIL(rival.id), { method: 'DELETE' });
+      const res = await apiFetch(API_ENDPOINTS.RIVAL_DETAIL(rival.id), { method: 'DELETE' });
       if (!res.ok) throw new Error(`Delete failed (${res.status})`);
       setRivals((prev) => prev.filter((r) => r.id !== rival.id));
       toast.success(`Removed ${rival.name}`);
@@ -736,7 +736,7 @@ function TrendModal({ rival, onClose }: { rival: Rival; onClose: () => void }) {
     (async () => {
       try {
         setLoading(true);
-        const res = await fetch(API_ENDPOINTS.RIVAL_SNAPSHOTS(rival.id));
+        const res = await apiFetch(API_ENDPOINTS.RIVAL_SNAPSHOTS(rival.id));
         if (!res.ok) throw new Error('Failed to load history');
         const data = (await res.json()) as RivalSnapshot[];
         if (active) setSnapshots(data);

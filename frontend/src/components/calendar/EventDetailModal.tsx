@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { API_ENDPOINTS } from '@/lib/api-client';
+import { API_ENDPOINTS, apiFetch } from '@/lib/api-client';
 import { CalendarEvent } from '@/lib/types';
 
 interface EventDetailModalProps {
@@ -68,12 +68,12 @@ export default function EventDetailModal({
 
   const publishNow = () =>
     run('publish', () =>
-      fetch(API_ENDPOINTS.CALENDAR_PUBLISH_NOW(event.id), { method: 'POST' })
+      apiFetch(API_ENDPOINTS.CALENDAR_PUBLISH_NOW(event.id), { method: 'POST' })
     );
 
   const cancelEvent = () =>
     run('cancel', () =>
-      fetch(API_ENDPOINTS.CALENDAR_EVENT(event.id), {
+      apiFetch(API_ENDPOINTS.CALENDAR_EVENT(event.id), {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: 'cancelled' }),
@@ -83,7 +83,7 @@ export default function EventDetailModal({
   const deleteEvent = () =>
     run(
       'delete',
-      () => fetch(API_ENDPOINTS.CALENDAR_EVENT(event.id), { method: 'DELETE' }),
+      () => apiFetch(API_ENDPOINTS.CALENDAR_EVENT(event.id), { method: 'DELETE' }),
       true
     );
 

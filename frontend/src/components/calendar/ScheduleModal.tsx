@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { API_ENDPOINTS } from '@/lib/api-client';
+import { API_ENDPOINTS, apiFetch } from '@/lib/api-client';
 import { CalendarEvent, LinkedInAccountInfo } from '@/lib/types';
 
 interface ContentItem {
@@ -119,7 +119,7 @@ export default function ScheduleModal({
     if (!open || !hasLinkedin) return;
     let cancelled = false;
     setLoadingLinkedinAccounts(true);
-    fetch(API_ENDPOINTS.LINKEDIN_ACCOUNTS)
+    apiFetch(API_ENDPOINTS.LINKEDIN_ACCOUNTS)
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((accs: LinkedInAccountInfo[]) => {
         if (cancelled) return;
@@ -160,7 +160,7 @@ export default function ScheduleModal({
     if (!open) return;
     let cancelled = false;
     setLoadingContents(true);
-    fetch(API_ENDPOINTS.CONTENT_HISTORY + '?limit=100')
+    apiFetch(API_ENDPOINTS.CONTENT_HISTORY + '?limit=100')
       .then((res) => (res.ok ? res.json() : Promise.reject()))
       .then((data: ContentItem[]) => {
         if (!cancelled) setContents(data);
@@ -247,7 +247,7 @@ export default function ScheduleModal({
       // Re-enable an event that previously failed/cancelled when edited
       if (isEdit) body.status = 'pending';
 
-      const res = await fetch(url, {
+      const res = await apiFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),

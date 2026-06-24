@@ -18,7 +18,7 @@ import {
   Users,
   Clapperboard,
 } from 'lucide-react';
-import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
+import { API_ENDPOINTS, apiFetch, fetchWithTimeout } from '@/lib/api-client';
 import type {
   ChatMessage,
   ChatResponse,
@@ -183,7 +183,7 @@ export default function ChatInterface() {
     setSending(true);
 
     try {
-      const res = await fetch(API_ENDPOINTS.CREATION_CHAT, {
+      const res = await apiFetch(API_ENDPOINTS.CREATION_CHAT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { ContentGenerationResponse, ContentRegenerateRequest, LinkedInAccountInfo, SocialPostResponse } from '@/lib/types';
-import { API_ENDPOINTS, API_CONFIG } from '@/lib/api-client';
+import { API_ENDPOINTS, apiFetch, API_CONFIG } from '@/lib/api-client';
 import GeneratedContentDisplay from './GeneratedContentDisplay';
 import DesignerGateModal from './DesignerGateModal';
 import ScheduleModal from '@/components/calendar/ScheduleModal';
@@ -97,7 +97,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
 
     let response: Response;
     try {
-      response = await fetch(API_ENDPOINTS.CONTENT_REGENERATE(contentId), {
+      response = await apiFetch(API_ENDPOINTS.CONTENT_REGENERATE(contentId), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -158,7 +158,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
   // Load approval config (whether posts must be approved by the designer)
   useEffect(() => {
     let cancelled = false;
-    fetch(API_ENDPOINTS.APPROVAL_CONFIG)
+    apiFetch(API_ENDPOINTS.APPROVAL_CONFIG)
       .then((res) => (res.ok ? res.json() : null))
       .then((cfg) => {
         if (cancelled || !cfg) return;
@@ -180,7 +180,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     let cancelled = false;
     setLoadingLinkedinAccounts(true);
 
-    fetch(API_ENDPOINTS.LINKEDIN_ACCOUNTS)
+    apiFetch(API_ENDPOINTS.LINKEDIN_ACCOUNTS)
       .then(async (res) => {
         if (!res.ok) throw new Error('Failed to load LinkedIn accounts');
         return res.json() as Promise<LinkedInAccountInfo[]>;
@@ -278,7 +278,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
         formData.append('media_file', mediaFile);
       }
 
-      const response = await fetch(API_ENDPOINTS.CONTENT_GENERATE_WITH_MEDIA, {
+      const response = await apiFetch(API_ENDPOINTS.CONTENT_GENERATE_WITH_MEDIA, {
         method: 'POST',
         body: formData,
       });
@@ -362,7 +362,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
           payload.linkedin_account_labels = selectedLinkedinAccounts;
         }
 
-        const res = await fetch(API_ENDPOINTS.APPROVALS, {
+        const res = await apiFetch(API_ENDPOINTS.APPROVALS, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -421,7 +421,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
           postPayload.linkedin_account_labels = selectedLinkedinAccounts;
         }
 
-        const response = await fetch(API_ENDPOINTS.SOCIAL_POST(content.content_id), {
+        const response = await apiFetch(API_ENDPOINTS.SOCIAL_POST(content.content_id), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(postPayload),

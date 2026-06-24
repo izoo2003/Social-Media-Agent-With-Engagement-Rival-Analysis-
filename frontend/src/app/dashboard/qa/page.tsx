@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { API_ENDPOINTS } from '@/lib/api-client';
+import { API_ENDPOINTS, apiFetch } from '@/lib/api-client';
 import { ApprovalRequest } from '@/lib/types';
 
 type Tab = 'pending' | 'approved' | 'rejected';
@@ -45,7 +45,7 @@ export default function QAPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_ENDPOINTS.APPROVALS}?status=${tab}`);
+      const res = await apiFetch(`${API_ENDPOINTS.APPROVALS}?status=${tab}`);
       if (!res.ok) throw new Error('Failed to load approval requests');
       const data: ApprovalRequest[] = await res.json();
       setApprovals(data);
@@ -58,7 +58,7 @@ export default function QAPage() {
 
   const loadPendingCount = useCallback(async () => {
     try {
-      const res = await fetch(`${API_ENDPOINTS.APPROVALS}?status=pending`);
+      const res = await apiFetch(`${API_ENDPOINTS.APPROVALS}?status=pending`);
       if (res.ok) {
         const data: ApprovalRequest[] = await res.json();
         setPendingCount(data.length);
@@ -80,7 +80,7 @@ export default function QAPage() {
     if (!pin.trim()) return;
     setVerifying(true);
     try {
-      const res = await fetch(API_ENDPOINTS.DESIGNER_VERIFY_PIN, {
+      const res = await apiFetch(API_ENDPOINTS.DESIGNER_VERIFY_PIN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
@@ -102,7 +102,7 @@ export default function QAPage() {
     setActioningId(id);
     setError(null);
     try {
-      const res = await fetch(API_ENDPOINTS.APPROVAL_APPROVE(id), {
+      const res = await apiFetch(API_ENDPOINTS.APPROVAL_APPROVE(id), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),
@@ -127,7 +127,7 @@ export default function QAPage() {
     setActioningId(id);
     setError(null);
     try {
-      const res = await fetch(API_ENDPOINTS.APPROVAL_REJECT(id), {
+      const res = await apiFetch(API_ENDPOINTS.APPROVAL_REJECT(id), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin, note: rejectNote.trim() || null }),

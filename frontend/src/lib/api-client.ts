@@ -2,6 +2,8 @@
  * API Client Configuration - Updated for media & social posting
  */
 
+import { getAuthHeaders, clearSession } from './auth';
+
 /** Normalize API base URL (handles Vercel env pasted as `NEXT_PUBLIC_API_URL=https://...`). */
 function resolveApiBaseUrl(): string {
   const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').trim();
@@ -15,6 +17,10 @@ const API_BASE_URL = resolveApiBaseUrl();
 const API_VERSION = 'v1';
 
 export const API_ENDPOINTS = {
+  // Auth
+  AUTH_LOGIN: `${API_BASE_URL}/api/${API_VERSION}/auth/login`,
+  AUTH_ME: `${API_BASE_URL}/api/${API_VERSION}/auth/me`,
+
   // Health
   HEALTH: `${API_BASE_URL}/api/${API_VERSION}/health`,
 
@@ -94,6 +100,32 @@ export const API_CONFIG = {
   },
 };
 
+/** Merge default JSON + auth headers into a fetch init object. */
+function withAuthHeaders(init?: RequestInit): RequestInit {
+  const headers = new Headers(init?.headers);
+  const isFormData = init?.body instanceof FormData;
+  if (!isFormData && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  for (const [key, value] of Object.entries(getAuthHeaders())) {
+    headers.set(key, value);
+  }
+  return { ...init, headers };
+}
+
+/** Authenticated fetch — use for all API calls after login. */
+export async function apiFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  const response = await fetch(input, withAuthHeaders(init));
+  if (response.status === 401 && typeof window !== 'undefined') {
+    clearSession();
+    window.location.href = '/login';
+  }
+  return response;
+}
+
 /** Fetch with an abort timeout so slow/unreachable backends don't freeze the UI. */
 export async function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -103,7 +135,7 @@ export async function fetchWithTimeout(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetch(input, { ...fetchInit, signal: controller.signal });
+    return await apiFetch(input, { ...fetchInit, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }

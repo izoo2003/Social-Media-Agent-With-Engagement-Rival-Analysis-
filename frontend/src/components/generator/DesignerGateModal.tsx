@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { API_ENDPOINTS } from '@/lib/api-client';
+import { API_ENDPOINTS, apiFetch } from '@/lib/api-client';
 
 interface DesignerGateModalProps {
   open: boolean;
@@ -47,7 +47,7 @@ export default function DesignerGateModal({
     setVerifying(true);
     setError(null);
     try {
-      const res = await fetch(API_ENDPOINTS.DESIGNER_VERIFY_PIN, {
+      const res = await apiFetch(API_ENDPOINTS.DESIGNER_VERIFY_PIN, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pin }),

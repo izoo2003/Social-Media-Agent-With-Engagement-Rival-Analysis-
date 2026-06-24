@@ -17,11 +17,13 @@ from app.config import settings
 from app.middleware.cors import get_cors_settings
 from app.middleware.error_handler import setup_exception_handlers
 from app.middleware.rate_limiter import limiter
+from app.middleware.dashboard_auth import dashboard_auth_middleware
 from app.middleware.security import SecurityHeadersMiddleware
 from app.routes import (
     health, content, calendar, analytics, qa,
-    scraper, rival, youtube_auth, meta_auth, social, creation, approval,
+    scraper, rival, youtube_auth, meta_auth, social, creation, approval, auth,
 )
+from app.services import auth_service
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +52,14 @@ async def lifespan(app: FastAPI):
         )
     elif settings.ENVIRONMENT != "production":
         logger.info("Destructive admin endpoints enabled (INTERNAL_API_KEY configured).")
+
+    if auth_service.credentials_configured():
+        logger.info("Dashboard login enabled (DASHBOARD_USERNAME configured).")
+    else:
+        logger.warning(
+            "DASHBOARD_USERNAME / DASHBOARD_PASSWORD not set — "
+            "API routes are open until dashboard login is configured."
+        )
 
     from app.services.scheduler import start_scheduler
     start_scheduler()
@@ -99,6 +109,11 @@ _MAX_BODY_BYTES = settings.MAX_REQUEST_BODY_MB * 1024 * 1024
 
 
 @app.middleware("http")
+async def require_dashboard_auth(request: Request, call_next):
+    return await dashboard_auth_middleware(request, call_next)
+
+
+@app.middleware("http")
 async def limit_request_body_size(request: Request, call_next):
     content_length = request.headers.get("content-length")
     if content_length:
@@ -142,6 +157,7 @@ uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 # ── Route modules ─────────────────────────────────────────────────────────────
+app.include_router(auth.router,         prefix="/api/v1", tags=["Auth"])
 app.include_router(health.router,       prefix="/api/v1", tags=["Health"])
 app.include_router(content.router,      prefix="/api/v1", tags=["Content"])
 app.include_router(calendar.router,     prefix="/api/v1", tags=["Calendar"])

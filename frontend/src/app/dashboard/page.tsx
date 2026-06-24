@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
+import { API_ENDPOINTS, apiFetch, fetchWithTimeout } from '@/lib/api-client';
 
 interface ContentItem {
   id: number;
@@ -144,7 +144,7 @@ export default function DashboardPage() {
   const clearAll = async () => {
     setClearing(true);
     try {
-      await fetch(API_ENDPOINTS.CONTENT_CLEAR_ALL, { method: 'DELETE' });
+      await apiFetch(API_ENDPOINTS.CONTENT_CLEAR_ALL, { method: 'DELETE' });
       setContents([]);
       setStats({ total: 0, drafted: 0, posted: 0 });
       setQaStats(null);
