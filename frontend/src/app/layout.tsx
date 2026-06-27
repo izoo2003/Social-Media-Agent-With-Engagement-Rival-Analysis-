@@ -3,6 +3,7 @@
 import React from 'react';
 import type { ReactNode } from 'react';
 import { ThemeProvider } from '@/contexts/ThemeContext';
+import { Analytics } from '@vercel/analytics/react';
 import '../styles/globals.css';
 
 interface LayoutProps {
@@ -32,6 +33,7 @@ export default function RootLayout({ children }: LayoutProps) {
       </head>
       <body>
         <ThemeProvider>{children}</ThemeProvider>
+        <Analytics />
       </body>
     </html>
   );
