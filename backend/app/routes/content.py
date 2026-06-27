@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import get_db
-from app.database.models import ContentStatus, Content, ApprovalRequest
+from app.database.models import ContentStatus, Content, ApprovalRequest, CalendarEvent, QAReport
 from app.middleware.rate_limiter import limiter
 from app.schemas.content import (
     ContentGenerationRequest,
@@ -450,6 +450,57 @@ async def update_content_status(
     except Exception as e:
         logger.error(f"Update status endpoint error: {str(e)}")
         raise HTTPException(status_code=500, detail=safe_error_detail(e, "Failed to update status"))
+
+
+def _content_ids_on_calendar(db: Session) -> set[int]:
+    """Content IDs referenced by calendar events — must not be bulk-deleted."""
+    return {row[0] for row in db.query(CalendarEvent.content_id).distinct().all()}
+
+
+def _delete_excluding_content_ids(db: Session, model, id_column, protected_ids: set[int]) -> int:
+    query = db.query(model)
+    if protected_ids:
+        query = query.filter(~id_column.in_(protected_ids))
+    return query.delete(synchronize_session=False)
+
+
+@router.delete("/content/clear-stats")
+async def clear_dashboard_stats(
+    db: Session = Depends(get_db),
+):
+    """
+    Reset dashboard stats by deleting content and related records,
+    but keep any content linked to calendar events.
+    """
+    try:
+        protected_ids = _content_ids_on_calendar(db)
+
+        approvals_deleted = _delete_excluding_content_ids(
+            db, ApprovalRequest, ApprovalRequest.content_id, protected_ids
+        )
+        qa_deleted = _delete_excluding_content_ids(
+            db, QAReport, QAReport.content_id, protected_ids
+        )
+        content_deleted = _delete_excluding_content_ids(
+            db, Content, Content.id, protected_ids
+        )
+        db.commit()
+
+        logger.info(
+            f"Cleared dashboard stats: {content_deleted} content, "
+            f"{approvals_deleted} approvals, {qa_deleted} QA rows; "
+            f"skipped {len(protected_ids)} calendar-linked content IDs"
+        )
+        return {
+            "deleted_content": content_deleted,
+            "deleted_approvals": approvals_deleted,
+            "deleted_qa_reports": qa_deleted,
+            "skipped_calendar_content": len(protected_ids),
+        }
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Clear dashboard stats error: {e}")
+        raise HTTPException(status_code=500, detail=safe_error_detail(e, "Failed to clear stats"))
 
 
 @router.delete("/content/clear-all")

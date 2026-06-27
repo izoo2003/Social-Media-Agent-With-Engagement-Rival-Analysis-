@@ -162,6 +162,25 @@ export default function DashboardPage() {
     }
   };
 
+  const clearStats = async () => {
+    setClearing(true);
+    try {
+      const res = await apiFetch(API_ENDPOINTS.CONTENT_CLEAR_STATS, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          typeof err.detail === 'string' ? err.detail : 'Failed to clear dashboard stats'
+        );
+      }
+      await loadDashboard();
+    } catch (err) {
+      console.error('Clear stats failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to clear dashboard stats');
+    } finally {
+      setClearing(false);
+    }
+  };
+
   const openClearContent = () =>
     setDialog({
       open: true,
@@ -180,11 +199,11 @@ export default function DashboardPage() {
       open: true,
       title: 'Clear all stats?',
       message:
-        'This will delete all content records and approval history, resetting every stat card to zero. This cannot be undone.',
+        'This will delete content and approval history used for dashboard stats. Items scheduled on the Calendar are kept. This cannot be undone.',
       confirmLabel: 'Clear Stats',
       onConfirm: () => {
         setDialog((d) => ({ ...d, open: false }));
-        clearAll();
+        clearStats();
       },
     });
 

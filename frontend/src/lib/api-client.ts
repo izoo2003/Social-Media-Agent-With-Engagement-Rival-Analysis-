@@ -64,6 +64,7 @@ export const API_ENDPOINTS = {
 
   // Content management
   CONTENT_CLEAR_ALL: `${API_BASE_URL}/api/${API_VERSION}/content/clear-all`,
+  CONTENT_CLEAR_STATS: `${API_BASE_URL}/api/${API_VERSION}/content/clear-stats`,
 
   // Designer Approval Workflow
   APPROVAL_STATS: `${API_BASE_URL}/api/${API_VERSION}/approvals/stats`,
