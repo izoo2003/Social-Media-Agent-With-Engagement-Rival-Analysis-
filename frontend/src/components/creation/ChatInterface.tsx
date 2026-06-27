@@ -17,6 +17,7 @@ import {
   Mic,
   Users,
   Clapperboard,
+  Sparkles,
 } from 'lucide-react';
 import { API_ENDPOINTS, apiFetch, fetchWithTimeout } from '@/lib/api-client';
 import type {
@@ -27,6 +28,7 @@ import type {
 } from '@/lib/types';
 
 const META_AI_FALLBACK_URL = 'https://www.meta.ai/';
+const GEMINI_WEB_FALLBACK_URL = 'https://gemini.google.com/app';
 const ELEVENLABS_FALLBACK_URL = 'https://elevenlabs.io/app/speech-synthesis/text-to-speech';
 const GOOGLE_FLOW_CHARACTERS_FALLBACK_URL =
   'https://labs.google/fx/tools/flow/project/cc16a3ce-33ec-4248-bb1a-3341c7817479/characters';
@@ -122,6 +124,7 @@ interface ExtendedChatMessage extends ChatMessage {
 export default function ChatInterface() {
   const [modelLabel, setModelLabel] = useState<string>('Loading…');
   const [metaAiUrl, setMetaAiUrl] = useState<string>(META_AI_FALLBACK_URL);
+  const [geminiWebUrl, setGeminiWebUrl] = useState<string>(GEMINI_WEB_FALLBACK_URL);
   const [elevenLabsUrl, setElevenLabsUrl] = useState<string>(ELEVENLABS_FALLBACK_URL);
   const [googleFlowCharactersUrl, setGoogleFlowCharactersUrl] = useState<string>(
     GOOGLE_FLOW_CHARACTERS_FALLBACK_URL
@@ -145,7 +148,8 @@ export default function ChatInterface() {
         if (!res.ok) throw new Error('Failed to load models');
         const data: CreationModelsResponse = await res.json();
         setModelLabel(data.models[0]?.label ?? 'AI Assistant');
-        setMetaAiUrl(data.meta_ai_web_url || data.gemini_web_url || META_AI_FALLBACK_URL);
+        setMetaAiUrl(data.meta_ai_web_url || META_AI_FALLBACK_URL);
+        setGeminiWebUrl(data.gemini_web_url || GEMINI_WEB_FALLBACK_URL);
         setElevenLabsUrl(data.elevenlabs_web_url || ELEVENLABS_FALLBACK_URL);
         setGoogleFlowCharactersUrl(
           data.google_flow_characters_url || GOOGLE_FLOW_CHARACTERS_FALLBACK_URL
@@ -216,6 +220,10 @@ export default function ChatInterface() {
 
   const openMetaAi = () => {
     window.open(metaAiUrl, '_blank', 'noopener,noreferrer');
+  };
+
+  const openGoogleGemini = () => {
+    window.open(geminiWebUrl, '_blank', 'noopener,noreferrer');
   };
 
   const openElevenLabs = () => {
@@ -301,6 +309,29 @@ export default function ChatInterface() {
             Clear
           </button>
         )}
+      </div>
+
+      {/* Prompt Management */}
+      <div className="px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-blue-50 via-indigo-50 to-violet-50 dark:border-slate-600 dark:from-slate-800 dark:via-slate-800 dark:to-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              Prompt Management
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+              Chat with Gemini here, then copy prompts and open Google Gemini to refine or generate
+              images and video.
+            </p>
+          </div>
+          <button
+            onClick={openGoogleGemini}
+            className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-indigo-700 hover:text-indigo-900 border border-indigo-200 hover:bg-indigo-50 rounded-lg px-3 py-1.5 transition-colors dark:text-indigo-300 dark:hover:text-indigo-200 dark:border-indigo-700/60 dark:hover:bg-indigo-950/40"
+            title="Open Google Gemini web app"
+          >
+            <Sparkles className="w-4 h-4" />
+            Open Google Gemini
+          </button>
+        </div>
       </div>
 
       {/* Messages */}

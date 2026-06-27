@@ -51,6 +51,7 @@ export default function CreationPage() {
           <li>• Say <strong>image</strong> or <strong>video</strong> and the platform (Instagram reel, Amazon listing, trade flyer)</li>
           <li>• Ask for <strong>2–3 variations</strong> if you want options (studio vs lifestyle, day vs night)</li>
           <li>• <strong>Copy</strong> the Meta AI prompt block, then click <strong>Open Meta AI</strong> to generate</li>
+          <li>• Use <strong>Prompt Management → Open Google Gemini</strong> to paste and refine prompts in the Gemini web app</li>
           <li>• <strong>Add Voice-Over In ElevenLabs</strong> — open <a href="https://elevenlabs.io/app/speech-synthesis/text-to-speech" target="_blank" rel="noopener noreferrer" className="text-brand-700 dark:text-gold-300 underline">ElevenLabs TTS</a> for narration on your videos</li>
           <li>• Chat uses <code>CREATION_GEMINI_API_KEY</code> — separate from Content Posting</li>
         </ul>
