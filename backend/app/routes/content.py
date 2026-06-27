@@ -10,9 +10,8 @@ DELETE /content/{id} - Delete content
 """
 
 import asyncio
-import secrets
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -40,20 +39,6 @@ router = APIRouter()
 
 # Initialize services
 media_service = MediaService()
-
-
-def _require_internal_key(x_internal_api_key: str = Header(default="")) -> None:
-    """
-    Dependency that enforces the internal API key for destructive endpoints.
-    Raises 403 when the key is missing or invalid.
-    """
-    if not settings.INTERNAL_API_KEY:
-        raise HTTPException(
-            status_code=503,
-            detail="This endpoint is disabled: INTERNAL_API_KEY is not configured.",
-        )
-    if not secrets.compare_digest(x_internal_api_key, settings.INTERNAL_API_KEY):
-        raise HTTPException(status_code=403, detail="Invalid or missing internal API key.")
 
 
 @router.post("/content/generate", response_model=list[ContentGenerationResponse])
@@ -470,13 +455,11 @@ async def update_content_status(
 @router.delete("/content/clear-all")
 async def clear_all_content(
     db: Session = Depends(get_db),
-    _key: None = Depends(_require_internal_key),
 ):
     """
     Delete every content record (and their linked approval requests).
 
-    Requires the X-Internal-API-Key header to prevent accidental or
-    malicious mass data deletion.
+    Protected by dashboard login middleware when DASHBOARD_USERNAME is configured.
     """
     try:
         approvals_deleted = db.query(ApprovalRequest).delete(synchronize_session=False)

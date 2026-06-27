@@ -144,12 +144,19 @@ export default function DashboardPage() {
   const clearAll = async () => {
     setClearing(true);
     try {
-      await apiFetch(API_ENDPOINTS.CONTENT_CLEAR_ALL, { method: 'DELETE' });
+      const res = await apiFetch(API_ENDPOINTS.CONTENT_CLEAR_ALL, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          typeof err.detail === 'string' ? err.detail : 'Failed to clear dashboard data'
+        );
+      }
       setContents([]);
       setStats({ total: 0, drafted: 0, posted: 0 });
       setQaStats(null);
     } catch (err) {
       console.error('Clear failed:', err);
+      alert(err instanceof Error ? err.message : 'Failed to clear dashboard data');
     } finally {
       setClearing(false);
     }
