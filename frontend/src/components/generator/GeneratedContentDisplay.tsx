@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { ContentGenerationResponse, ContentRegenerateRequest } from '@/lib/types';
+import SocialPlatformIcon from '@/components/icons/SocialPlatformIcon';
 
 export interface GenerationContext {
   topic: string;
@@ -34,17 +35,6 @@ const PLATFORM_COLORS: Record<string, string> = {
   youtube: 'from-red-600 to-red-700',
   email: 'from-gray-600 to-gray-700',
   whatsapp: 'from-green-500 to-green-600',
-};
-
-const PLATFORM_ICONS: Record<string, string> = {
-  linkedin: '💼',
-  twitter: '𝕏',
-  facebook: '👍',
-  instagram: '📷',
-  tiktok: '🎵',
-  youtube: '▶️',
-  email: '✉️',
-  whatsapp: '💬',
 };
 
 export default function GeneratedContentDisplay({
@@ -191,7 +181,7 @@ export default function GeneratedContentDisplay({
                   }`}
                 >
                   <div className="flex items-center gap-2">
-                    <span className="text-2xl">{PLATFORM_ICONS[content.platform]}</span>
+                    <SocialPlatformIcon platform={content.platform} size={22} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-800 capitalize">
                         {content.platform}
@@ -216,7 +206,12 @@ export default function GeneratedContentDisplay({
                 } text-white p-6`}
               >
                 <div className="flex items-center gap-3 mb-2">
-                  <span className="text-4xl">{PLATFORM_ICONS[selectedContent.platform]}</span>
+                  <SocialPlatformIcon
+                    platform={selectedContent.platform}
+                    size={36}
+                    monochrome
+                    className="text-white"
+                  />
                   <div>
                     <h3 className="text-2xl font-bold capitalize">{selectedContent.platform}</h3>
                     <p className="text-white/80 text-sm">

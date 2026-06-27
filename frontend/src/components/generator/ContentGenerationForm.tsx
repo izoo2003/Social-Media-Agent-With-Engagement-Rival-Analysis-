@@ -6,19 +6,13 @@ import { API_ENDPOINTS, apiFetch, API_CONFIG } from '@/lib/api-client';
 import GeneratedContentDisplay from './GeneratedContentDisplay';
 import DesignerGateModal from './DesignerGateModal';
 import ScheduleModal from '@/components/calendar/ScheduleModal';
+import SocialPlatformIcon, { SOCIAL_PLATFORMS } from '@/components/icons/SocialPlatformIcon';
 
 interface ContentGenerationFormProps {
   onGenerate?: (results: ContentGenerationResponse[]) => void;
 }
 
-const PLATFORMS = [
-  { id: 'linkedin', name: 'LinkedIn', icon: '💼' },
-  { id: 'facebook', name: 'Facebook', icon: '👍' },
-  { id: 'instagram', name: 'Instagram', icon: '📷' },
-  { id: 'twitter', name: 'Twitter/X', icon: '𝕏' },
-  { id: 'tiktok', name: 'TikTok', icon: '🎵' },
-  { id: 'youtube', name: 'YouTube', icon: '▶️' },
-];
+const PLATFORMS = SOCIAL_PLATFORMS;
 
 const TONES = [
   'professional',
@@ -547,7 +541,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                         : 'border-gray-200 bg-gray-50'
                     }`}
                   >
-                    <span className="text-lg">{platform.icon}</span>
+                    <SocialPlatformIcon platform={pid} size={20} />
                     <span className="text-sm font-medium text-gray-700">{platform.name}</span>
                     {pid === 'linkedin' && linkedinAccounts.length > 0 && (
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-semibold">
@@ -570,8 +564,9 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
           {selectedPlatforms.includes('linkedin') && (
             <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-slate-900">
-                  💼 LinkedIn Accounts
+                <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+                  <SocialPlatformIcon platform="linkedin" size={18} />
+                  LinkedIn Accounts
                 </h3>
                 {linkedinAccounts.length > 1 && (
                   <div className="flex gap-2">
@@ -648,7 +643,10 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                 .filter((r) => r.platform !== 'linkedin')
                 .map((result, idx) => (
                   <div key={`other-${idx}`} className="flex items-center justify-between text-sm gap-2">
-                    <span className="font-medium shrink-0 capitalize">{result.platform}</span>
+                    <span className="font-medium shrink-0 capitalize flex items-center gap-2">
+                      <SocialPlatformIcon platform={result.platform} size={16} />
+                      {result.platform}
+                    </span>
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`px-2 py-0.5 rounded text-xs font-semibold shrink-0 ${
                         result.status === 'published'
@@ -678,7 +676,10 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
               {postResults.some((r) => r.platform === 'linkedin') && (
                 <div className="border border-blue-100 rounded-lg bg-white p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-gray-800">LinkedIn</span>
+                    <span className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                      <SocialPlatformIcon platform="linkedin" size={16} />
+                      LinkedIn
+                    </span>
                     <span className="text-xs text-gray-500">
                       {postResults.filter((r) => r.platform === 'linkedin' && (r.status === 'published' || r.status === 'draft')).length}
                       {' / '}
@@ -888,7 +889,9 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                       : 'border-gray-200 bg-white hover:border-gray-300'
                   }`}
                 >
-                  <div className="text-2xl mb-1">{platform.icon}</div>
+                  <div className="flex justify-center mb-2">
+                    <SocialPlatformIcon platform={platform.id} size={28} />
+                  </div>
                   <div className="text-sm font-medium text-gray-700">{platform.name}</div>
                 </button>
               ))}

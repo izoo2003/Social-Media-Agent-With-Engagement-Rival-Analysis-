@@ -1,8 +1,7 @@
-'use client';
-
-import React from 'react';
 import type { ReactNode } from 'react';
-import { ThemeProvider } from '@/contexts/ThemeContext';
+import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
+import AppProviders from '@/components/AppProviders';
 import '../styles/globals.css';
 
 interface LayoutProps {
@@ -31,7 +30,9 @@ export default function RootLayout({ children }: LayoutProps) {
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
       <body>
-        <ThemeProvider>{children}</ThemeProvider>
+        <AppProviders>{children}</AppProviders>
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
