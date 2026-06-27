@@ -1,36 +1,42 @@
 'use client';
 
-import React, { ReactNode } from 'react';
+import React, { ReactNode, useEffect, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { Lock } from 'lucide-react';
 import { Toaster } from 'react-hot-toast';
 import { ThemeToggle } from '@/components/ThemeToggle';
 import { logout } from '@/lib/auth';
+import {
+  type AccessTier,
+  getAccessTierFromCookie,
+  getAppSubtitle,
+  getNavItems,
+  getTierLabel,
+  isJuniorTier,
+} from '@/lib/app-mode';
 
 interface DashboardLayoutProps {
   children: ReactNode;
 }
 
-const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Dashboard' },
-  { href: '/dashboard/creation', label: 'Content Creation' },
-  { href: '/dashboard/generator', label: 'Content Posting' },
-  { href: '/dashboard/calendar', label: 'Calendar' },
-  { href: '/dashboard/analytics', label: 'Analytics' },
-  { href: '/dashboard/qa', label: 'QA Checker' },
-  { href: '/dashboard/rivals', label: 'Rival Review' },
-];
-
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
+  const [accessTier, setAccessTier] = useState<AccessTier>('senior');
+
+  useEffect(() => {
+    setAccessTier(getAccessTierFromCookie() ?? 'senior');
+  }, []);
+
+  const navItems = getNavItems(accessTier);
+  const junior = isJuniorTier(accessTier);
+  const appSubtitle = getAppSubtitle(accessTier);
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950">
       <Toaster position="top-right" />
-      {/* Sidebar — Kafi maroon/red brand */}
       <aside className="w-64 bg-brand-900 text-white shadow-lg flex flex-col">
-        {/* Logo + title */}
         <div className="p-5 border-b border-brand-800">
           <div className="bg-white rounded-lg p-3 mb-4 flex items-center justify-center">
             <Image
@@ -43,16 +49,33 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             />
           </div>
           <h2 className="text-sm font-semibold tracking-wide text-center text-white/90 uppercase">
-            Social Media Agent
+            {appSubtitle}
           </h2>
+          {junior && (
+            <p className="mt-2 text-center text-xs text-gold-200">
+              {getTierLabel('junior')} mode
+            </p>
+          )}
         </div>
 
-        {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const isActive =
               pathname === item.href ||
               (item.href !== '/dashboard' && pathname.startsWith(item.href));
+
+            if (item.locked) {
+              return (
+                <div
+                  key={item.href}
+                  title="Senior access only — sign out and log in as Senior Developer"
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border-l-4 border-transparent text-white/40 cursor-not-allowed select-none"
+                >
+                  <Lock className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+                  <span>{item.label}</span>
+                </div>
+              );
+            }
 
             return (
               <Link
@@ -70,14 +93,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           })}
         </nav>
 
-        {/* Footer */}
         <div className="p-4 border-t border-brand-800 space-y-1">
-          <Link
-            href="/dashboard/settings"
-            className="block px-4 py-2 rounded-lg text-sm text-white/70 hover:bg-brand-800 hover:text-white transition-colors"
-          >
-            Settings
-          </Link>
+          {!junior && (
+            <Link
+              href="/dashboard/settings"
+              className="block px-4 py-2 rounded-lg text-sm text-white/70 hover:bg-brand-800 hover:text-white transition-colors"
+            >
+              Settings
+            </Link>
+          )}
           <button
             type="button"
             onClick={logout}
@@ -88,11 +112,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </div>
       </aside>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-auto">
         <header className="bg-white shadow dark:bg-slate-900 dark:shadow-slate-950/50 dark:border-b dark:border-slate-800">
           <div className="px-6 py-4 flex justify-between items-center">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Dashboard</h1>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
+              {junior ? 'Prompt Studio' : 'Dashboard'}
+            </h1>
             <ThemeToggle />
           </div>
         </header>

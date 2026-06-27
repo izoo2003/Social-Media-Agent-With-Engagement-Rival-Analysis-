@@ -32,8 +32,10 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown events."""
     logger.info(f"Starting Kafi Social Agent - Environment: {settings.ENVIRONMENT}")
+    logger.info(f"APP_MODE: {settings.APP_MODE}")
     logger.info(f"API Version: {settings.API_VERSION}")
-    logger.info(f"LLM Provider: Google Gemini ({settings.GEMINI_MODEL})")
+    if settings.APP_MODE == "full":
+        logger.info(f"LLM Provider: Google Gemini ({settings.GEMINI_MODEL})")
 
     if settings.ENVIRONMENT != "production":
         logger.info(f"API Docs: http://localhost:{settings.PORT}/docs")
@@ -61,13 +63,17 @@ async def lifespan(app: FastAPI):
             "API routes are open until dashboard login is configured."
         )
 
-    from app.services.scheduler import start_scheduler
-    start_scheduler()
+    if settings.APP_MODE == "full":
+        from app.services.scheduler import start_scheduler
+        start_scheduler()
+    else:
+        logger.info("APP_MODE=creation-only — post scheduler disabled")
 
     yield
 
-    from app.services.scheduler import shutdown_scheduler
-    shutdown_scheduler()
+    if settings.APP_MODE == "full":
+        from app.services.scheduler import shutdown_scheduler
+        shutdown_scheduler()
     logger.info("Shutting down Kafi Social Agent")
 
 
@@ -157,19 +163,21 @@ uploads_dir.mkdir(exist_ok=True)
 app.mount("/uploads", StaticFiles(directory=str(uploads_dir)), name="uploads")
 
 # ── Route modules ─────────────────────────────────────────────────────────────
-app.include_router(auth.router,         prefix="/api/v1", tags=["Auth"])
-app.include_router(health.router,       prefix="/api/v1", tags=["Health"])
-app.include_router(content.router,      prefix="/api/v1", tags=["Content"])
-app.include_router(calendar.router,     prefix="/api/v1", tags=["Calendar"])
-app.include_router(analytics.router,    prefix="/api/v1", tags=["Analytics"])
-app.include_router(qa.router,           prefix="/api/v1", tags=["QA"])
-app.include_router(approval.router,     prefix="/api/v1", tags=["Approvals"])
-app.include_router(scraper.router,      prefix="/api/v1", tags=["Scraper"])
-app.include_router(rival.router,        prefix="/api/v1", tags=["Rival Review"])
-app.include_router(youtube_auth.router, prefix="/api/v1", tags=["YouTube Auth"])
-app.include_router(meta_auth.router,    prefix="/api/v1", tags=["Meta Auth"])
-app.include_router(social.router,       prefix="/api/v1", tags=["Social"])
-app.include_router(creation.router,     prefix="/api/v1", tags=["Content Creation"])
+app.include_router(auth.router,     prefix="/api/v1", tags=["Auth"])
+app.include_router(health.router,   prefix="/api/v1", tags=["Health"])
+app.include_router(creation.router, prefix="/api/v1", tags=["Content Creation"])
+
+if settings.APP_MODE == "full":
+    app.include_router(content.router,      prefix="/api/v1", tags=["Content"])
+    app.include_router(calendar.router,     prefix="/api/v1", tags=["Calendar"])
+    app.include_router(analytics.router,    prefix="/api/v1", tags=["Analytics"])
+    app.include_router(qa.router,           prefix="/api/v1", tags=["QA"])
+    app.include_router(approval.router,     prefix="/api/v1", tags=["Approvals"])
+    app.include_router(scraper.router,      prefix="/api/v1", tags=["Scraper"])
+    app.include_router(rival.router,        prefix="/api/v1", tags=["Rival Review"])
+    app.include_router(youtube_auth.router, prefix="/api/v1", tags=["YouTube Auth"])
+    app.include_router(meta_auth.router,    prefix="/api/v1", tags=["Meta Auth"])
+    app.include_router(social.router,       prefix="/api/v1", tags=["Social"])
 
 
 @app.get("/")
@@ -179,6 +187,7 @@ async def root():
         "status": "success",
         "message": "Kafi Commodities Social Media & Branding AI Agent API",
         "api_version": settings.API_VERSION,
+        "app_mode": settings.APP_MODE,
     }
 
 
