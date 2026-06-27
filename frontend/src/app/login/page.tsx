@@ -3,12 +3,29 @@
 import React, { FormEvent, useEffect, useState } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, GraduationCap, Sparkles } from 'lucide-react';
 import { API_ENDPOINTS } from '@/lib/api-client';
 import { setSession } from '@/lib/auth';
+import {
+  type AccessTier,
+  getDefaultDashboardPath,
+  isDashboardPathAllowed,
+  isDeploymentCreationOnly,
+  TIER_PREF_KEY,
+} from '@/lib/app-mode';
+
+function readStoredTier(): AccessTier {
+  if (typeof window === 'undefined') {
+    return 'senior';
+  }
+  return localStorage.getItem(TIER_PREF_KEY) === 'junior' ? 'junior' : 'senior';
+}
 
 export default function LoginPage() {
   const router = useRouter();
+  const deploymentLocked = isDeploymentCreationOnly();
+
+  const [accessTier, setAccessTier] = useState<AccessTier>('senior');
   const [redirectTo, setRedirectTo] = useState('/dashboard');
 
   const [username, setUsername] = useState('');
@@ -18,10 +35,24 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (!deploymentLocked) {
+      setAccessTier(readStoredTier());
+    }
+  }, [deploymentLocked]);
+
+  useEffect(() => {
+    const tier = deploymentLocked ? 'junior' : accessTier;
+
     const params = new URLSearchParams(window.location.search);
-    const from = params.get('from') || '/dashboard';
-    setRedirectTo(from.startsWith('/dashboard') ? from : '/dashboard');
-  }, []);
+    const from = params.get('from');
+    const defaultPath = getDefaultDashboardPath(tier);
+
+    if (from && from.startsWith('/dashboard') && isDashboardPathAllowed(from, tier)) {
+      setRedirectTo(from);
+    } else {
+      setRedirectTo(defaultPath);
+    }
+  }, [deploymentLocked, accessTier]);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -46,7 +77,8 @@ export default function LoginPage() {
         return;
       }
 
-      setSession(data.access_token, data.expires_in ?? 28800);
+      const tier = deploymentLocked ? 'junior' : accessTier;
+      setSession(data.access_token, data.expires_in ?? 28800, tier);
       router.replace(redirectTo);
     } catch {
       setError('Could not reach the server. Try again in a moment.');
@@ -73,8 +105,42 @@ export default function LoginPage() {
           Dashboard Login
         </h1>
         <p className="mb-6 text-center text-sm text-slate-600">
-          Sign in to access the Social Media Agent dashboard.
+          Sign in and choose your access level for this session.
         </p>
+
+        {!deploymentLocked && (
+          <div className="mb-6">
+            <p className="mb-2 text-sm font-medium text-slate-700">I am a…</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setAccessTier('senior')}
+                className={`rounded-xl border-2 p-3 text-left transition ${
+                  accessTier === 'senior'
+                    ? 'border-brand-600 bg-brand-50 ring-2 ring-brand-500/20'
+                    : 'border-slate-200 hover:border-brand-300'
+                }`}
+              >
+                <GraduationCap className="mb-1 h-5 w-5 text-brand-700" />
+                <p className="text-sm font-semibold text-slate-900">Senior Developer</p>
+                <p className="mt-0.5 text-xs text-slate-500">Full dashboard access</p>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccessTier('junior')}
+                className={`rounded-xl border-2 p-3 text-left transition ${
+                  accessTier === 'junior'
+                    ? 'border-brand-600 bg-brand-50 ring-2 ring-brand-500/20'
+                    : 'border-slate-200 hover:border-brand-300'
+                }`}
+              >
+                <Sparkles className="mb-1 h-5 w-5 text-brand-700" />
+                <p className="text-sm font-semibold text-slate-900">Junior Developer</p>
+                <p className="mt-0.5 text-xs text-slate-500">Content Creation only</p>
+              </button>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -142,6 +208,12 @@ export default function LoginPage() {
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
+
+        {accessTier === 'junior' && !deploymentLocked && (
+          <p className="mt-4 text-center text-xs text-slate-500">
+            Junior mode unlocks Content Creation only. Other sections stay locked.
+          </p>
+        )}
       </div>
     </main>
   );

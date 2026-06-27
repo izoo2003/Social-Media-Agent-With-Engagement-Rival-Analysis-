@@ -49,6 +49,8 @@ class Settings(BaseSettings):
 
     # App Settings
     APP_NAME: str = "Kafi Social Agent"
+    # full = entire platform; creation-only = Prompt Studio (/creation) API surface only
+    APP_MODE: Literal["full", "creation-only"] = "full"
     API_VERSION: str = "0.1.0"
     ENVIRONMENT: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = True
