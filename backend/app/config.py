@@ -97,8 +97,13 @@ class Settings(BaseSettings):
     # Content Creation chatbot — separate Gemini key (does NOT use GEMINI_API_KEY)
     # Get a 2nd free key at https://aistudio.google.com/apikey (same steps as your posting key)
     CREATION_GEMINI_API_KEY: str = ""
+    # Optional extra keys (comma-separated). Tried in order when quota/rate limits hit.
+    # Use keys from different Google accounts for separate free-tier quotas.
+    CREATION_GEMINI_API_KEYS: str = ""
     CREATION_GEMINI_MODEL: str = "gemini-2.5-flash"
     CREATION_GEMINI_FALLBACK_MODEL: str = "gemini-2.0-flash"
+    # Optional full model chain (comma-separated). When empty, primary + fallback above are used.
+    CREATION_GEMINI_MODELS: str = ""
 
     # Content Creation - Gemini web app deep link (image/video are created in Gemini)
     GEMINI_WEB_URL: str = "https://gemini.google.com/app"
@@ -279,3 +284,33 @@ class Settings(BaseSettings):
 
 settings = Settings()
 _bootstrap_internal_api_key(settings)
+
+
+def _parse_csv(value: str) -> list[str]:
+    return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def get_creation_gemini_api_keys() -> list[str]:
+    """API keys for the creation chatbot, in failover order."""
+    keys: list[str] = []
+    primary = settings.CREATION_GEMINI_API_KEY.strip()
+    if primary:
+        keys.append(primary)
+    for key in _parse_csv(settings.CREATION_GEMINI_API_KEYS):
+        if key not in keys:
+            keys.append(key)
+    return keys
+
+
+def get_creation_gemini_models() -> list[str]:
+    """Gemini models for the creation chatbot, in failover order."""
+    models = _parse_csv(settings.CREATION_GEMINI_MODELS)
+    if models:
+        return models
+
+    ordered: list[str] = []
+    for model in (settings.CREATION_GEMINI_MODEL, settings.CREATION_GEMINI_FALLBACK_MODEL):
+        name = model.strip()
+        if name and name not in ordered:
+            ordered.append(name)
+    return ordered

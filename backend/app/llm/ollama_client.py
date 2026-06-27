@@ -60,23 +60,32 @@ class LLMClient:
         messages: list[dict],
         *,
         api_key: str | None = None,
+        api_keys: list[str] | None = None,
         model: str | None = None,
         fallback_model: str | None = None,
+        models: list[str] | None = None,
     ) -> tuple[str, str]:
         """
         Multi-turn chat via Google Gemini API.
 
         Args:
             messages: List of {role, content} with roles user/assistant/system.
-            api_key: Optional override (e.g. CREATION_GEMINI_API_KEY).
+            api_key: Optional single-key override (e.g. CREATION_GEMINI_API_KEY).
+            api_keys: Optional ordered key list; tries each key after all models fail.
             model: Optional primary model override.
             fallback_model: Optional fallback model override.
+            models: Optional ordered model list; overrides model + fallback_model.
 
         Returns:
             Tuple of (reply text, model id used).
         """
-        key = (api_key or settings.GEMINI_API_KEY).strip()
-        if not key:
+        if api_keys:
+            keys = [k.strip() for k in api_keys if k.strip()]
+        else:
+            single = (api_key or settings.GEMINI_API_KEY).strip()
+            keys = [single] if single else []
+
+        if not keys:
             raise LLMConnectionError(
                 "Gemini API key not configured. "
                 "Set GEMINI_API_KEY or CREATION_GEMINI_API_KEY in your .env file. "
@@ -99,31 +108,46 @@ class LLMClient:
         if not contents:
             raise LLMConnectionError("No messages to send.")
 
-        primary = (model or settings.GEMINI_MODEL).strip()
-        fb = (fallback_model or settings.GEMINI_FALLBACK_MODEL).strip()
-        models = [primary]
-        if fb and fb not in models:
-            models.append(fb)
+        if models:
+            model_chain = [m.strip() for m in models if m.strip()]
+        else:
+            primary = (model or settings.GEMINI_MODEL).strip()
+            fb = (fallback_model or settings.GEMINI_FALLBACK_MODEL).strip()
+            model_chain = [primary]
+            if fb and fb not in model_chain:
+                model_chain.append(fb)
+
+        if not model_chain:
+            raise LLMConnectionError("No Gemini models configured for chat.")
 
         last_error: Exception | None = None
-        for model_index, model_id in enumerate(models):
-            try:
-                reply = self._chat_gemini_with_retries(
-                    contents,
-                    model_id,
-                    api_key=key,
-                    system_instruction=system_instruction,
-                )
-                return reply, model_id
-            except LLMConnectionError as e:
-                last_error = e
-                if model_index < len(models) - 1:
-                    logger.warning(
-                        f"Gemini chat model {model_id} failed ({e}). "
-                        f"Trying fallback: {models[model_index + 1]}"
+        for key_index, key in enumerate(keys):
+            for model_index, model_id in enumerate(model_chain):
+                try:
+                    reply = self._chat_gemini_with_retries(
+                        contents,
+                        model_id,
+                        api_key=key,
+                        system_instruction=system_instruction,
                     )
-                    continue
-                raise
+                    return reply, model_id
+                except LLMConnectionError as e:
+                    last_error = e
+                    has_next_model = model_index < len(model_chain) - 1
+                    has_next_key = key_index < len(keys) - 1
+                    if has_next_model:
+                        logger.warning(
+                            f"Gemini chat model {model_id} failed ({e}). "
+                            f"Trying fallback model: {model_chain[model_index + 1]}"
+                        )
+                        continue
+                    if has_next_key:
+                        logger.warning(
+                            f"All models failed on current API key ({e}). "
+                            "Trying next CREATION_GEMINI_API_KEYS entry."
+                        )
+                        break
+                    raise
 
         raise LLMConnectionError(f"Gemini chat failed: {last_error}") from last_error
 

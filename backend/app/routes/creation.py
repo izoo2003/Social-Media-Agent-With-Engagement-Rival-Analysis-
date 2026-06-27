@@ -13,7 +13,7 @@ Product Knowledge:
 
 from fastapi import APIRouter, HTTPException
 
-from app.config import settings
+from app.config import get_creation_gemini_api_keys, get_creation_gemini_models, settings
 from app.llm.ollama_client import LLMClient
 from app.schemas.creation import (
     ChatRequest,
@@ -53,7 +53,7 @@ async def list_creation_models():
         elevenlabs_web_url=settings.ELEVENLABS_WEB_URL,
         google_flow_characters_url=settings.GOOGLE_FLOW_CHARACTERS_URL,
         google_flow_final_product_url=settings.GOOGLE_FLOW_FINAL_PRODUCT_URL,
-        chat_ready=bool(settings.CREATION_GEMINI_API_KEY),
+        chat_ready=bool(get_creation_gemini_api_keys()),
     )
 
 
@@ -83,9 +83,8 @@ async def creation_chat(request: ChatRequest):
 
         reply, model = chat_client.chat(
             messages,
-            api_key=settings.CREATION_GEMINI_API_KEY,
-            model=settings.CREATION_GEMINI_MODEL,
-            fallback_model=settings.CREATION_GEMINI_FALLBACK_MODEL,
+            api_keys=get_creation_gemini_api_keys(),
+            models=get_creation_gemini_models(),
         )
 
         # Build the optional MatchedProduct payload for the frontend
