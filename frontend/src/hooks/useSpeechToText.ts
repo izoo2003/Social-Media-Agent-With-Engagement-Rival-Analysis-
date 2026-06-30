@@ -2,6 +2,26 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+/** Minimal Web Speech API shapes (not in default TS DOM lib on all CI targets). */
+type SpeechRecognitionResultItem = {
+  isFinal: boolean;
+  0?: { transcript?: string };
+};
+
+type SpeechRecognitionResults = {
+  length: number;
+  [index: number]: SpeechRecognitionResultItem;
+};
+
+type SpeechRecognitionResultEvent = {
+  resultIndex: number;
+  results: SpeechRecognitionResults;
+};
+
+type SpeechRecognitionErrorEventLike = {
+  error: string;
+};
+
 type SpeechRecognitionInstance = {
   continuous: boolean;
   interimResults: boolean;
@@ -9,8 +29,8 @@ type SpeechRecognitionInstance = {
   start: () => void;
   stop: () => void;
   abort: () => void;
-  onresult: ((event: SpeechRecognitionEvent) => void) | null;
-  onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+  onresult: ((event: SpeechRecognitionResultEvent) => void) | null;
+  onerror: ((event: SpeechRecognitionErrorEventLike) => void) | null;
   onend: (() => void) | null;
 };
 
@@ -80,7 +100,7 @@ export function useSpeechToText({
     recognition.interimResults = true;
     recognition.lang = lang;
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event: SpeechRecognitionResultEvent) => {
       let interim = '';
       for (let i = event.resultIndex; i < event.results.length; i += 1) {
         const result = event.results[i];
@@ -96,7 +116,7 @@ export function useSpeechToText({
       void interim;
     };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+    recognition.onerror = (event: SpeechRecognitionErrorEventLike) => {
       if (event.error === 'aborted' || event.error === 'no-speech') {
         return;
       }
