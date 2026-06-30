@@ -202,6 +202,7 @@ interface ExtendedChatMessage extends ChatMessage {
   matchedProduct?: MatchedProduct | null;
   generatedImageUrl?: string | null;
   generatedAudioUrl?: string | null;
+  imageGenerationError?: string | null;
   intent?: CreationIntent;
 }
 
@@ -347,8 +348,19 @@ export default function ChatInterface() {
       const assistantIndex = nextMessages.length;
       setMessages((prev) => [...prev, assistantMsg]);
 
-      if (creationIntent === 'create_image' && imageReady) {
-        void runGenerateImage(assistantIndex, data.reply);
+      if (creationIntent === 'create_image') {
+        if (imageReady) {
+          void runGenerateImage(assistantIndex, data.reply);
+        } else {
+          const configMsg =
+            'Image API not configured on the backend. Set IMAGE_PROVIDER and matching API keys in Railway (or backend .env), then redeploy.';
+          setMessages((prev) =>
+            prev.map((m, i) =>
+              i === assistantIndex ? { ...m, imageGenerationError: configMsg } : m
+            )
+          );
+          toast.error(configMsg);
+        }
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Chat request failed';
@@ -395,14 +407,23 @@ export default function ChatInterface() {
         throw new Error(typeof err.detail === 'string' ? err.detail : 'Image generation failed');
       }
       const data: ImageGenerateResponse = await res.json();
+      if (!data.media_url) {
+        throw new Error('Image API returned no media URL');
+      }
       setMessages((prev) =>
         prev.map((m, i) =>
-          i === index ? { ...m, generatedImageUrl: data.media_url } : m
+          i === index
+            ? { ...m, generatedImageUrl: data.media_url, imageGenerationError: null }
+            : m
         )
       );
       toast.success('Image generated in-app');
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Image generation failed');
+      const message = e instanceof Error ? e.message : 'Image generation failed';
+      setMessages((prev) =>
+        prev.map((m, i) => (i === index ? { ...m, imageGenerationError: message } : m))
+      );
+      toast.error(message);
     } finally {
       setGeneratingImageIndex(null);
     }
@@ -626,6 +647,11 @@ export default function ChatInterface() {
                 )}
 
                 {/* Generated media previews */}
+                {!isUser && msg.imageGenerationError && (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 max-w-sm dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-200">
+                    {msg.imageGenerationError}
+                  </div>
+                )}
                 {!isUser && msg.generatedImageUrl && (
                   <div className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-600 max-w-sm">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -633,6 +659,19 @@ export default function ChatInterface() {
                       src={msg.generatedImageUrl}
                       alt="Generated product visual"
                       className="w-full h-auto object-contain bg-white dark:bg-slate-900"
+                      onError={() => {
+                        setMessages((prev) =>
+                          prev.map((m, i) =>
+                            i === index
+                              ? {
+                                  ...m,
+                                  imageGenerationError:
+                                    'Image was generated but could not load in the browser. Check Supabase bucket is public or use HTTPS media URLs.',
+                                }
+                              : m
+                          )
+                        );
+                      }}
                     />
                   </div>
                 )}
@@ -696,7 +735,7 @@ export default function ChatInterface() {
                       ) : (
                         <ImageIcon className="w-3.5 h-3.5" />
                       )}
-                      Regenerate image
+                      {msg.generatedImageUrl ? 'Regenerate image' : 'Generate image'}
                     </button>
                   </div>
                 )}

@@ -344,7 +344,11 @@ def get_creation_gemini_models() -> list[str]:
 
 def get_image_gemini_api_key() -> str:
     """Dedicated API key for Prompt Studio image generation."""
-    return settings.IMAGE_GEMINI_API_KEY.strip()
+    key = settings.IMAGE_GEMINI_API_KEY.strip()
+    if key:
+        return key
+    # Fall back to the creation chat key when no separate image key is set (e.g. Railway).
+    return settings.CREATION_GEMINI_API_KEY.strip()
 
 
 def get_image_gemini_models() -> list[str]:
@@ -357,24 +361,56 @@ def get_image_gemini_models() -> list[str]:
     return ordered
 
 
+def _cloudflare_image_ready() -> bool:
+    return bool(
+        settings.CLOUDFLARE_ACCOUNT_ID.strip() and settings.CLOUDFLARE_API_TOKEN.strip()
+    )
+
+
+def _modelslab_image_ready() -> bool:
+    return bool(settings.MODELSLAB_API_KEY.strip())
+
+
+def _gemini_image_ready() -> bool:
+    return bool(get_image_gemini_api_key())
+
+
+def resolve_image_provider() -> str:
+    """
+    Image provider to use at runtime.
+
+    Uses IMAGE_PROVIDER when that provider's credentials exist; otherwise falls
+    back to the first provider that is configured (Cloudflare → ModelsLab → Gemini).
+    """
+    preferred = (settings.IMAGE_PROVIDER or "gemini").strip().lower()
+    ready: dict[str, bool] = {
+        "cloudflare": _cloudflare_image_ready(),
+        "modelslab": _modelslab_image_ready(),
+        "gemini": _gemini_image_ready(),
+    }
+    if ready.get(preferred):
+        return preferred
+    for name in ("cloudflare", "modelslab", "gemini"):
+        if ready.get(name):
+            return name
+    return preferred
+
+
 def is_image_generation_ready() -> bool:
-    """True when the configured IMAGE_PROVIDER has credentials."""
-    provider = (settings.IMAGE_PROVIDER or "gemini").strip().lower()
-    if provider == "modelslab":
-        return bool(settings.MODELSLAB_API_KEY.strip())
-    if provider == "gemini":
-        return bool(get_image_gemini_api_key())
-    if provider == "cloudflare":
-        return bool(
-            settings.CLOUDFLARE_ACCOUNT_ID.strip()
-            and settings.CLOUDFLARE_API_TOKEN.strip()
-        )
-    return False
+    """True when any image provider has credentials (see resolve_image_provider)."""
+    provider = resolve_image_provider()
+    return bool(
+        {
+            "cloudflare": _cloudflare_image_ready(),
+            "modelslab": _modelslab_image_ready(),
+            "gemini": _gemini_image_ready(),
+        }.get(provider)
+    )
 
 
 def get_image_generation_model_label() -> str:
     """Human-readable label for the active image provider/model."""
-    provider = (settings.IMAGE_PROVIDER or "gemini").strip().lower()
+    provider = resolve_image_provider()
     if provider == "modelslab":
         model = settings.MODELSLAB_IMAGE_MODEL.strip() or "hidream-o1"
         return f"ModelsLab {model}"

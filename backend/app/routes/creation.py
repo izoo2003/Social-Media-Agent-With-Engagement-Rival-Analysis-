@@ -56,7 +56,13 @@ def _resolve_media_url(media_url: str, request: Request) -> str:
         return media_url
     if media_url.startswith("http://") or media_url.startswith("https://"):
         return media_url
-    base = str(request.base_url).rstrip("/")
+    # Railway/reverse proxies often expose http:// to the app while clients use https://
+    forwarded_proto = (request.headers.get("x-forwarded-proto") or "").split(",")[0].strip()
+    forwarded_host = (request.headers.get("x-forwarded-host") or "").split(",")[0].strip()
+    if forwarded_proto and forwarded_host:
+        base = f"{forwarded_proto}://{forwarded_host}"
+    else:
+        base = str(request.base_url).rstrip("/")
     if media_url.startswith("/"):
         return f"{base}{media_url}"
     return f"{base}/{media_url}"

@@ -4,7 +4,7 @@ Prompt Studio image generation — routes by IMAGE_PROVIDER (gemini, modelslab, 
 
 from __future__ import annotations
 
-from app.config import settings
+from app.config import resolve_image_provider
 from app.services.cloudflare_image import generate_cloudflare_image
 from app.services.gemini_image import extract_image_prompt, generate_image as generate_gemini_image
 from app.services.modelslab_image import generate_modelslab_image
@@ -12,8 +12,8 @@ from app.utils.exceptions import LLMConnectionError
 
 
 def generate_image(prompt: str) -> dict:
-    """Generate an image using the configured IMAGE_PROVIDER."""
-    provider = (settings.IMAGE_PROVIDER or "gemini").strip().lower()
+    """Generate an image using the resolved IMAGE_PROVIDER."""
+    provider = resolve_image_provider()
 
     if provider == "modelslab":
         return generate_modelslab_image(prompt)
@@ -23,8 +23,8 @@ def generate_image(prompt: str) -> dict:
         return generate_cloudflare_image(prompt)
 
     raise LLMConnectionError(
-        f"Unknown IMAGE_PROVIDER '{settings.IMAGE_PROVIDER}'. "
-        "Use 'gemini', 'modelslab', or 'cloudflare'."
+        f"Image provider '{provider}' is not configured. "
+        "Set IMAGE_PROVIDER to cloudflare, modelslab, or gemini and add matching API keys."
     )
 
 
