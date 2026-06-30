@@ -267,7 +267,7 @@ async def youtube_auth_callback(code: str = Query(default="")):
             if len(channels) > 1:
                 others = "".join(
                     f"<li><strong>{ch.get('title', '')}</strong>"
-                    f"{f' ({ch.get('custom_url', '')})' if ch.get('custom_url') else ''}"
+                    f"{' (' + ch.get('custom_url', '') + ')' if ch.get('custom_url') else ''}"
                     f" — <code>{ch.get('id', '')}</code></li>"
                     for ch in channels
                 )
