@@ -13,6 +13,7 @@ from app.config import (
     get_creation_gemini_models,
     get_image_generation_model_label,
     is_image_generation_ready,
+    resolve_image_provider,
     settings,
 )
 from app.llm.ollama_client import LLMClient
@@ -84,6 +85,12 @@ async def list_creation_models():
         chat_ready=bool(get_creation_gemini_api_keys()),
         image_ready=image_ready,
         image_model=get_image_generation_model_label() if image_ready else "",
+        image_provider=resolve_image_provider(),
+        image_provider_configured=settings.IMAGE_PROVIDER,
+        cloudflare_configured=bool(
+            settings.CLOUDFLARE_ACCOUNT_ID.strip() and settings.CLOUDFLARE_API_TOKEN.strip()
+        ),
+        creation_api_keys_loaded=len(get_creation_gemini_api_keys()),
         voice_ready=True,
         voice_moods=list_voice_moods(),
     )
@@ -182,10 +189,45 @@ async def creation_generate_image(request: Request, body: ImageGenerateRequest):
     except ContentGenerationError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except LLMConnectionError as e:
+        provider = resolve_image_provider()
+        logger.error(f"Image generation error (provider={provider}): {e}")
         raise HTTPException(status_code=502, detail=str(e))
     except Exception as e:
         logger.error(f"Image generation error: {e}")
         raise HTTPException(status_code=500, detail=f"Image generation failed: {e}")
+
+
+@router.get("/creation/image-diagnostics")
+async def creation_image_diagnostics():
+    """
+    Report what the backend actually parsed for image generation.
+    Secrets are masked — safe to expose. Use to debug why Cloudflare
+    isn't active on production despite env vars being set.
+    """
+    def _mask(value: str) -> str:
+        v = (value or "").strip()
+        if not v:
+            return ""
+        if len(v) <= 8:
+            return "*" * len(v)
+        return f"{v[:4]}...{v[-4:]} (len={len(v)})"
+
+    account_id = settings.CLOUDFLARE_ACCOUNT_ID
+    api_token = settings.CLOUDFLARE_API_TOKEN
+    return {
+        "IMAGE_PROVIDER_raw": settings.IMAGE_PROVIDER,
+        "resolved_provider": resolve_image_provider(),
+        "image_model_label": get_image_generation_model_label(),
+        "cloudflare": {
+            "account_id_present": bool(account_id.strip()),
+            "account_id_masked": _mask(account_id),
+            "api_token_present": bool(api_token.strip()),
+            "api_token_masked": _mask(api_token),
+            "model": settings.CLOUDFLARE_IMAGE_MODEL,
+            "ready": bool(account_id.strip() and api_token.strip()),
+        },
+        "creation_chat_keys_loaded": len(get_creation_gemini_api_keys()),
+    }
 
 
 @router.post("/creation/generate-voice", response_model=VoiceGenerateResponse)

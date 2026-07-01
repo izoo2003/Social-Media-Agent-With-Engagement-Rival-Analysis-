@@ -107,9 +107,9 @@ class Settings(BaseSettings):
     # Optional full model chain (comma-separated). When empty, primary + fallback above are used.
     CREATION_GEMINI_MODELS: str = ""
 
-    # Content Creation — image generation
-    # IMAGE_PROVIDER: gemini | modelslab | cloudflare (Workers AI, free tier)
-    IMAGE_PROVIDER: Literal["gemini", "modelslab", "cloudflare"] = "gemini"
+    # Content Creation — image generation (Cloudflare Workers AI by default)
+    # IMAGE_PROVIDER: cloudflare (recommended) | modelslab | gemini
+    IMAGE_PROVIDER: Literal["gemini", "modelslab", "cloudflare"] = "cloudflare"
     # Gemini — separate Google account / API key recommended
     IMAGE_GEMINI_API_KEY: str = ""
     IMAGE_GEMINI_MODEL: str = "gemini-2.5-flash-image"
@@ -343,12 +343,8 @@ def get_creation_gemini_models() -> list[str]:
 
 
 def get_image_gemini_api_key() -> str:
-    """Dedicated API key for Prompt Studio image generation."""
-    key = settings.IMAGE_GEMINI_API_KEY.strip()
-    if key:
-        return key
-    # Fall back to the creation chat key when no separate image key is set (e.g. Railway).
-    return settings.CREATION_GEMINI_API_KEY.strip()
+    """API key for Gemini image generation only (when IMAGE_PROVIDER=gemini)."""
+    return settings.IMAGE_GEMINI_API_KEY.strip()
 
 
 def get_image_gemini_models() -> list[str]:
@@ -377,27 +373,16 @@ def _gemini_image_ready() -> bool:
 
 def resolve_image_provider() -> str:
     """
-    Image provider to use at runtime.
+    Image provider from IMAGE_PROVIDER only — no silent fallback to Gemini/ModelsLab.
 
-    Uses IMAGE_PROVIDER when that provider's credentials exist; otherwise falls
-    back to the first provider that is configured (Cloudflare → ModelsLab → Gemini).
+    When IMAGE_PROVIDER=cloudflare, images never use Gemini even if CREATION_GEMINI_API_KEY
+    is set (avoids confusing quota errors on Railway).
     """
-    preferred = (settings.IMAGE_PROVIDER or "gemini").strip().lower()
-    ready: dict[str, bool] = {
-        "cloudflare": _cloudflare_image_ready(),
-        "modelslab": _modelslab_image_ready(),
-        "gemini": _gemini_image_ready(),
-    }
-    if ready.get(preferred):
-        return preferred
-    for name in ("cloudflare", "modelslab", "gemini"):
-        if ready.get(name):
-            return name
-    return preferred
+    return (settings.IMAGE_PROVIDER or "cloudflare").strip().lower()
 
 
 def is_image_generation_ready() -> bool:
-    """True when any image provider has credentials (see resolve_image_provider)."""
+    """True when the configured IMAGE_PROVIDER has credentials loaded."""
     provider = resolve_image_provider()
     return bool(
         {

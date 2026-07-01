@@ -95,6 +95,10 @@ class CreationModelsResponse(BaseModel):
     chat_ready: bool
     image_ready: bool = False
     image_model: str = ""
+    image_provider: str = ""
+    image_provider_configured: str = ""
+    cloudflare_configured: bool = False
+    creation_api_keys_loaded: int = 0
     voice_ready: bool = True
     voice_moods: list[dict[str, str]] = Field(default_factory=list)
 

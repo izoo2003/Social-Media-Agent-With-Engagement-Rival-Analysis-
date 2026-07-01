@@ -12,19 +12,19 @@ from app.utils.exceptions import LLMConnectionError
 
 
 def generate_image(prompt: str) -> dict:
-    """Generate an image using the resolved IMAGE_PROVIDER."""
+    """Generate an image using IMAGE_PROVIDER (default: cloudflare)."""
     provider = resolve_image_provider()
 
+    if provider == "cloudflare":
+        return generate_cloudflare_image(prompt)
     if provider == "modelslab":
         return generate_modelslab_image(prompt)
     if provider == "gemini":
         return generate_gemini_image(prompt)
-    if provider == "cloudflare":
-        return generate_cloudflare_image(prompt)
 
     raise LLMConnectionError(
-        f"Image provider '{provider}' is not configured. "
-        "Set IMAGE_PROVIDER to cloudflare, modelslab, or gemini and add matching API keys."
+        f"Image provider '{provider}' is not supported. "
+        "Set IMAGE_PROVIDER=cloudflare and add CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN."
     )
 
 

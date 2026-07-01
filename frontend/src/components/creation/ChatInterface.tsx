@@ -353,7 +353,7 @@ export default function ChatInterface() {
           void runGenerateImage(assistantIndex, data.reply);
         } else {
           const configMsg =
-            'Image API not configured on the backend. Set IMAGE_PROVIDER and matching API keys in Railway (or backend .env), then redeploy.';
+            'Image API not configured on the backend. Set IMAGE_PROVIDER=cloudflare and Cloudflare credentials in Railway, then redeploy.';
           setMessages((prev) =>
             prev.map((m, i) =>
               i === assistantIndex ? { ...m, imageGenerationError: configMsg } : m
@@ -389,7 +389,7 @@ export default function ChatInterface() {
   const runGenerateImage = async (index: number, promptText: string) => {
     if (!imageReady) {
       toast.error(
-        'Image API not configured. Set IMAGE_PROVIDER=cloudflare (or modelslab/gemini) and the matching keys in backend .env, then restart.'
+        'Image API not configured. Set IMAGE_PROVIDER=cloudflare and CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN in Railway, then redeploy.'
       );
       return;
     }
