@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { ContentGenerationResponse, ContentRegenerateRequest, LinkedInAccountInfo, SocialPostResponse } from '@/lib/types';
 import { API_ENDPOINTS, apiFetch, API_CONFIG } from '@/lib/api-client';
+import { isJuniorTier } from '@/lib/app-mode';
 import GeneratedContentDisplay from './GeneratedContentDisplay';
 import DesignerGateModal from './DesignerGateModal';
 import ScheduleModal from '@/components/calendar/ScheduleModal';
@@ -68,6 +69,9 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
   const [gateOpen, setGateOpen] = useState(false);
   const [submittingApproval, setSubmittingApproval] = useState(false);
   const [approvalSubmitted, setApprovalSubmitted] = useState(false);
+  const [dashboardUsername, setDashboardUsername] = useState('');
+
+  const isJunior = isJuniorTier();
 
   const handleContentUpdate = (contentId: number, updatedTitle: string, updatedBody: string) => {
     setEditedContents((prev) => ({
@@ -159,6 +163,22 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
       })
       .catch(() => {
         /* gate stays off if config can't load */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    apiFetch(API_ENDPOINTS.AUTH_ME)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me) => {
+        if (cancelled || !me?.username) return;
+        setDashboardUsername(me.username);
+      })
+      .catch(() => {
+        /* optional */
       });
     return () => {
       cancelled = true;
@@ -320,7 +340,11 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     setApprovalSubmitted(false);
 
     if (approvalRequired) {
-      setGateOpen(true);
+      if (isJunior) {
+        void submitForApproval(dashboardUsername || 'Junior Developer');
+      } else {
+        setGateOpen(true);
+      }
     } else {
       doPost();
     }
@@ -736,7 +760,9 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
           <div className="flex gap-3 flex-wrap">
             <button
               onClick={handlePostClick}
-              disabled={Object.values(postingStates).some(s => s === 'posting')}
+              disabled={
+                Object.values(postingStates).some(s => s === 'posting') || submittingApproval
+              }
               className={`flex-1 min-w-[180px] py-3 px-4 rounded-lg font-semibold text-white transition-all ${
                 Object.values(postingStates).some(s => s === 'posting')
                   ? 'bg-gray-400 cursor-not-allowed'
@@ -745,8 +771,12 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
             >
               {Object.values(postingStates).some(s => s === 'posting')
                 ? 'Posting...'
+                : submittingApproval
+                ? 'Submitting...'
                 : postResults.length > 0
                 ? 'Retry Posting'
+                : approvalRequired && isJunior
+                ? '📤 Submit for QA'
                 : '📤 Post Now'}
             </button>
             <button

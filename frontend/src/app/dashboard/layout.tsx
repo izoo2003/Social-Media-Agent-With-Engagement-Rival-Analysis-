@@ -68,7 +68,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               return (
                 <div
                   key={item.href}
-                  title="Senior access only — sign out and log in as Senior Developer"
+                  title="Senior access only — use a senior developer account to open this section"
                   className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border-l-4 border-transparent text-white/40 cursor-not-allowed select-none"
                 >
                   <Lock className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
@@ -116,7 +116,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <header className="bg-white shadow dark:bg-slate-900 dark:shadow-slate-950/50 dark:border-b dark:border-slate-800">
           <div className="px-6 py-4 flex justify-between items-center">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">
-              {junior ? 'Prompt Studio' : 'Dashboard'}
+              {junior ? 'Junior Workspace' : 'Dashboard'}
             </h1>
             <ThemeToggle />
           </div>

@@ -33,3 +33,12 @@ async def get_current_user(request: Request) -> str:
         raise HTTPException(status_code=401, detail="Invalid or expired session.")
 
     return payload["sub"]
+
+
+async def get_current_user_role(request: Request) -> str:
+    """Return senior | junior from the JWT (defaults to senior for legacy tokens)."""
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        payload = auth_service.decode_access_token(auth[7:].strip())
+        return auth_service.role_from_payload(payload)
+    return "senior"

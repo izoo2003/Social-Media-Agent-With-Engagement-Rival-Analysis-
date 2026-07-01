@@ -4,15 +4,20 @@ import type { NextRequest } from 'next/server';
 const CREATION_HOME = '/dashboard/creation';
 const TIER_COOKIE = 'dashboard_tier';
 
+const JUNIOR_ALLOWED_PREFIXES = ['/dashboard/creation', '/dashboard/generator'];
+
 function isCreationOnlyDashboardPath(pathname: string): boolean {
   return pathname === CREATION_HOME || pathname.startsWith(`${CREATION_HOME}/`);
 }
 
-function resolveCreationOnly(request: NextRequest): boolean {
-  if (process.env.NEXT_PUBLIC_APP_MODE === 'creation-only') {
-    return true;
-  }
-  return request.cookies.get(TIER_COOKIE)?.value === 'junior';
+function isJuniorDashboardPath(pathname: string): boolean {
+  return JUNIOR_ALLOWED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+function tierFromRequest(request: NextRequest): string | undefined {
+  return request.cookies.get(TIER_COOKIE)?.value;
 }
 
 export function middleware(request: NextRequest) {
@@ -25,11 +30,18 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (resolveCreationOnly(request) && pathname.startsWith('/dashboard')) {
+  if (process.env.NEXT_PUBLIC_APP_MODE === 'creation-only' && pathname.startsWith('/dashboard')) {
     if (pathname === '/dashboard') {
       return NextResponse.redirect(new URL(CREATION_HOME, request.url));
     }
     if (!isCreationOnlyDashboardPath(pathname)) {
+      return NextResponse.redirect(new URL(CREATION_HOME, request.url));
+    }
+  } else if (tierFromRequest(request) === 'junior' && pathname.startsWith('/dashboard')) {
+    if (pathname === '/dashboard') {
+      return NextResponse.redirect(new URL(CREATION_HOME, request.url));
+    }
+    if (!isJuniorDashboardPath(pathname)) {
       return NextResponse.redirect(new URL(CREATION_HOME, request.url));
     }
   }

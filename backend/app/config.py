@@ -222,6 +222,9 @@ class Settings(BaseSettings):
     # Dashboard login (required to access API + frontend /dashboard)
     DASHBOARD_USERNAME: str = ""
     DASHBOARD_PASSWORD: str = ""
+    # Junior developer login — Content Creation + posting (submissions go to QA queue).
+    JUNIOR_DASHBOARD_USERNAME: str = ""
+    JUNIOR_DASHBOARD_PASSWORD: str = ""
 
     # ── Security Settings ─────────────────────────────────────────────────────
     # Internal API key that must be sent in the X-Internal-API-Key header to

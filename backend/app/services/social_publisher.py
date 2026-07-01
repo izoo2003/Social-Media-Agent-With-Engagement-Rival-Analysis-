@@ -752,6 +752,68 @@ class InstagramClient:
     def is_configured(self) -> bool:
         return bool(self.instagram_account_id and self.page_access_token)
 
+    def _graph_api_url(self) -> str:
+        version = (settings.META_GRAPH_API_VERSION or "v21.0").strip()
+        return f"https://graph.facebook.com/{version}"
+
+    def _wait_for_container_ready(self, container_id: str, media_type: str) -> tuple[bool, str]:
+        """
+        Poll the IG media container until Meta finishes processing.
+
+        Images and videos both return IN_PROGRESS briefly; publishing before
+        FINISHED triggers OAuth error #9007 (subcode 2207027).
+        """
+        if media_type == "video":
+            max_retries = 24
+            retry_delay = 5
+        else:
+            max_retries = 20
+            retry_delay = 2
+
+        graph_url = self._graph_api_url()
+        for attempt in range(1, max_retries + 1):
+            logger.info(
+                f"Instagram container processing check ({attempt}/{max_retries}) "
+                f"for {container_id} ({media_type})..."
+            )
+            time.sleep(retry_delay)
+
+            status_response = requests.get(
+                f"{graph_url}/{container_id}",
+                params={
+                    "fields": "status_code,status",
+                    "access_token": self.page_access_token,
+                },
+                timeout=30,
+            )
+
+            if not status_response.ok:
+                logger.warning(f"Instagram status check failed: {status_response.text[:500]}")
+                continue
+
+            status_data = status_response.json()
+            status_code = (status_data.get("status_code") or "").upper()
+            logger.info(f"Instagram container {container_id} status: {status_code}")
+
+            if status_code == "FINISHED":
+                return True, ""
+            if status_code in ("ERROR", "EXPIRED"):
+                error_detail = status_data.get("status") or status_data.get(
+                    "error_message", "Unknown processing error"
+                )
+                return False, f"Instagram media processing failed: {error_detail}"
+
+        timeout_seconds = max_retries * retry_delay
+        return (
+            False,
+            (
+                "Instagram media processing timed out after "
+                f"{timeout_seconds} seconds. Meta could not fetch or process the "
+                "public media URL — confirm the image/video URL is HTTPS, "
+                "publicly accessible, and returns the correct content type."
+            ),
+        )
+
     def create_post(
         self,
         title: str,
@@ -845,8 +907,10 @@ class InstagramClient:
                 else:
                     params["image_url"] = public_url
 
+                logger.info(f"Instagram media container URL: {public_url}")
+
                 container_response = requests.post(
-                    f"{self.GRAPH_API_URL}/{self.instagram_account_id}/media",
+                    f"{self._graph_api_url()}/{self.instagram_account_id}/media",
                     params=params,
                     timeout=120,
                 )
@@ -870,68 +934,21 @@ class InstagramClient:
                     "error_message": "Failed to create Instagram media container",
                 }
 
-            # Step 2: Poll container status until video is processed (videos need time)
-            # Instagram recommends polling once per minute for up to 5 minutes
-            if media_type == "video":
-                max_retries = 10       # ~50 seconds total
-                retry_delay = 5        # seconds between polls
-                container_ready = False
+            container_ready, container_error = self._wait_for_container_ready(
+                container_id, media_type
+            )
+            if not container_ready:
+                return {
+                    "status": "failed",
+                    "post_id": None,
+                    "post_url": None,
+                    "error_message": container_error,
+                    "container_id": container_id,
+                }
 
-                for attempt in range(1, max_retries + 1):
-                    logger.debug(
-                        f"Instagram video processing check ({attempt}/{max_retries}) "
-                        f"for container {container_id}..."
-                    )
-                    time.sleep(retry_delay)
-
-                    status_response = requests.get(
-                        f"{self.GRAPH_API_URL}/{container_id}",
-                        params={
-                            "fields": "status_code",
-                            "access_token": self.page_access_token,
-                        },
-                        timeout=30,
-                    )
-
-                    if not status_response.ok:
-                        logger.warning(f"Status check failed: {status_response.text[:500]}")
-                        continue
-
-                    status_data = status_response.json()
-                    status_code = status_data.get("status_code", "").upper()
-                    logger.debug(f"Container status: {status_code}")
-
-                    if status_code == "FINISHED":
-                        container_ready = True
-                        break
-                    elif status_code in ("ERROR", "EXPIRED"):
-                        error_detail = status_data.get("error_message", "Unknown processing error")
-                        return {
-                            "status": "failed",
-                            "post_id": None,
-                            "post_url": None,
-                            "error_message": f"Instagram video processing failed: {error_detail}",
-                            "container_id": container_id,
-                        }
-                    # IN_PROGRESS — keep polling
-
-                if not container_ready:
-                    return {
-                        "status": "failed",
-                        "post_id": None,
-                        "post_url": None,
-                        "error_message": (
-                            "Instagram video processing timed out after "
-                            f"{max_retries * retry_delay} seconds. "
-                            "The video may be too large or the format may not be supported. "
-                            "Try a shorter video (under 60s) with H.264 codec."
-                        ),
-                        "container_id": container_id,
-                    }
-
-            # Step 3: Publish the media container (for images, this is immediate)
+            # Publish the media container once Meta reports FINISHED.
             publish_response = requests.post(
-                f"{self.GRAPH_API_URL}/{self.instagram_account_id}/media_publish",
+                f"{self._graph_api_url()}/{self.instagram_account_id}/media_publish",
                 params={
                     "creation_id": container_id,
                     "access_token": self.page_access_token,

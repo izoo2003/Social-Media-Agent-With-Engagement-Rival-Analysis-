@@ -55,11 +55,16 @@ async def lifespan(app: FastAPI):
     elif settings.ENVIRONMENT != "production":
         logger.info("Destructive admin endpoints enabled (INTERNAL_API_KEY configured).")
 
-    if auth_service.credentials_configured():
-        logger.info("Dashboard login enabled (DASHBOARD_USERNAME configured).")
+    if auth_service.any_credentials_configured():
+        if auth_service.junior_credentials_configured():
+            logger.info(
+                "Dashboard login enabled (senior and/or junior credentials configured)."
+            )
+        else:
+            logger.info("Dashboard login enabled (senior credentials configured).")
     else:
         logger.warning(
-            "DASHBOARD_USERNAME / DASHBOARD_PASSWORD not set — "
+            "Dashboard credentials not set — "
             "API routes are open until dashboard login is configured."
         )
 

@@ -30,7 +30,7 @@ def _extract_bearer_token(request: Request) -> str | None:
 
 
 async def dashboard_auth_middleware(request: Request, call_next):
-    if not auth_service.credentials_configured():
+    if not auth_service.any_credentials_configured():
         return await call_next(request)
 
     if request.method == "OPTIONS" or _is_public_path(request.url.path):

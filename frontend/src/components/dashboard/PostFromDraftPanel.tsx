@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { API_ENDPOINTS, apiFetch } from '@/lib/api-client';
+import { isJuniorTier } from '@/lib/app-mode';
 import { LinkedInAccountInfo, SocialPostResponse } from '@/lib/types';
 import SocialPlatformIcon, { SOCIAL_PLATFORMS } from '@/components/icons/SocialPlatformIcon';
 
@@ -32,14 +33,20 @@ export default function PostFromDraftPanel({ content, onPosted }: PostFromDraftP
   const [approvalRequired, setApprovalRequired] = useState(false);
   const [designerPin, setDesignerPin] = useState('');
   const [posting, setPosting] = useState(false);
+  const [submittingApproval, setSubmittingApproval] = useState(false);
+  const [approvalSubmitted, setApprovalSubmitted] = useState(false);
+  const [dashboardUsername, setDashboardUsername] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [results, setResults] = useState<SocialPostResponse[]>([]);
+
+  const isJunior = isJuniorTier();
 
   useEffect(() => {
     setSelectedPlatforms(defaultPlatform);
     setResults([]);
     setError(null);
     setDesignerPin('');
+    setApprovalSubmitted(false);
   }, [content.id, content.platform]);
 
   useEffect(() => {
@@ -58,6 +65,15 @@ export default function PostFromDraftPanel({ content, onPosted }: PostFromDraftP
         setLinkedinAccounts([]);
         setSelectedLinkedinAccounts([]);
       });
+
+    apiFetch(API_ENDPOINTS.AUTH_ME)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((me) => {
+        if (me?.username) setDashboardUsername(me.username);
+      })
+      .catch(() => {
+        /* optional */
+      });
   }, []);
 
   const togglePlatform = (platformId: string) => {
@@ -72,7 +88,62 @@ export default function PostFromDraftPanel({ content, onPosted }: PostFromDraftP
     );
   };
 
+  const submitForApproval = async () => {
+    if (selectedPlatforms.length === 0) {
+      setError('Select at least one platform to post to.');
+      return;
+    }
+
+    if (
+      selectedPlatforms.includes('linkedin') &&
+      linkedinAccounts.length > 0 &&
+      selectedLinkedinAccounts.length === 0
+    ) {
+      setError('Select at least one LinkedIn account.');
+      return;
+    }
+
+    setSubmittingApproval(true);
+    setError(null);
+    setApprovalSubmitted(false);
+
+    try {
+      const payload: Record<string, unknown> = {
+        content_id: content.id,
+        platforms: selectedPlatforms,
+        draft_mode: false,
+        requested_by: dashboardUsername || 'Junior Developer',
+      };
+
+      if (selectedPlatforms.includes('linkedin') && selectedLinkedinAccounts.length > 0) {
+        payload.linkedin_account_labels = selectedLinkedinAccounts;
+      }
+
+      const res = await apiFetch(API_ENDPOINTS.APPROVALS, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.detail === 'string' ? data.detail : 'Failed to submit for approval');
+      }
+
+      setApprovalSubmitted(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to submit for approval');
+    } finally {
+      setSubmittingApproval(false);
+    }
+  };
+
   const handlePost = async () => {
+    if (approvalRequired && isJunior) {
+      await submitForApproval();
+      return;
+    }
+
     if (selectedPlatforms.length === 0) {
       setError('Select at least one platform to post to.');
       return;
@@ -190,7 +261,7 @@ export default function PostFromDraftPanel({ content, onPosted }: PostFromDraftP
         </div>
       )}
 
-      {approvalRequired && (
+      {approvalRequired && !isJunior && (
         <div className="mb-3" onClick={(e) => e.stopPropagation()}>
           <label className="block text-xs font-medium text-slate-600 mb-1">Designer PIN</label>
           <input
@@ -201,6 +272,12 @@ export default function PostFromDraftPanel({ content, onPosted }: PostFromDraftP
             className="w-full max-w-xs px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
+      )}
+
+      {approvalSubmitted && (
+        <p className="text-xs text-blue-700 mb-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          Submitted to QA Checker — waiting for senior approval.
+        </p>
       )}
 
       {error && (
@@ -249,10 +326,16 @@ export default function PostFromDraftPanel({ content, onPosted }: PostFromDraftP
           e.stopPropagation();
           handlePost();
         }}
-        disabled={posting || selectedPlatforms.length === 0}
+        disabled={posting || submittingApproval || selectedPlatforms.length === 0}
         className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
       >
-        {posting ? 'Publishing...' : '🚀 Post Live'}
+        {posting
+          ? 'Publishing...'
+          : submittingApproval
+          ? 'Submitting...'
+          : approvalRequired && isJunior
+          ? '📤 Submit for QA'
+          : '🚀 Post Live'}
       </button>
     </div>
   );
