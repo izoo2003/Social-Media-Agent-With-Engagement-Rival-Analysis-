@@ -221,6 +221,7 @@ export default function ChatInterface() {
   );
   const [chatReady, setChatReady] = useState<boolean>(true);
   const [imageReady, setImageReady] = useState<boolean>(false);
+  const [imageModelLabel, setImageModelLabel] = useState<string>('');
   const [voiceMoods, setVoiceMoods] = useState<{ id: string; label: string }[]>([]);
   const [voiceMood, setVoiceMood] = useState<string>('professional');
   const [creationIntent, setCreationIntent] = useState<CreationIntent>('create_image');
@@ -265,29 +266,51 @@ export default function ChatInterface() {
     }
   }, [sending, isListening, stopSpeechListening]);
 
-  useEffect(() => {
-    const loadModels = async () => {
-      try {
-        const res = await fetchWithTimeout(API_ENDPOINTS.CREATION_MODELS);
-        if (!res.ok) throw new Error('Failed to load models');
-        const data: CreationModelsResponse = await res.json();
-        setModelLabel(data.models[0]?.label ?? 'AI Assistant');
-        setMetaAiUrl(data.meta_ai_web_url || META_AI_FALLBACK_URL);
-        setGoogleFlowCharactersUrl(
-          data.google_flow_characters_url || GOOGLE_FLOW_CHARACTERS_FALLBACK_URL
-        );
-        setGoogleFlowFinalProductUrl(
-          data.google_flow_final_product_url || GOOGLE_FLOW_FINAL_PRODUCT_FALLBACK_URL
-        );
-        setChatReady(data.chat_ready);
-        setImageReady(Boolean(data.image_ready));
-        setVoiceMoods(data.voice_moods ?? []);
-      } catch {
-        toast.error('Could not load AI models. Is the backend running?');
-      }
-    };
-    loadModels();
+  const refreshCreationCapabilities = React.useCallback(async (): Promise<{
+    imageReady: boolean;
+    imageModel: string;
+  }> => {
+    try {
+      const res = await fetchWithTimeout(API_ENDPOINTS.CREATION_MODELS);
+      if (!res.ok) throw new Error('Failed to load models');
+      const data: CreationModelsResponse = await res.json();
+      setModelLabel(data.models[0]?.label ?? 'AI Assistant');
+      setMetaAiUrl(data.meta_ai_web_url || META_AI_FALLBACK_URL);
+      setGoogleFlowCharactersUrl(
+        data.google_flow_characters_url || GOOGLE_FLOW_CHARACTERS_FALLBACK_URL
+      );
+      setGoogleFlowFinalProductUrl(
+        data.google_flow_final_product_url || GOOGLE_FLOW_FINAL_PRODUCT_FALLBACK_URL
+      );
+      setChatReady(data.chat_ready);
+      const ready = Boolean(data.image_ready);
+      const imageModel = data.image_model ?? '';
+      setImageReady(ready);
+      setImageModelLabel(imageModel);
+      setVoiceMoods(data.voice_moods ?? []);
+      return { imageReady: ready, imageModel };
+    } catch {
+      return { imageReady: false, imageModel: '' };
+    }
   }, []);
+
+  const imageNotReadyMessage = (imageModel: string) => {
+    const backend = API_CONFIG.baseURL;
+    if (imageModel) {
+      return `Image API not ready (${imageModel}). Backend: ${backend}`;
+    }
+    return (
+      `Image API not ready on ${backend}. ` +
+      'Hard-refresh (Ctrl+Shift+R), confirm Vercel NEXT_PUBLIC_API_URL is ' +
+      'https://kafi-social-media-agent.up.railway.app, then redeploy Vercel.'
+    );
+  };
+
+  useEffect(() => {
+    void refreshCreationCapabilities().catch(() => {
+      toast.error('Could not load AI models. Is the backend running?');
+    });
+  }, [refreshCreationCapabilities]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
@@ -349,11 +372,11 @@ export default function ChatInterface() {
       setMessages((prev) => [...prev, assistantMsg]);
 
       if (creationIntent === 'create_image') {
-        if (imageReady) {
+        const { imageReady: ready, imageModel } = await refreshCreationCapabilities();
+        if (ready) {
           void runGenerateImage(assistantIndex, data.reply);
         } else {
-          const configMsg =
-            'Image API not configured on the backend. Set IMAGE_PROVIDER=cloudflare and Cloudflare credentials in Railway, then redeploy.';
+          const configMsg = imageNotReadyMessage(imageModel);
           setMessages((prev) =>
             prev.map((m, i) =>
               i === assistantIndex ? { ...m, imageGenerationError: configMsg } : m
@@ -387,9 +410,12 @@ export default function ChatInterface() {
   };
 
   const runGenerateImage = async (index: number, promptText: string) => {
-    if (!imageReady) {
-      toast.error(
-        'Image API not configured. Set IMAGE_PROVIDER=cloudflare and CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN in Railway, then redeploy.'
+    const { imageReady: ready, imageModel } = await refreshCreationCapabilities();
+    if (!ready) {
+      const configMsg = imageNotReadyMessage(imageModel);
+      toast.error(configMsg);
+      setMessages((prev) =>
+        prev.map((m, i) => (i === index ? { ...m, imageGenerationError: configMsg } : m))
       );
       return;
     }
@@ -528,6 +554,11 @@ export default function ChatInterface() {
         <span className="text-sm text-slate-600 bg-slate-100 rounded-lg px-3 py-1.5 shrink-0 dark:bg-slate-700 dark:text-slate-200">
           {modelLabel}
         </span>
+        {imageModelLabel ? (
+          <span className="text-xs text-slate-500 bg-slate-50 rounded-lg px-2 py-1 shrink-0 dark:bg-slate-700/60 dark:text-slate-300">
+            Images: {imageModelLabel}
+          </span>
+        ) : null}
 
         <div className="flex-1 min-w-2" />
 

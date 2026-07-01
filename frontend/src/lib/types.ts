@@ -408,6 +408,8 @@ export interface CreationModelsResponse {
   chat_ready: boolean;
   image_ready?: boolean;
   image_model?: string;
+  image_provider?: string;
+  cloudflare_configured?: boolean;
   voice_ready?: boolean;
   voice_moods?: { id: string; label: string }[];
 }
