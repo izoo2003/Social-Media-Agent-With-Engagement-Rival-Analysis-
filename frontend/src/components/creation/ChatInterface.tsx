@@ -4,7 +4,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   Send,
-  Video,
   Copy,
   Check,
   Loader2,
@@ -16,7 +15,6 @@ import {
   Box,
   Mic,
   Users,
-  Clapperboard,
   Sparkles,
   ImageIcon,
   Paperclip,
@@ -74,11 +72,8 @@ const CREATION_MODES: {
   },
 ];
 
-const META_AI_FALLBACK_URL = 'https://www.meta.ai/';
 const GOOGLE_FLOW_CHARACTERS_FALLBACK_URL =
   'https://labs.google/fx/tools/flow/project/cc16a3ce-33ec-4248-bb1a-3341c7817479/characters';
-const GOOGLE_FLOW_FINAL_PRODUCT_FALLBACK_URL =
-  'https://labs.google/fx/tools/flow/project/0b5aa7ed-bd40-490d-af9a-24208f855710';
 
 const MAX_REFERENCE_IMAGE_BYTES = 4 * 1024 * 1024;
 const ALLOWED_REFERENCE_IMAGE_TYPES = new Set([
@@ -219,12 +214,8 @@ interface ExtendedChatMessage extends ChatMessage {
 
 export default function ChatInterface() {
   const [modelLabel, setModelLabel] = useState<string>('Loading…');
-  const [metaAiUrl, setMetaAiUrl] = useState<string>(META_AI_FALLBACK_URL);
   const [googleFlowCharactersUrl, setGoogleFlowCharactersUrl] = useState<string>(
     GOOGLE_FLOW_CHARACTERS_FALLBACK_URL
-  );
-  const [googleFlowFinalProductUrl, setGoogleFlowFinalProductUrl] = useState<string>(
-    GOOGLE_FLOW_FINAL_PRODUCT_FALLBACK_URL
   );
   const [chatReady, setChatReady] = useState<boolean>(true);
   const [imageReady, setImageReady] = useState<boolean>(false);
@@ -288,12 +279,8 @@ export default function ChatInterface() {
       if (!res.ok) throw new Error('Failed to load models');
       const data: CreationModelsResponse = await res.json();
       setModelLabel(data.models[0]?.label ?? 'AI Assistant');
-      setMetaAiUrl(data.meta_ai_web_url || META_AI_FALLBACK_URL);
       setGoogleFlowCharactersUrl(
         data.google_flow_characters_url || GOOGLE_FLOW_CHARACTERS_FALLBACK_URL
-      );
-      setGoogleFlowFinalProductUrl(
-        data.google_flow_final_product_url || GOOGLE_FLOW_FINAL_PRODUCT_FALLBACK_URL
       );
       setChatReady(data.chat_ready);
       const ready = Boolean(data.image_ready);
@@ -414,16 +401,8 @@ export default function ChatInterface() {
     }
   };
 
-  const openMetaAi = () => {
-    window.open(metaAiUrl, '_blank', 'noopener,noreferrer');
-  };
-
   const openGoogleFlowCharacters = () => {
     window.open(googleFlowCharactersUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const openGoogleFlowFinalProduct = () => {
-    window.open(googleFlowFinalProductUrl, '_blank', 'noopener,noreferrer');
   };
 
   const runGenerateImage = async (index: number, promptText: string) => {
@@ -595,14 +574,6 @@ export default function ChatInterface() {
 
         <div className="flex-1 min-w-2" />
 
-        <button
-          onClick={openMetaAi}
-          className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900 border border-brand-200 hover:bg-brand-50 rounded-lg px-3 py-1.5 transition-colors dark:text-gold-300 dark:hover:text-gold-200 dark:border-slate-500 dark:hover:bg-slate-700"
-          title="Open Meta AI to generate a video"
-        >
-          <Video className="w-4 h-4" />
-          Video in Meta AI
-        </button>
         {voiceMoods.length > 0 && (
           <select
             value={voiceMood}
@@ -624,14 +595,6 @@ export default function ChatInterface() {
         >
           <Users className="w-4 h-4" />
           Create Characters in Google Flow
-        </button>
-        <button
-          onClick={openGoogleFlowFinalProduct}
-          className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900 border border-brand-200 hover:bg-brand-50 rounded-lg px-3 py-1.5 transition-colors dark:text-gold-300 dark:hover:text-gold-200 dark:border-slate-500 dark:hover:bg-slate-700"
-          title="Create final product video in Google Flow"
-        >
-          <Clapperboard className="w-4 h-4" />
-          Create Final Product on Flow AI
         </button>
 
         {messages.length > 0 && (
