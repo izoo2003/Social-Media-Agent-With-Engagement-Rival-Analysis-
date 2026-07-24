@@ -110,6 +110,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               Sign out
             </button>
+            <p className="px-4 pt-3 text-center text-[11px] leading-relaxed text-white/40">
+              Created by Izaan Bin Mujeeb
+            </p>
           </div>
         </aside>
 
