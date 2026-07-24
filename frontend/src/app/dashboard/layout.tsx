@@ -110,8 +110,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               Sign out
             </button>
-            <p className="px-4 pt-3 text-center text-[11px] leading-relaxed text-white/40">
-              Created by Izaan Bin Mujeeb
+            <p className="px-4 pt-3 text-center leading-snug">
+              <span className="block text-[10px] font-medium uppercase tracking-wide text-white/45">
+                Social Media Agent
+              </span>
+              <span className="mt-0.5 block text-xs text-white/45">
+                by{' '}
+                <span className="font-semibold text-white">Izaan Bin Mujeeb</span>
+              </span>
+              <span className="mt-0.5 block text-[11px] text-white/45">
+                Kafi Commodities
+              </span>
             </p>
           </div>
         </aside>
