@@ -1,13 +1,11 @@
-# Railway deployment — backend API (FastAPI)
-# Dashboard: New Project → Deploy from GitHub → this repo
-# Railway reads this file automatically; no extra service config needed.
+# Railway — use this when the service Root Directory is the repo root (empty).
+# If Root Directory is set to `backend`, Railway will use backend/railway.toml instead.
 
 [build]
 builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile.backend"
 
 [deploy]
-# Port binding is handled by Dockerfile.backend CMD (shell form expands $PORT).
 healthcheckPath = "/api/v1/health"
 healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"

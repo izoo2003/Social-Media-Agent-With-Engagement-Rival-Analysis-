@@ -19,11 +19,11 @@ services:
       timeout: 5s
       retries: 5
 
-  # Backend (FastAPI)
+  # Backend (FastAPI) — context is backend/ (matches Railway)
   backend:
     build:
       context: ./backend
-      dockerfile: ../Dockerfile.backend
+      dockerfile: Dockerfile
     container_name: kafi-backend
     environment:
       DATABASE_URL: postgresql://kafi_user:kafi_secure_password@postgres:5432/kafi_social_agent
