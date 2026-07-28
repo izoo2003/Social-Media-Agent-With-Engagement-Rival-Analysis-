@@ -74,8 +74,8 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 via-white to-gold-50 px-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-lg">
+    <main className="flex min-h-[100dvh] items-center justify-center bg-gradient-to-br from-brand-50 via-white to-gold-50 px-4 py-8">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 sm:p-8 shadow-lg">
         <div className="mb-6 flex justify-center">
           <Image
             src="/kafi-logo.png"

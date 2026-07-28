@@ -27,10 +27,29 @@
 
 body {
   @apply antialiased text-slate-800 bg-[var(--color-page-bg)];
+  overflow-x: hidden;
 }
 
 .dark body {
   @apply text-slate-200;
+}
+
+/* Prevent horizontal page scroll from wide children */
+#__next,
+main {
+  max-width: 100%;
+}
+
+img,
+video,
+canvas,
+svg {
+  max-width: 100%;
+}
+
+.safe-area-pad {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 h1, h2, h3, h4, h5, h6 {

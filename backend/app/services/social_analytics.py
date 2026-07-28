@@ -110,6 +110,11 @@ class SocialAnalyticsService:
                 ),
             )
 
+        # If a User token was saved by mistake, or scopes/page ID drifted, re-derive
+        # a Page token before calling insights.
+        access_token = self._ensure_facebook_page_token(access_token, page_id) or access_token
+        page_id = settings.FACEBOOK_PAGE_ID.strip() or page_id
+
         graph_url = self._meta_graph_url()
         start, end = self._range_dates(days)
 
@@ -119,49 +124,60 @@ class SocialAnalyticsService:
         # page_media_view (views) and page_total_media_view_unique (reach).
         # Engagement is fetched separately as best-effort below so a rejected
         # engagement metric can never break the core Facebook analytics.
-        core_metrics = "page_media_view,page_total_media_view_unique"
+        core_metric_candidates = [
+            "page_media_view,page_total_media_view_unique",
+            "page_media_view",
+        ]
 
-        insights_response = requests.get(
-            f"{graph_url}/{page_id}/insights",
-            params={
-                "metric": core_metrics,
-                "period": "day",
-                "since": start.isoformat(),
-                "until": end.isoformat(),
-                "access_token": access_token,
-            },
-            timeout=self.REQUEST_TIMEOUT,
-        )
+        insights_response = None
+        used_metrics = core_metric_candidates[0]
+        for metrics in core_metric_candidates:
+            used_metrics = metrics
+            insights_response = self._facebook_insights_request(
+                graph_url, page_id, access_token, metrics, start, end
+            )
+            if insights_response.ok:
+                break
+            if self._meta_token_expired_error(insights_response) or self._meta_permission_error(
+                insights_response
+            ):
+                repaired = self._repair_meta_token()
+                if repaired:
+                    access_token = settings.FACEBOOK_PAGE_ACCESS_TOKEN.strip()
+                    page_id = settings.FACEBOOK_PAGE_ID.strip() or page_id
+                    insights_response = self._facebook_insights_request(
+                        graph_url, page_id, access_token, metrics, start, end
+                    )
+                    if insights_response.ok:
+                        break
+            # Permission / object errors won't be fixed by trying fewer metrics.
+            if self._meta_permission_error(insights_response):
+                break
+            # Invalid-metric style #100 → try the next candidate list.
+            if not self._meta_invalid_metric_error(insights_response):
+                break
 
-        expired = self._meta_token_expired_error(insights_response)
-        if expired:
-            repaired = self._repair_meta_token()
-            if repaired:
-                access_token = settings.FACEBOOK_PAGE_ACCESS_TOKEN.strip()
-                insights_response = requests.get(
-                    f"{graph_url}/{page_id}/insights",
-                    params={
-                        "metric": core_metrics,
-                        "period": "day",
-                        "since": start.isoformat(),
-                        "until": end.isoformat(),
-                        "access_token": access_token,
-                    },
-                    timeout=self.REQUEST_TIMEOUT,
-                )
-                expired = self._meta_token_expired_error(insights_response)
-            if expired:
-                return self._response(
-                    platform="facebook",
-                    days=days,
-                    status="token_expired",
-                    message=(
-                        "Facebook Page access token is invalid. "
-                        "Visit the Railway Meta auth URL once "
-                        "(…/api/v1/auth/meta) — tokens are saved automatically "
-                        "and renewed daily afterward."
-                    ),
-                )
+        assert insights_response is not None
+
+        if self._meta_token_expired_error(insights_response):
+            return self._response(
+                platform="facebook",
+                days=days,
+                status="token_expired",
+                message=(
+                    "Facebook Page access token is invalid. "
+                    "Reconnect Meta once via /api/v1/auth/meta — approve "
+                    "pages_read_engagement and read_insights, then Analytics will work."
+                ),
+            )
+
+        if self._meta_permission_error(insights_response):
+            return self._response(
+                platform="facebook",
+                days=days,
+                status="permission_error",
+                message=self._facebook_permission_message(access_token, page_id, insights_response),
+            )
 
         error = self._platform_error("facebook", insights_response, days)
         if error:
@@ -170,7 +186,7 @@ class SocialAnalyticsService:
         profile_response = requests.get(
             f"{graph_url}/{page_id}",
             params={
-                "fields": "fan_count,followers_count",
+                "fields": "fan_count,followers_count,name",
                 "access_token": access_token,
             },
             timeout=self.REQUEST_TIMEOUT,
@@ -182,32 +198,168 @@ class SocialAnalyticsService:
             graph_url, page_id, access_token, start, end
         )
 
+        views_key = "page_media_view"
+        reach_key = "page_total_media_view_unique"
         totals = {
-            "views": sum(item.get("page_media_view", 0) for item in metric_values.values()),
-            "impressions": sum(item.get("page_media_view", 0) for item in metric_values.values()),
-            "reach": sum(
-                item.get("page_total_media_view_unique", 0) for item in metric_values.values()
-            ),
+            "views": sum(item.get(views_key, 0) for item in metric_values.values()),
+            "impressions": sum(item.get(views_key, 0) for item in metric_values.values()),
+            "reach": sum(item.get(reach_key, 0) for item in metric_values.values()),
             "engagements": sum(engagement_by_date.values()),
             "followers": self._number(profile.get("followers_count") or profile.get("fan_count")),
         }
         series = [
             {
                 "date": day,
-                "views": values.get("page_media_view", 0),
+                "views": values.get(views_key, 0),
                 "engagements": engagement_by_date.get(day, 0),
             }
             for day, values in sorted(metric_values.items())
         ]
 
+        page_name = profile.get("name") or "Facebook Page"
         return self._response(
             platform="facebook",
             days=days,
             status="ok",
             totals=totals,
             series=series,
-            message="Facebook Page analytics fetched successfully.",
+            message=(
+                f"Facebook analytics for {page_name} fetched successfully"
+                + (" (views only)." if used_metrics == "page_media_view" else ".")
+            ),
         )
+
+    def _facebook_insights_request(
+        self,
+        graph_url: str,
+        page_id: str,
+        access_token: str,
+        metrics: str,
+        start: date,
+        end: date,
+    ) -> requests.Response:
+        return requests.get(
+            f"{graph_url}/{page_id}/insights",
+            params={
+                "metric": metrics,
+                "period": "day",
+                "since": start.isoformat(),
+                "until": end.isoformat(),
+                "access_token": access_token,
+            },
+            timeout=self.REQUEST_TIMEOUT,
+        )
+
+    def _ensure_facebook_page_token(self, access_token: str, page_id: str) -> str:
+        """Upgrade a User token (or stale Page token) to a usable Page access token."""
+        try:
+            from app.services.meta_token_service import debug_token, ensure_valid_page_token
+
+            info = debug_token(access_token) or {}
+            token_type = str(info.get("type") or "").upper()
+            scopes = {str(s).lower() for s in (info.get("scopes") or [])}
+            needs_page_token = token_type == "USER" or not info.get("is_valid", True)
+            missing_insights_scope = bool(scopes) and (
+                "pages_read_engagement" not in scopes or "read_insights" not in scopes
+            )
+
+            if needs_page_token or missing_insights_scope:
+                logger.warning(
+                    "Facebook analytics token needs repair "
+                    f"(type={token_type or 'unknown'}, "
+                    f"missing_scopes={missing_insights_scope})"
+                )
+                if ensure_valid_page_token():
+                    return settings.FACEBOOK_PAGE_ACCESS_TOKEN.strip()
+        except Exception as exc:
+            logger.warning(f"Facebook page-token ensure failed: {exc}")
+        return access_token
+
+    def _facebook_permission_message(
+        self,
+        access_token: str,
+        page_id: str,
+        response: requests.Response,
+    ) -> str:
+        token_type = "unknown"
+        scopes: list[str] = []
+        try:
+            from app.services.meta_token_service import debug_token
+
+            info = debug_token(access_token) or {}
+            token_type = str(info.get("type") or "unknown")
+            scopes = [str(s) for s in (info.get("scopes") or [])]
+        except Exception:
+            pass
+
+        missing = [
+            scope
+            for scope in ("pages_read_engagement", "read_insights")
+            if scope not in {s.lower() for s in scopes}
+        ]
+        parts = [
+            "Facebook Page insights need a Page access token with "
+            "pages_read_engagement + read_insights, and Analyze access on the Page."
+        ]
+        if token_type.upper() == "USER":
+            parts.append(
+                "Current token is a USER token (not a Page token) — reconnect Meta "
+                "so the backend can save the Page token for your Kafi Essence page."
+            )
+        if missing:
+            parts.append(f"Missing granted scopes: {', '.join(missing)}.")
+        if page_id:
+            parts.append(f"Configured FACEBOOK_PAGE_ID={page_id}.")
+        parts.append("Open /api/v1/auth/meta, approve all requested permissions, then refresh Analytics.")
+        # Keep a short raw snippet for debugging without flooding the UI.
+        try:
+            err = response.json().get("error", {})
+            msg = str(err.get("message") or "")[:180]
+            if msg:
+                parts.append(f"Meta said: {msg}")
+        except Exception:
+            pass
+        return " ".join(parts)
+
+    def _meta_permission_error(self, response: requests.Response) -> bool:
+        """True when Meta refuses insights due to missing Page/insights permissions."""
+        if response.status_code not in (400, 401, 403):
+            return False
+        try:
+            err = response.json().get("error", {}) or {}
+            message = str(err.get("message") or "").lower()
+            code = err.get("code")
+            markers = (
+                "pages_read_engagement",
+                "read_insights",
+                "page public content access",
+                "page public metadata access",
+                "missing permission",
+                "does not support this operation",
+                "permission",
+            )
+            if any(marker in message for marker in markers):
+                return True
+            # Code 100 with object/permission wording is the usual insights denial.
+            if code == 100 and (
+                "object does not exist" in message
+                or "cannot be loaded" in message
+                or "reviewable feature" in message
+            ):
+                return True
+            return code in (200, 10, 294)
+        except Exception:
+            text = response.text.lower()
+            return "pages_read_engagement" in text or "permission" in text
+
+    def _meta_invalid_metric_error(self, response: requests.Response) -> bool:
+        if response.status_code != 400:
+            return False
+        try:
+            message = str((response.json().get("error") or {}).get("message") or "").lower()
+            return "valid insights metric" in message or "invalid metric" in message
+        except Exception:
+            return "valid insights metric" in response.text.lower()
 
     def _facebook_engagement_by_date(
         self,

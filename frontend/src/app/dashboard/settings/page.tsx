@@ -47,7 +47,7 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <h1 className="text-3xl font-bold text-slate-900 dark:text-slate-100">Settings</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100">Settings</h1>
 
       <div className="bg-white rounded-lg shadow p-6 dark:bg-slate-800 dark:border dark:border-slate-700">
         <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">Appearance</h2>

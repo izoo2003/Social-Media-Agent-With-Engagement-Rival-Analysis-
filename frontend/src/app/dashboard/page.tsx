@@ -57,6 +57,36 @@ const getDisplayStatus = (content: ContentItem) => {
   return isPosted(content) ? 'published' : s === 'failed' ? 'failed' : 'draft';
 };
 
+const getPlatformPostId = (content: ContentItem): string | null => {
+  const key = `${content.platform}_post_id` as keyof ContentItem;
+  const value = content[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+};
+
+/** Build a public URL for a published post from the stored platform post id. */
+const getPublishedPostUrl = (content: ContentItem): string | null => {
+  if (!isPosted(content)) return null;
+  const postId = getPlatformPostId(content);
+  if (!postId) return null;
+
+  const platform = content.platform.toLowerCase();
+  if (platform === 'facebook') {
+    return `https://www.facebook.com/${postId}`;
+  }
+  if (platform === 'instagram') {
+    return `https://www.instagram.com/p/${postId}/`;
+  }
+  if (platform === 'linkedin') {
+    if (postId.startsWith('http')) return postId;
+    return `https://www.linkedin.com/feed/update/${postId}`;
+  }
+  if (platform === 'youtube') {
+    if (postId.startsWith('http')) return postId;
+    return `https://www.youtube.com/watch?v=${postId}`;
+  }
+  return null;
+};
+
 // Inline confirmation dialog (no external library needed)
 function ConfirmDialog({
   open,
@@ -236,7 +266,7 @@ export default function DashboardPage() {
       : 'text-red-600';
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <ConfirmDialog
         open={dialog.open}
         title={dialog.title}
@@ -248,56 +278,56 @@ export default function DashboardPage() {
 
       {/* Stat Cards */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-3 gap-2">
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Overview</h2>
           <button
             onClick={openClearStats}
             disabled={clearing || stats.total === 0}
-            className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="text-xs text-red-500 hover:text-red-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed transition-colors shrink-0"
           >
             🗑 Clear Stats
           </button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-500 text-sm font-medium">Total Content</p>
-                <p className="text-3xl font-bold text-brand-700 mt-1">{stats.total}</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
+          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-slate-100">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-slate-500 text-xs sm:text-sm font-medium">Total Content</p>
+                <p className="text-2xl sm:text-3xl font-bold text-brand-700 mt-1">{stats.total}</p>
               </div>
-              <span className="text-3xl">📊</span>
+              <span className="text-2xl sm:text-3xl shrink-0">📊</span>
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-500 text-sm font-medium">Drafts</p>
-                <p className="text-3xl font-bold text-gold-600 mt-1">{stats.drafted}</p>
+          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-slate-100">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-slate-500 text-xs sm:text-sm font-medium">Drafts</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gold-600 mt-1">{stats.drafted}</p>
               </div>
-              <span className="text-3xl">📝</span>
+              <span className="text-2xl sm:text-3xl shrink-0">📝</span>
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-500 text-sm font-medium">Posted</p>
-                <p className="text-3xl font-bold text-emerald-600 mt-1">{stats.posted}</p>
+          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-slate-100">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-slate-500 text-xs sm:text-sm font-medium">Posted</p>
+                <p className="text-2xl sm:text-3xl font-bold text-emerald-600 mt-1">{stats.posted}</p>
               </div>
-              <span className="text-3xl">🚀</span>
+              <span className="text-2xl sm:text-3xl shrink-0">🚀</span>
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-6 border border-slate-100">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-slate-500 text-sm font-medium">QA Pass Rate</p>
-                <p className={`text-3xl font-bold mt-1 ${qaColor}`}>{qaPassRate}</p>
+          <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-slate-100">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-slate-500 text-xs sm:text-sm font-medium">QA Pass Rate</p>
+                <p className={`text-2xl sm:text-3xl font-bold mt-1 ${qaColor}`}>{qaPassRate}</p>
                 {qaStats && qaStats.approved + qaStats.rejected > 0 && (
                   <p className="text-[11px] text-slate-400 mt-1">
                     {qaStats.approved}✓ {qaStats.rejected}✕{qaStats.pending > 0 ? ` · ${qaStats.pending} pending` : ''}
                   </p>
                 )}
               </div>
-              <span className="text-3xl">✅</span>
+              <span className="text-2xl sm:text-3xl shrink-0">✅</span>
             </div>
           </div>
         </div>
@@ -305,8 +335,8 @@ export default function DashboardPage() {
 
       {/* Recent Content */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">📋 Recent Content & Drafts</h2>
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base sm:text-lg font-semibold text-slate-900">📋 Recent Content & Drafts</h2>
           <div className="flex items-center gap-3">
             {contents.length > 0 && (
               <button
@@ -352,12 +382,12 @@ export default function DashboardPage() {
             {contents.map((content) => (
               <div key={content.id}>
                 <div
-                  className="px-6 py-4 hover:bg-gray-50 cursor-pointer transition-colors"
+                  className="px-3 sm:px-6 py-3 sm:py-4 hover:bg-gray-50 cursor-pointer transition-colors"
                   onClick={() => setExpandedId(expandedId === content.id ? null : content.id)}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 min-w-0 flex-1">
-                      <span className="text-2xl flex-shrink-0">{PLATFORM_ICONS[content.platform] || '📄'}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                      <span className="text-xl sm:text-2xl flex-shrink-0">{PLATFORM_ICONS[content.platform] || '📄'}</span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-slate-900 truncate">
                           {content.title || 'Untitled'}
@@ -369,8 +399,19 @@ export default function DashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 flex-shrink-0">
-                      <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                    <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+                      {isPosted(content) && getPublishedPostUrl(content) && (
+                        <a
+                          href={getPublishedPostUrl(content)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="hidden sm:inline text-xs font-semibold text-brand-700 hover:underline"
+                        >
+                          View post
+                        </a>
+                      )}
+                      <span className={`px-2 sm:px-2.5 py-0.5 rounded-full text-xs font-semibold ${
                         getDisplayStatus(content) === 'published'
                           ? 'bg-green-100 text-green-800'
                           : getDisplayStatus(content) === 'failed'
@@ -387,8 +428,8 @@ export default function DashboardPage() {
                 </div>
 
                 {expandedId === content.id && (
-                  <div className="px-6 pb-4 pt-0">
-                    <div className="bg-gray-50 rounded-lg p-4 ml-11 border border-gray-200">
+                  <div className="px-3 sm:px-6 pb-4 pt-0">
+                    <div className="bg-gray-50 rounded-lg p-3 sm:p-4 sm:ml-11 border border-gray-200">
                       {content.body ? (
                         <>
                           <p className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed max-h-48 overflow-y-auto">
@@ -403,6 +444,22 @@ export default function DashboardPage() {
                         </>
                       ) : (
                         <p className="text-sm text-gray-400 italic">No caption body</p>
+                      )}
+                      {isPosted(content) && getPublishedPostUrl(content) && (
+                        <a
+                          href={getPublishedPostUrl(content)!}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 hover:text-brand-900 hover:underline"
+                        >
+                          🔗 View live post on {content.platform}
+                        </a>
+                      )}
+                      {isPosted(content) && !getPublishedPostUrl(content) && (
+                        <p className="mt-3 text-xs text-slate-500">
+                          Published, but no post link was stored for this item.
+                        </p>
                       )}
                       {!isPosted(content) && (
                         <PostFromDraftPanel content={content} onPosted={loadDashboard} />

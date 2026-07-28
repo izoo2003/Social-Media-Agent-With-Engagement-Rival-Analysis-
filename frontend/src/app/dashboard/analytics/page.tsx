@@ -206,19 +206,19 @@ export default function AnalyticsPage() {
     <div className="max-w-7xl space-y-6">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Analytics</h1>
-          <p className="mt-1 text-gray-600">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Analytics</h1>
+          <p className="mt-1 text-sm sm:text-base text-gray-600">
             Real account-level reach and engagement across your social platforms.
           </p>
         </div>
 
         {!isStaticPlatform && (
-          <div className="flex rounded-lg border border-gray-200 bg-white p-1 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+          <div className="flex w-full sm:w-auto overflow-x-auto rounded-lg border border-gray-200 bg-white p-1 shadow-sm dark:border-slate-600 dark:bg-slate-800">
             {ranges.map((option) => (
               <button
                 key={option.value}
                 onClick={() => setRange(option.value)}
-                className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                className={`shrink-0 rounded-md px-3 sm:px-4 py-2 text-sm font-medium transition ${
                   range === option.value
                     ? 'bg-gray-900 text-white dark:bg-slate-600'
                     : 'text-gray-600 hover:bg-gray-100 dark:text-slate-300 dark:hover:bg-slate-700'
@@ -238,12 +238,12 @@ export default function AnalyticsPage() {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-5">
         {visiblePlatforms.map(({ id, label, accent, data }) => (
           <button
             key={id}
             onClick={() => setActivePlatform(id)}
-            className={`rounded-xl border bg-white p-5 text-left shadow-sm transition hover:shadow-md dark:bg-slate-800 dark:border-slate-600 ${
+            className={`rounded-xl border bg-white p-4 sm:p-5 text-left shadow-sm transition hover:shadow-md dark:bg-slate-800 dark:border-slate-600 ${
               activePlatform === id ? 'border-gray-900 dark:border-gold-500' : 'border-gray-200'
             }`}
           >

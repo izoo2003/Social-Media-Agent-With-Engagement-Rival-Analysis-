@@ -25,7 +25,7 @@ export default function RootLayout({ children }: LayoutProps) {
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
         <title>Social Media Agent - Kafi Commodities</title>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

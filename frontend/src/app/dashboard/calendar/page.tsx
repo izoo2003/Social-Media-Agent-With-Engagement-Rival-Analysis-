@@ -151,8 +151,8 @@ export default function CalendarPage() {
     <div className="max-w-6xl">
       {/* Header */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Content Calendar</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Content Calendar</h1>
           <p className="text-sm text-gray-500 mt-1">
             Schedule posts in advance — they publish automatically to LinkedIn, Facebook,
             Instagram &amp; YouTube when their time arrives.
@@ -160,56 +160,57 @@ export default function CalendarPage() {
         </div>
         <button
           onClick={() => openNewSchedule()}
-          className="bg-brand-700 hover:bg-brand-800 text-white font-semibold px-5 py-2.5 rounded-lg shadow-sm"
+          className="bg-brand-700 hover:bg-brand-800 text-white font-semibold px-4 sm:px-5 py-2.5 rounded-lg shadow-sm text-sm sm:text-base shrink-0"
         >
           + Schedule a Post
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
         {/* Calendar grid */}
-        <div className="lg:col-span-3 bg-white rounded-lg shadow p-4 dark:bg-slate-800 dark:border dark:border-slate-700">
+        <div className="lg:col-span-3 bg-white rounded-lg shadow p-2 sm:p-4 overflow-x-auto dark:bg-slate-800 dark:border dark:border-slate-700">
           {/* Month nav */}
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center justify-between mb-4 gap-2">
             <button
               onClick={() => setCursor((c) => subMonths(c, 1))}
-              className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-gray-600 font-medium"
+              className="px-2 sm:px-3 py-1.5 rounded-lg hover:bg-gray-100 text-gray-600 font-medium text-sm shrink-0"
             >
               ‹ Prev
             </button>
-            <div className="flex items-center gap-3">
-              <h2 className="text-xl font-bold text-slate-900">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <h2 className="text-base sm:text-xl font-bold text-slate-900 truncate">
                 {format(cursor, 'MMMM yyyy')}
               </h2>
               <button
                 onClick={() => setCursor(new Date())}
-                className="text-xs px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300"
+                className="text-xs px-2 py-1 rounded-md bg-gray-100 hover:bg-gray-200 text-gray-600 dark:bg-slate-700 dark:hover:bg-slate-600 dark:text-slate-300 shrink-0"
               >
                 Today
               </button>
             </div>
             <button
               onClick={() => setCursor((c) => addMonths(c, 1))}
-              className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-gray-600 font-medium"
+              className="px-2 sm:px-3 py-1.5 rounded-lg hover:bg-gray-100 text-gray-600 font-medium text-sm shrink-0"
             >
               Next ›
             </button>
           </div>
 
           {/* Weekday header */}
-          <div className="grid grid-cols-7 gap-1 mb-1">
+          <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-1 min-w-[280px]">
             {WEEKDAYS.map((d) => (
               <div
                 key={d}
-                className="text-center text-xs font-semibold text-gray-400 uppercase py-1"
+                className="text-center text-[10px] sm:text-xs font-semibold text-gray-400 uppercase py-1"
               >
-                {d}
+                <span className="sm:hidden">{d.charAt(0)}</span>
+                <span className="hidden sm:inline">{d}</span>
               </div>
             ))}
           </div>
 
           {/* Days */}
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-0.5 sm:gap-1 min-w-[280px]">
             {days.map((day) => {
               const key = format(day, 'yyyy-MM-dd');
               const dayEvents = eventsByDay.get(key) || [];
@@ -218,7 +219,7 @@ export default function CalendarPage() {
                 <div
                   key={key}
                   onClick={() => openNewSchedule(day)}
-                  className={`min-h-[96px] rounded-lg border p-1.5 cursor-pointer transition-colors ${
+                  className={`min-h-[56px] sm:min-h-[96px] rounded-md sm:rounded-lg border p-1 sm:p-1.5 cursor-pointer transition-colors ${
                     inMonth ? 'bg-white border-gray-200 hover:border-brand-300 dark:bg-slate-800 dark:border-slate-600 dark:hover:border-gold-500/50' : 'bg-gray-50 border-gray-100 dark:bg-slate-900/50 dark:border-slate-700'
                   }`}
                 >

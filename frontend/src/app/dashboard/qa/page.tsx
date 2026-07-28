@@ -155,14 +155,14 @@ export default function QAPage() {
   return (
     <div className="max-w-5xl">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-slate-900">QA Checker</h1>
-        <p className="text-slate-500 mt-1">
+        <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">QA Checker</h1>
+        <p className="text-slate-500 mt-1 text-sm sm:text-base">
           Review posts submitted by the team. Approve to publish live to the selected platforms, or reject to block.
         </p>
       </div>
 
       {/* Designer PIN */}
-      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-5 mb-6">
+      <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 sm:p-5 mb-6">
         <label className="block text-sm font-semibold text-slate-700 mb-2">
           Designer PIN
         </label>
@@ -178,7 +178,7 @@ export default function QAPage() {
               setPinValid(null);
             }}
             placeholder="Enter designer PIN"
-            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm w-64"
+            className="px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm w-full sm:w-64 max-w-full"
           />
           <button
             onClick={verifyPin}

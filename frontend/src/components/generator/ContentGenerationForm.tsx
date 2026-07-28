@@ -763,7 +763,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
               disabled={
                 Object.values(postingStates).some(s => s === 'posting') || submittingApproval
               }
-              className={`flex-1 min-w-[180px] py-3 px-4 rounded-lg font-semibold text-white transition-all ${
+              className={`flex-1 min-w-0 sm:min-w-[180px] basis-full sm:basis-auto py-3 px-4 rounded-lg font-semibold text-white transition-all ${
                 Object.values(postingStates).some(s => s === 'posting')
                   ? 'bg-gray-400 cursor-not-allowed'
                   : 'bg-green-600 hover:bg-green-700'
@@ -784,13 +784,13 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                 setScheduleContentId(generatedContents[0]?.content_id ?? null);
                 setScheduleOpen(true);
               }}
-              className="flex-1 min-w-[180px] py-3 px-4 rounded-lg font-semibold text-white bg-brand-700 hover:bg-brand-800 transition-all"
+              className="flex-1 min-w-0 sm:min-w-[180px] basis-full sm:basis-auto py-3 px-4 rounded-lg font-semibold text-white bg-brand-700 hover:bg-brand-800 transition-all"
             >
               🗓️ Schedule for Later
             </button>
             <button
               onClick={handleBackToInput}
-              className="px-6 py-3 rounded-lg font-semibold text-gray-700 bg-gray-200 hover:bg-gray-300 transition-all"
+              className="w-full sm:w-auto px-6 py-3 rounded-lg font-semibold text-gray-700 bg-gray-200 hover:bg-gray-300 transition-all"
             >
               ← Back & Edit
             </button>

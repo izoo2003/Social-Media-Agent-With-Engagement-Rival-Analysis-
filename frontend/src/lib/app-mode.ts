@@ -79,6 +79,7 @@ export interface NavItem {
 
 const FULL_NAV_ITEMS: Omit<NavItem, 'locked'>[] = [
   { href: '/dashboard', label: 'Dashboard' },
+  { href: '/dashboard/index', label: 'Index' },
   { href: '/dashboard/creation', label: 'Content Creation' },
   { href: '/dashboard/generator', label: 'Content Posting' },
   { href: '/dashboard/calendar', label: 'Calendar' },
@@ -87,7 +88,12 @@ const FULL_NAV_ITEMS: Omit<NavItem, 'locked'>[] = [
   { href: '/dashboard/rivals', label: 'Rival Review' },
 ];
 
+const INDEX_HOME = '/dashboard/index';
+
 function isJuniorAllowedPath(pathname: string): boolean {
+  if (pathname === INDEX_HOME || pathname.startsWith(`${INDEX_HOME}/`)) {
+    return true;
+  }
   return JUNIOR_ALLOWED_PATHS.some(
     (allowed) => pathname === allowed || pathname.startsWith(`${allowed}/`),
   );
@@ -98,6 +104,10 @@ export function getNavItems(tier?: AccessTier | null): NavItem[] {
 
   return FULL_NAV_ITEMS.map((item) => {
     if (mode === 'full') {
+      return { ...item, locked: false };
+    }
+    // Index is always available as a feature showcase map.
+    if (item.href === INDEX_HOME) {
       return { ...item, locked: false };
     }
     if (mode === 'creation-only') {
@@ -120,6 +130,11 @@ export function isDashboardPathAllowed(
   const mode = getEffectiveMode(tier);
 
   if (mode === 'full') {
+    return true;
+  }
+
+  // Feature showcase is readable for every logged-in tier.
+  if (pathname === INDEX_HOME || pathname.startsWith(`${INDEX_HOME}/`)) {
     return true;
   }
 

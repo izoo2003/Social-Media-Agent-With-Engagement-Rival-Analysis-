@@ -2,13 +2,23 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const CREATION_HOME = '/dashboard/creation';
+const INDEX_HOME = '/dashboard/index';
 const SESSION_COOKIE = 'dashboard_session';
 const TIER_COOKIE = 'dashboard_tier';
 
-const JUNIOR_ALLOWED_PREFIXES = ['/dashboard/creation', '/dashboard/generator'];
+const JUNIOR_ALLOWED_PREFIXES = [
+  '/dashboard/creation',
+  '/dashboard/generator',
+  '/dashboard/index',
+];
 
 function isCreationOnlyDashboardPath(pathname: string): boolean {
-  return pathname === CREATION_HOME || pathname.startsWith(`${CREATION_HOME}/`);
+  return (
+    pathname === CREATION_HOME ||
+    pathname.startsWith(`${CREATION_HOME}/`) ||
+    pathname === INDEX_HOME ||
+    pathname.startsWith(`${INDEX_HOME}/`)
+  );
 }
 
 function isJuniorDashboardPath(pathname: string): boolean {

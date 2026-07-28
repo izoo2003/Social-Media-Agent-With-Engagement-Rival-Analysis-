@@ -264,8 +264,8 @@ export default function RivalReviewPage() {
     <div className="max-w-7xl space-y-6">
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Rival Review</h1>
-          <p className="mt-1 text-gray-600">
+          <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Rival Review</h1>
+          <p className="mt-1 text-sm sm:text-base text-gray-600">
             Track top Pakistani exporters, see how they perform, and get AI tips on
             what they do better than us.
           </p>
@@ -273,14 +273,14 @@ export default function RivalReviewPage() {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={openAdd}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 sm:px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50"
           >
             <Plus className="h-4 w-4" /> Add Rival
           </button>
           <button
             onClick={handleRefreshAll}
             disabled={refreshingAll}
-            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 sm:px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 disabled:opacity-60"
           >
             <RefreshCw className={`h-4 w-4 ${refreshingAll ? 'animate-spin' : ''}`} />
             Refresh all
@@ -288,9 +288,11 @@ export default function RivalReviewPage() {
           <button
             onClick={handleGetInsights}
             disabled={insightsLoading}
-            className="inline-flex items-center gap-2 rounded-lg bg-brand-900 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-lg bg-brand-900 px-3 sm:px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-800 disabled:opacity-60"
           >
-            <Sparkles className="h-4 w-4" /> Get AI suggestions
+            <Sparkles className="h-4 w-4" />
+            <span className="hidden sm:inline">Get AI suggestions</span>
+            <span className="sm:hidden">AI tips</span>
           </button>
         </div>
       </div>
@@ -854,9 +856,9 @@ function Modal({
   wide?: boolean;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4">
       <div
-        className={`w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-xl`}
+        className={`w-full ${wide ? 'max-w-3xl' : 'max-w-lg'} max-h-[92dvh] sm:max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-xl bg-white p-4 sm:p-6 shadow-xl`}
       >
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
