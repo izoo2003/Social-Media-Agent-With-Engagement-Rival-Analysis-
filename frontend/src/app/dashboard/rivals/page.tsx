@@ -301,6 +301,26 @@ export default function RivalReviewPage() {
         <RivalsConfigPanel config={rivalsConfig} />
       )}
 
+      {rivalsConfig?.instagram && !rivalsConfig.instagram.configured && (
+        <div className="flex flex-col gap-2 rounded-lg border border-pink-200 bg-pink-50 p-4 text-sm text-pink-950 sm:flex-row sm:items-center sm:justify-between dark:border-pink-800/60 dark:bg-pink-950/30 dark:text-pink-100">
+          <div className="min-w-0">
+            <p className="font-semibold">Rival Review Instagram is not ready</p>
+            <p className="mt-1 text-xs text-pink-900/80 dark:text-pink-200/80">
+              {rivalsConfig.instagram.hint ||
+                'Meta Business Discovery needs a Page token + Instagram Business account linked to that Page.'}
+            </p>
+          </div>
+          <a
+            href={API_ENDPOINTS.META_AUTH}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg bg-pink-700 px-3 py-2 text-xs font-semibold text-white hover:bg-pink-800"
+          >
+            Reconnect Meta for Rival IG
+          </a>
+        </div>
+      )}
+
       {error && (
         <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">
           <AlertCircle className="h-5 w-5" />

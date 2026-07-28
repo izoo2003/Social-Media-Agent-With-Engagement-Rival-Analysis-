@@ -278,12 +278,59 @@ def _instagram_auth_error_message(err: dict) -> str | None:
         "instagram_manage_insights",
     )
     if code in (190, 102, 200, 10) or any(s in lower for s in auth_signals):
+        if "cannot call api for app" in lower:
+            return (
+                "Instagram Business Discovery auth is broken for this Meta app/token pair. "
+                "On Railway set FACEBOOK_PAGE_ID to your real Page (Essence Food), "
+                "reconnect /api/v1/auth/meta so INSTAGRAM_ACCOUNT_ID is the IG account "
+                "linked to that Page, and approve instagram_basic + pages_read_engagement. "
+                f"Meta said: {msg}"
+            )
         return (
             "Meta Instagram token/app auth failed. Reconnect via /api/v1/auth/meta "
             f"(need instagram_basic + instagram_manage_insights + pages_read_engagement). "
             f"Meta said: {msg or 'OAuth/permission error'}"
         )
     return None
+
+
+def _resolve_and_persist_instagram_account_id(token: str) -> str:
+    """Re-read IG Business Account ID from FACEBOOK_PAGE_ID and persist if found."""
+    page_id = (settings.FACEBOOK_PAGE_ID or "").strip()
+    if not page_id or not token:
+        return ""
+    try:
+        from app.services.meta_token_service import (
+            persist_meta_tokens,
+            resolve_instagram_account_id,
+        )
+
+        ig_id = resolve_instagram_account_id(token, page_id)
+        if ig_id and ig_id != (settings.INSTAGRAM_ACCOUNT_ID or "").strip():
+            persist_meta_tokens(instagram_account_id=ig_id)
+            settings.INSTAGRAM_ACCOUNT_ID = ig_id
+            logger.info(
+                f"Rival IG: refreshed INSTAGRAM_ACCOUNT_ID from page {page_id} → {ig_id}"
+            )
+        return ig_id or ""
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Rival IG account auto-resolve failed: {exc}")
+        return ""
+
+
+def _instagram_business_discovery(
+    ig_user_id: str,
+    token: str,
+    version: str,
+    fields: str,
+) -> tuple[requests.Response, dict]:
+    resp = requests.get(
+        f"https://graph.facebook.com/{version}/{ig_user_id}",
+        params={"fields": fields, "access_token": token},
+        timeout=settings.SCRAPER_TIMEOUT,
+    )
+    data = resp.json() if resp.content else {}
+    return resp, data if isinstance(data, dict) else {}
 
 
 def probe_instagram_auth(sample_username: str = "shanfoodsglobal") -> dict:
@@ -308,20 +355,30 @@ def probe_instagram_auth(sample_username: str = "shanfoodsglobal") -> dict:
     username = (sample_username or "instagram").strip().lstrip("@")
     fields = f"business_discovery.username({username}){{followers_count,media_count}}"
     try:
-        resp = requests.get(
-            f"https://graph.facebook.com/{version}/{ig_user_id}",
-            params={"fields": fields, "access_token": token},
-            timeout=min(15, settings.SCRAPER_TIMEOUT),
-        )
-        data = resp.json() if resp.content else {}
-        if resp.ok and isinstance(data, dict) and data.get("business_discovery"):
+        resp, data = _instagram_business_discovery(ig_user_id, token, version, fields)
+        if resp.ok and data.get("business_discovery"):
             return {
                 "ok": True,
                 "configured": True,
                 "message": "Ready — Instagram Business Discovery can fetch rival stats.",
             }
 
-        err = data.get("error", {}) if isinstance(data, dict) else {}
+        err = data.get("error", {}) if isinstance(data.get("error"), dict) else {}
+        # Stale IG id / wrong page — try resolving from FACEBOOK_PAGE_ID once.
+        if _instagram_auth_error_message(err):
+            healed_id = _resolve_and_persist_instagram_account_id(token)
+            if healed_id and healed_id != ig_user_id:
+                resp, data = _instagram_business_discovery(healed_id, token, version, fields)
+                if resp.ok and data.get("business_discovery"):
+                    return {
+                        "ok": True,
+                        "configured": True,
+                        "message": (
+                            "Ready — Instagram account ID was refreshed from the Facebook Page."
+                        ),
+                    }
+                err = data.get("error", {}) if isinstance(data.get("error"), dict) else err
+
         auth_msg = _instagram_auth_error_message(err) if isinstance(err, dict) else None
         raw = err.get("message") if isinstance(err, dict) else None
         return {
@@ -369,20 +426,28 @@ def collect_instagram(rival) -> dict:
         "media.limit(6){like_count,comments_count,caption,timestamp,permalink,media_type}}"
     )
     try:
-        resp = requests.get(
-            f"https://graph.facebook.com/{version}/{ig_user_id}",
-            params={"fields": fields, "access_token": token},
-            timeout=settings.SCRAPER_TIMEOUT,
-        )
-        data = resp.json()
+        resp, data = _instagram_business_discovery(ig_user_id, token, version, fields)
         if not resp.ok:
-            err = data.get("error", {}) if isinstance(data, dict) else {}
-            auth_msg = _instagram_auth_error_message(err) if isinstance(err, dict) else None
-            if auth_msg:
-                return _result("instagram", "error", message=auth_msg)
-            msg = err.get("message", "Instagram Business Discovery request failed.")
-            # Rival isn't a discoverable Business/Creator account, or username is wrong.
-            return _result("instagram", "unavailable", message=msg)
+            err = data.get("error", {}) if isinstance(data.get("error"), dict) else {}
+            if _instagram_auth_error_message(err):
+                healed_id = _resolve_and_persist_instagram_account_id(token)
+                if healed_id and healed_id != ig_user_id:
+                    resp, data = _instagram_business_discovery(
+                        healed_id, token, version, fields
+                    )
+                    ig_user_id = healed_id
+                    err = (
+                        data.get("error", {})
+                        if not resp.ok and isinstance(data.get("error"), dict)
+                        else {}
+                    )
+
+            if not resp.ok:
+                auth_msg = _instagram_auth_error_message(err) if err else None
+                if auth_msg:
+                    return _result("instagram", "error", message=auth_msg)
+                msg = err.get("message", "Instagram Business Discovery request failed.")
+                return _result("instagram", "unavailable", message=msg)
 
         bd = data.get("business_discovery", {})
         if not bd:
