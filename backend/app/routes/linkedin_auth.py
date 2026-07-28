@@ -1,7 +1,7 @@
 """
 LinkedIn OAuth 2.0 — personal posting and optional company-page analytics.
 
-Live: https://kafi-social-agent.up.railway.app/api/v1/auth/linkedin
+Live: https://kafi-social-media-agent-production.up.railway.app/api/v1/auth/linkedin
 """
 
 from urllib.parse import urlencode

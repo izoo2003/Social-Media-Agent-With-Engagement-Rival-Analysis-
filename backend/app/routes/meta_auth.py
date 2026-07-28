@@ -8,7 +8,7 @@ analytics keep working without manual paste/restart.
 Usage (live Railway):
   1. Set FACEBOOK_APP_ID / FACEBOOK_APP_SECRET on Railway
   2. Add FACEBOOK_REDIRECT_URI (Railway callback) in Meta App → Valid OAuth Redirect URIs
-  3. Visit https://kafi-social-agent.up.railway.app/api/v1/auth/meta
+  3. Visit https://kafi-social-media-agent-production.up.railway.app/api/v1/auth/meta
   4. Approve permissions — tokens are saved automatically
 """
 

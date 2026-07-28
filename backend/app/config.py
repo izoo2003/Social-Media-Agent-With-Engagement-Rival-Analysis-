@@ -252,7 +252,7 @@ class Settings(BaseSettings):
 
     # Public backend URL used for OAuth callbacks (Railway production).
     # Auth links and redirect URIs are derived from this — no localhost needed.
-    BACKEND_PUBLIC_URL: str = "https://kafi-social-media-agent.up.railway.app"
+    BACKEND_PUBLIC_URL: str = "https://kafi-social-media-agent-production.up.railway.app"
 
     # Social Media API Settings
     LINKEDIN_ACCESS_TOKEN: str = ""
@@ -350,9 +350,13 @@ def _bootstrap_public_oauth_urls(settings: "Settings") -> None:
     if not base:
         return
 
-    # Prefer the known live hostname if the old/retired Railway URL is stored.
-    if "kafi-social-agent.up.railway.app" in base:
-        base = "https://kafi-social-media-agent.up.railway.app"
+    # Prefer the known live hostname if an older/retired Railway URL is stored.
+    legacy_hosts = (
+        "kafi-social-agent.up.railway.app",
+        "kafi-social-media-agent.up.railway.app",
+    )
+    if any(host in base for host in legacy_hosts):
+        base = "https://kafi-social-media-agent-production.up.railway.app"
         settings.BACKEND_PUBLIC_URL = base
 
     derived = {
@@ -362,7 +366,7 @@ def _bootstrap_public_oauth_urls(settings: "Settings") -> None:
     }
     for key, url in derived.items():
         current = (getattr(settings, key, "") or "").strip()
-        if _is_local_url(current) or "kafi-social-agent.up.railway.app" in current:
+        if _is_local_url(current) or any(host in current for host in legacy_hosts):
             setattr(settings, key, url)
 
 

@@ -29,10 +29,17 @@ function isJuniorDashboardPath(pathname: string): boolean {
 
 function resolveApiBaseUrl(): string {
   const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').trim();
-  if (raw.startsWith('NEXT_PUBLIC_API_URL=')) {
-    return raw.slice('NEXT_PUBLIC_API_URL='.length).trim().replace(/\/$/, '');
+  let url = raw.startsWith('NEXT_PUBLIC_API_URL=')
+    ? raw.slice('NEXT_PUBLIC_API_URL='.length).trim().replace(/\/$/, '')
+    : raw.replace(/\/$/, '');
+  // Retired Railway hosts → current production backend
+  if (
+    url.includes('kafi-social-agent.up.railway.app') ||
+    url.includes('kafi-social-media-agent.up.railway.app')
+  ) {
+    url = 'https://kafi-social-media-agent-production.up.railway.app';
   }
-  return raw.replace(/\/$/, '');
+  return url || 'http://localhost:8000';
 }
 
 /** Reject empty / legacy forgeable cookie values like "1". */

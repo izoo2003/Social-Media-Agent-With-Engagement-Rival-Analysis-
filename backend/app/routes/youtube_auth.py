@@ -1,7 +1,7 @@
 """
 YouTube OAuth 2.0 routes — obtain a refresh token with upload permissions.
 
-Live: https://kafi-social-agent.up.railway.app/api/v1/auth/youtube
+Live: https://kafi-social-media-agent-production.up.railway.app/api/v1/auth/youtube
 """
 
 import hashlib
