@@ -186,7 +186,15 @@ export default function IndexPage() {
           Index
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base dark:text-slate-400">
-          Feature map of everything implemented in the agent — open a section to jump in.
+          Feature map of everything implemented in the agent — open a section to jump in. For
+          step-by-step guidance from scratch, see the{' '}
+          <Link
+            href="/dashboard/manual"
+            className="font-semibold text-brand-700 hover:underline dark:text-gold-300"
+          >
+            User Manual
+          </Link>
+          .
         </p>
       </header>
 

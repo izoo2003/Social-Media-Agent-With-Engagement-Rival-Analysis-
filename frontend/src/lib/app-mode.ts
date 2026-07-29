@@ -77,9 +77,12 @@ export interface NavItem {
   locked: boolean;
 }
 
+const MANUAL_HOME = '/dashboard/manual';
+
 const FULL_NAV_ITEMS: Omit<NavItem, 'locked'>[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/dashboard/index', label: 'Index' },
+  { href: MANUAL_HOME, label: 'User Manual' },
   { href: '/dashboard/creation', label: 'Content Creation' },
   { href: '/dashboard/generator', label: 'Content Posting' },
   { href: '/dashboard/calendar', label: 'Calendar' },
@@ -94,6 +97,9 @@ function isJuniorAllowedPath(pathname: string): boolean {
   if (pathname === INDEX_HOME || pathname.startsWith(`${INDEX_HOME}/`)) {
     return true;
   }
+  if (pathname === MANUAL_HOME || pathname.startsWith(`${MANUAL_HOME}/`)) {
+    return true;
+  }
   return JUNIOR_ALLOWED_PATHS.some(
     (allowed) => pathname === allowed || pathname.startsWith(`${allowed}/`),
   );
@@ -106,8 +112,8 @@ export function getNavItems(tier?: AccessTier | null): NavItem[] {
     if (mode === 'full') {
       return { ...item, locked: false };
     }
-    // Index is always available as a feature showcase map.
-    if (item.href === INDEX_HOME) {
+    // Index and User Manual are always available as documentation.
+    if (item.href === INDEX_HOME || item.href === MANUAL_HOME) {
       return { ...item, locked: false };
     }
     if (mode === 'creation-only') {
@@ -133,8 +139,11 @@ export function isDashboardPathAllowed(
     return true;
   }
 
-  // Feature showcase is readable for every logged-in tier.
+  // Documentation pages are readable for every logged-in tier.
   if (pathname === INDEX_HOME || pathname.startsWith(`${INDEX_HOME}/`)) {
+    return true;
+  }
+  if (pathname === MANUAL_HOME || pathname.startsWith(`${MANUAL_HOME}/`)) {
     return true;
   }
 
