@@ -4,7 +4,6 @@ import Link from 'next/link';
 import {
   ArrowRight,
   BookOpen,
-  AlertCircle,
   CheckCircle2,
   ExternalLink,
 } from 'lucide-react';
@@ -374,10 +373,10 @@ function TipList({ items }: { items: string[] }) {
       {items.map((tip, i) => (
         <li
           key={i}
-          className="flex gap-2 text-sm text-amber-900 dark:text-amber-100/90"
+          className="text-sm text-amber-900 dark:text-amber-100/90"
         >
-          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
-          <span>{tip}</span>
+          <span className="font-semibold">Tip: </span>
+          {tip}
         </li>
       ))}
     </ul>
