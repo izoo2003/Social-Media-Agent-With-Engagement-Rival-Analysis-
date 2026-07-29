@@ -12,6 +12,8 @@ from app.config import (
     _cloudflare_image_ready,
     get_creation_gemini_api_keys,
     get_creation_gemini_models,
+    get_general_chat_gemini_api_keys,
+    get_general_chat_gemini_models,
     get_image_generation_model_label,
     is_image_generation_ready,
     resolve_image_provider,
@@ -125,6 +127,8 @@ async def creation_chat(request: Request, body: ChatRequest):
             media_type = "image"
         elif body.intent == CreationIntent.CREATE_VOICE:
             media_type = None
+        elif body.intent == CreationIntent.GENERAL_CHAT:
+            media_type = None
         else:
             media_type = infer_prompt_media_type(last_user_text) if last_user_text else None
 
@@ -184,10 +188,17 @@ async def creation_chat(request: Request, body: ChatRequest):
                 entry["images"] = image_entries
             messages.append(entry)
 
+        if body.intent == CreationIntent.GENERAL_CHAT:
+            api_keys = get_general_chat_gemini_api_keys()
+            models = get_general_chat_gemini_models()
+        else:
+            api_keys = get_creation_gemini_api_keys()
+            models = get_creation_gemini_models()
+
         reply, model = chat_client.chat(
             messages,
-            api_keys=get_creation_gemini_api_keys(),
-            models=get_creation_gemini_models(),
+            api_keys=api_keys,
+            models=models,
         )
 
         return ChatResponse(

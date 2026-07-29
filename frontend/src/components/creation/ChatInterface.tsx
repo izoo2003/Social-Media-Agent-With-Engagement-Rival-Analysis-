@@ -14,6 +14,7 @@ import {
   Sparkles,
   ImageIcon,
   Clapperboard,
+  MessageCircle,
   Paperclip,
   X,
   Bookmark,
@@ -66,6 +67,13 @@ const CREATION_MODES: {
     description: 'Write a voice-over script — click Generate voice when ready',
     placeholder:
       'Describe the voice-over — e.g. 20s promo for Himalayan pink salt, warm and trustworthy tone…',
+  },
+  {
+    id: 'general_chat',
+    label: 'General Chatbot',
+    icon: MessageCircle,
+    description: 'Normal chatbot — ask anything; models auto-failover on rate limits',
+    placeholder: 'Ask anything — questions, ideas, writing help, explanations…',
   },
   {
     id: 'prompt',
@@ -1045,7 +1053,11 @@ export default function ChatInterface() {
             </div>
             <div className="bg-slate-100 text-slate-500 rounded-2xl rounded-bl-sm px-4 py-2.5 text-sm inline-flex items-center gap-2 dark:bg-slate-700 dark:text-slate-300">
               <Loader2 className="w-4 h-4 animate-spin" />
-              {creationIntent === 'create_image' ? 'Preparing your image…' : 'Thinking…'}
+              {creationIntent === 'create_image'
+                ? 'Preparing your image…'
+                : creationIntent === 'general_chat'
+                  ? 'Replying…'
+                  : 'Thinking…'}
             </div>
           </div>
         )}
@@ -1203,6 +1215,8 @@ export default function ChatInterface() {
             'Create image — describe your shot; the image appears below (no prompt text).'}
           {creationIntent === 'create_voice' &&
             'Create voice — AI writes the script; click Generate voice when you are ready.'}
+          {creationIntent === 'general_chat' &&
+            'General Chatbot — ask anything. If one model hits a rate limit, another is tried automatically.'}
           {creationIntent === 'prompt' &&
             'Write prompt — copy the reply for Meta AI or Google Flow. No in-app generation.'}
         </p>

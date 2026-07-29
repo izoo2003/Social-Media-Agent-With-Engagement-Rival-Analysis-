@@ -17,6 +17,7 @@ class CreationIntent(str, PyEnum):
     CREATE_IMAGE = "create_image"  # build prompt + in-app Gemini image
     CREATE_VOICE = "create_voice"  # build script + in-app TTS
     VIDEO_PROMPT = "video_prompt"  # Meta AI / Flow video prompts only
+    GENERAL_CHAT = "general_chat"  # normal Q&A chatbot (any topic)
 
 
 class ChatRole(str, PyEnum):
@@ -76,7 +77,10 @@ class ChatRequest(BaseModel):
     model: str = Field(default="", description="Ignored — chat uses GEMINI_MODEL from config.")
     intent: CreationIntent = Field(
         default=CreationIntent.PROMPT,
-        description="User-selected mode: prompt, create_image, create_voice, or video_prompt.",
+        description=(
+            "User-selected mode: prompt, create_image, create_voice, "
+            "video_prompt, or general_chat."
+        ),
     )
     language: str = Field(
         default="en",

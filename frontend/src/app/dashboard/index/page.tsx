@@ -8,6 +8,7 @@ import {
   ImageIcon,
   Lightbulb,
   Link2,
+  MessageCircle,
   Mic,
   PenLine,
   Send,
@@ -38,7 +39,7 @@ const INDEX_SECTIONS: IndexSection[] = [
     number: '1',
     title: 'Content Creation',
     href: '/dashboard/creation',
-    summary: 'Prompt Studio — images, voice, scripts, and creative tool links.',
+    summary: 'Prompt Studio — images, voice, general chat, scripts, and creative tool links.',
     features: [
       {
         number: '1.1',
@@ -54,18 +55,24 @@ const INDEX_SECTIONS: IndexSection[] = [
       },
       {
         number: '1.3',
+        title: 'General Chatbot',
+        description: 'Ask anything — answers with automatic Gemini model failover.',
+        icon: MessageCircle,
+      },
+      {
+        number: '1.4',
         title: 'Line script / write prompt',
         description: 'Get copy-paste prompts for Meta AI, ads, and reels.',
         icon: PenLine,
       },
       {
-        number: '1.4',
+        number: '1.5',
         title: 'Link to Flow',
         description: 'Open Google Flow for AI video creation.',
         icon: Clapperboard,
       },
       {
-        number: '1.5',
+        number: '1.6',
         title: 'Link to Gemini',
         description: 'Open Gemini Image Creation in a new tab.',
         icon: Link2,

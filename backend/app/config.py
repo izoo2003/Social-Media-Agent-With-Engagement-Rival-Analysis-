@@ -107,6 +107,17 @@ class Settings(BaseSettings):
     # Optional full model chain (comma-separated). When empty, primary + fallback above are used.
     CREATION_GEMINI_MODELS: str = ""
 
+    # General Chatbot mode (Content Creation) — dedicated key + model failover chain.
+    # Tried before CREATION_* keys so image/voice quotas stay separate when possible.
+    GENERAL_CHAT_GEMINI_API_KEY: str = ""
+    GENERAL_CHAT_GEMINI_API_KEYS: str = ""
+    GENERAL_CHAT_GEMINI_MODEL: str = "gemini-2.5-flash"
+    GENERAL_CHAT_GEMINI_FALLBACK_MODEL: str = "gemini-2.0-flash"
+    # Full ordered failover list. Empty → primary + fallback + a few safe defaults.
+    GENERAL_CHAT_GEMINI_MODELS: str = (
+        "gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash,gemini-2.5-pro"
+    )
+
     # Content Creation — image generation (Gemini by default for clearer visuals)
     # IMAGE_PROVIDER: gemini (recommended) | modelslab | cloudflare
     # Previous default (kept for optional rollback):
@@ -410,6 +421,47 @@ def get_creation_gemini_models() -> list[str]:
     ordered: list[str] = []
     for model in (settings.CREATION_GEMINI_MODEL, settings.CREATION_GEMINI_FALLBACK_MODEL):
         name = model.strip()
+        if name and name not in ordered:
+            ordered.append(name)
+    return ordered
+
+
+def get_general_chat_gemini_api_keys() -> list[str]:
+    """
+    API keys for General Chatbot mode, in failover order.
+
+    Prefers GENERAL_CHAT_* keys, then creation chat keys, then posting GEMINI_API_KEY.
+    """
+    keys: list[str] = []
+    primary = settings.GENERAL_CHAT_GEMINI_API_KEY.strip()
+    if primary:
+        keys.append(primary)
+    for key in _parse_csv(settings.GENERAL_CHAT_GEMINI_API_KEYS):
+        if key not in keys:
+            keys.append(key)
+    for key in get_creation_gemini_api_keys():
+        if key not in keys:
+            keys.append(key)
+    posting = (settings.GEMINI_API_KEY or "").strip()
+    if posting and posting not in keys:
+        keys.append(posting)
+    return keys
+
+
+def get_general_chat_gemini_models() -> list[str]:
+    """Gemini models for General Chatbot mode, in rate-limit failover order."""
+    models = _parse_csv(settings.GENERAL_CHAT_GEMINI_MODELS)
+    if models:
+        return models
+
+    ordered: list[str] = []
+    for model in (
+        settings.GENERAL_CHAT_GEMINI_MODEL,
+        settings.GENERAL_CHAT_GEMINI_FALLBACK_MODEL,
+        "gemini-1.5-flash",
+        "gemini-2.5-pro",
+    ):
+        name = (model or "").strip()
         if name and name not in ordered:
             ordered.append(name)
     return ordered

@@ -385,7 +385,12 @@ export interface ChatMessage {
   images?: ChatImageAttachment[] | null;
 }
 
-export type CreationIntent = 'prompt' | 'create_image' | 'create_voice' | 'video_prompt';
+export type CreationIntent =
+  | 'prompt'
+  | 'create_image'
+  | 'create_voice'
+  | 'video_prompt'
+  | 'general_chat';
 
 export interface ChatRequest {
   model: string;

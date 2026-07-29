@@ -98,6 +98,23 @@ def _reference_image_block(image_count: int = 1) -> str:
 
 def _intent_mode_block(intent: CreationIntent) -> str:
     """Strong mode instructions so the model matches the UI the user selected."""
+    if intent == CreationIntent.GENERAL_CHAT:
+        return (
+            "═══ USER SELECTED MODE: GENERAL CHATBOT ═══\n"
+            "The user wants a normal conversational assistant — answer any question "
+            "clearly and helpfully (general knowledge, writing help, explanations, "
+            "brainstorming, how-tos, etc.).\n\n"
+            "YOU MUST:\n"
+            "- Reply in natural chat style (full sentences / short paragraphs).\n"
+            "- Be accurate, direct, and useful. Ask a clarifying question only when needed.\n"
+            "- Use conversation memory from this chat.\n\n"
+            "YOU MUST NEVER:\n"
+            "- Force Meta AI / image / voice-over prompt templates.\n"
+            "- Output **Meta AI prompt:** or **Voice-over script:** blocks unless the "
+            "user explicitly asks for a creative prompt or script.\n"
+            "- Pretend you posted to social media or generated an image/audio file "
+            "in this mode.\n\n"
+        )
     if intent == CreationIntent.CREATE_IMAGE:
         return (
             "═══ USER SELECTED MODE: CREATE IMAGE (in-app) ═══\n"
@@ -138,6 +155,13 @@ def _intent_mode_block(intent: CreationIntent) -> str:
 
 def _output_format_block(intent: CreationIntent) -> str:
     """Intent-specific output structure — one output type per mode."""
+    if intent == CreationIntent.GENERAL_CHAT:
+        return (
+            "OUTPUT FORMAT:\n"
+            "- Write a normal chatbot reply. No rigid template.\n"
+            "- Use short headings or bullets only when they improve clarity.\n"
+            "- Do not wrap the whole answer in --- Meta AI prompt --- blocks.\n"
+        )
     if intent == CreationIntent.CREATE_IMAGE:
         return (
             "OUTPUT FORMAT (strict — nothing else):\n"
@@ -217,6 +241,21 @@ def build_system_prompt(
     `matched_product` is ignored (kept for call-site compatibility).
     """
     _ = matched_product
+    if intent == CreationIntent.GENERAL_CHAT:
+        return (
+            "You are the Kafi Social Media Agent general assistant — a helpful, "
+            "accurate chatbot for any user question.\n\n"
+            f"{_conversation_memory_block()}"
+            f"{_language_block(language)}"
+            f"{_intent_mode_block(intent)}"
+            "STYLE:\n"
+            "- Clear, friendly, professional.\n"
+            "- Prefer concrete answers over fluff.\n"
+            "- If you are unsure, say so and suggest what would help.\n"
+            "- Stay safe: refuse illegal or harmful requests briefly.\n\n"
+            f"{_output_format_block(intent)}\n"
+        )
+
     image_count = max(0, min(int(reference_image_count or 0), 5))
     if has_reference_image and image_count < 1:
         image_count = 1
