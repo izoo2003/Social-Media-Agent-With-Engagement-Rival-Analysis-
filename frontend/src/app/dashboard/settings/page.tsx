@@ -23,6 +23,7 @@ interface PlatformConfig {
     facebook?: ConnectedAccount | null;
     instagram?: ConnectedAccount | null;
     youtube?: ConnectedAccount | null;
+    tiktok?: ConnectedAccount | null;
   };
   linkedin_accounts: LinkedInAccountInfo[];
   linkedin_account_count: number;
@@ -90,7 +91,7 @@ export default function SettingsPage() {
               <p className="text-xs mt-1 opacity-80">
                 {config.draft_mode
                   ? 'Posts are simulated until DRAFT_MODE=False in backend .env.'
-                  : 'Posts go to your connected Facebook, Instagram, and YouTube accounts.'}
+                  : 'Posts go to your connected Facebook, Instagram, YouTube, and TikTok accounts.'}
               </p>
             </div>
 
@@ -115,7 +116,7 @@ export default function SettingsPage() {
                 <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                   Live posting targets
                 </h3>
-                {(['facebook', 'instagram', 'youtube'] as const).map((platform) => {
+                {(['facebook', 'instagram', 'youtube', 'tiktok'] as const).map((platform) => {
                   const account = config.connected_accounts?.[platform];
                   const ready = config.platforms[platform];
                   return (
@@ -131,7 +132,8 @@ export default function SettingsPage() {
                           <p className="text-xs text-red-600 mt-1">{account.error}</p>
                         ) : account?.name || account?.username ? (
                           <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                            {platform === 'instagram' && account.username
+                            {(platform === 'instagram' || platform === 'tiktok') &&
+                            account.username
                               ? `@${account.username}`
                               : account.name}
                             {account.custom_url ? ` · ${account.custom_url}` : ''}

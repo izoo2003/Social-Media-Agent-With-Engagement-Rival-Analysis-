@@ -12,6 +12,7 @@ _PUBLIC_PREFIXES = (
     "/api/v1/auth/youtube",
     "/api/v1/auth/linkedin",
     "/api/v1/auth/meta",
+    "/api/v1/auth/tiktok",
     "/api/v1/creation/models",
 )
 

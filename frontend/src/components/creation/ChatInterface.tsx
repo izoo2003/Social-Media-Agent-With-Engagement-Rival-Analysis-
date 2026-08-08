@@ -36,6 +36,7 @@ import {
   type SavedCreationPrompt,
 } from '@/lib/creation-saved-prompts';
 import { useSpeechToText } from '@/hooks/useSpeechToText';
+import TextSuggestionBar from '@/components/ui/TextSuggestionBar';
 import type {
   ChatMessage,
   ChatResponse,
@@ -1161,6 +1162,13 @@ export default function ChatInterface() {
             {creationIntent === 'create_image' && !pendingAttachments.length ? 'Create' : 'Send'}
           </button>
         </div>
+        <TextSuggestionBar
+          value={input}
+          onApply={setInput}
+          context="chat"
+          language={creationLanguage}
+          disabled={sending || isListening}
+        />
         {pendingAttachments.length > 0 && (
           <div className="rounded-lg border border-brand-200 bg-brand-50/80 px-3 py-2 dark:border-slate-500 dark:bg-slate-700/60 space-y-2">
             <div className="flex items-center justify-between gap-2">

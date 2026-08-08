@@ -2,6 +2,7 @@
 API Routes - Content Creation (chatbot)
 GET  /creation/models          - Capabilities + external video links
 POST /creation/chat            - Prompt engineering chat (CREATION_GEMINI_API_KEY)
+POST /creation/suggest         - Fix spelling / improve wording for chat & captions
 POST /creation/generate-image  - Image gen (provider per IMAGE_PROVIDER)
 POST /creation/generate-voice  - edge-tts voice-over (free)
 """
@@ -30,6 +31,10 @@ from app.schemas.creation import (
     ImageGenerateRequest,
     ImageGenerateResponse,
     ModelInfo,
+    SuggestContext,
+    SuggestMode,
+    SuggestRequest,
+    SuggestResponse,
     VoiceGenerateRequest,
     VoiceGenerateResponse,
 )
@@ -214,6 +219,98 @@ async def creation_chat(request: Request, body: ChatRequest):
     except Exception as e:
         logger.error(f"Creation chat unexpected error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Chat failed: {str(e)}")
+
+
+def _suggest_system_prompt(
+    mode: SuggestMode,
+    context: SuggestContext,
+    language: str,
+) -> str:
+    """Build a strict rewrite-only system prompt for Fix / Improve."""
+    context_hint = {
+        SuggestContext.CHAT: "This is a chat / prompt composer message.",
+        SuggestContext.CAPTION_TITLE: "This is a short social-media caption title.",
+        SuggestContext.CAPTION_BODY: (
+            "This is a social-media caption body. Preserve hashtags, mentions, "
+            "emojis, line breaks, and any call-to-action."
+        ),
+    }[context]
+
+    if mode == SuggestMode.FIX:
+        task = (
+            "Correct spelling, grammar, and punctuation only. "
+            "Do not change wording, tone, meaning, structure, or length "
+            "beyond what is required for those corrections."
+        )
+    else:
+        task = (
+            "Improve clarity and wording for social media while keeping the same "
+            "meaning, facts, brand voice, hashtags, mentions, and call-to-action. "
+            "Do not add new claims or marketing fluff."
+        )
+
+    return (
+        "You rewrite user text. "
+        f"{context_hint} "
+        f"{task} "
+        f"Write the result in language code '{language}'. "
+        "Return ONLY the rewritten text. "
+        "No quotes, no markdown fences, no explanations, no preamble."
+    )
+
+
+def _clean_suggestion(raw: str, original: str) -> str:
+    """Strip common model wrappers; fall back to original if empty."""
+    text = (raw or "").strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if lines and lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+        text = "\n".join(lines).strip()
+    if len(text) >= 2 and text[0] == text[-1] and text[0] in ('"', "'"):
+        text = text[1:-1].strip()
+    return text or original
+
+
+@router.post("/creation/suggest", response_model=SuggestResponse)
+@limiter.limit("30/minute")
+async def creation_suggest(request: Request, body: SuggestRequest):
+    """Return a fixed or improved version of the given text (rewrite only)."""
+    _ = request
+    try:
+        api_keys = get_creation_gemini_api_keys()
+        models = get_creation_gemini_models()
+        if not api_keys:
+            raise HTTPException(
+                status_code=503,
+                detail="Creation Gemini API key is not configured.",
+            )
+
+        system_prompt = _suggest_system_prompt(body.mode, body.context, body.language)
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": body.text},
+        ]
+        reply, model = chat_client.chat(
+            messages,
+            api_keys=api_keys,
+            models=models,
+        )
+        return SuggestResponse(
+            suggestion=_clean_suggestion(reply, body.text),
+            mode=body.mode,
+            model=model,
+        )
+    except HTTPException:
+        raise
+    except LLMConnectionError as e:
+        logger.error(f"Creation suggest error: {str(e)}")
+        raise HTTPException(status_code=502, detail=str(e))
+    except Exception as e:
+        logger.error(f"Creation suggest unexpected error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Suggestion failed: {str(e)}")
 
 
 @router.post("/creation/generate-image", response_model=ImageGenerateResponse)

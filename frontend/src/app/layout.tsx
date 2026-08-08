@@ -26,6 +26,10 @@ export default function RootLayout({ children }: LayoutProps) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        <meta
+          name="tiktok-developers-site-verification"
+          content="rMHZU1XXP49uZJVOnudcPFMM6iCnXw2C"
+        />
         <title>Social Media Agent - Kafi Commodities</title>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>

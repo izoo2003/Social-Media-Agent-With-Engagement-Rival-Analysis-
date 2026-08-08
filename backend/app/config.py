@@ -320,6 +320,29 @@ class Settings(BaseSettings):
         "https://www.googleapis.com/auth/yt-analytics.readonly"
     )
 
+    # TikTok Settings (TikTok for Developers — Login Kit + Content Posting API)
+    # Create an app at https://developers.tiktok.com, add the Login Kit and
+    # Content Posting API products, then connect at /api/v1/auth/tiktok using
+    # the marketing@kafi-group.com TikTok account.
+    TIKTOK_CLIENT_KEY: str = ""
+    TIKTOK_CLIENT_SECRET: str = ""
+    # Saved automatically by the OAuth callback (access token lasts 24h and is
+    # auto-refreshed; refresh token lasts up to 365 days and rotates on refresh).
+    TIKTOK_ACCESS_TOKEN: str = ""
+    TIKTOK_REFRESH_TOKEN: str = ""
+    TIKTOK_OPEN_ID: str = ""
+    # Empty / localhost values are replaced by BACKEND_PUBLIC_URL on startup.
+    TIKTOK_REDIRECT_URI: str = ""
+    # Comma-separated scopes requested during OAuth.
+    TIKTOK_OAUTH_SCOPES: str = (
+        "user.info.basic,user.info.profile,user.info.stats,"
+        "video.list,video.upload,video.publish"
+    )
+    # Desired visibility: PUBLIC_TO_EVERYONE | MUTUAL_FOLLOW_FRIENDS | SELF_ONLY.
+    # Unaudited TikTok apps are forced to SELF_ONLY by TikTok until the app
+    # passes their audit — the publisher falls back automatically.
+    TIKTOK_DEFAULT_PRIVACY_LEVEL: str = "PUBLIC_TO_EVERYONE"
+
     # Draft / Test Mode
     DRAFT_MODE: bool = True
 
@@ -374,6 +397,7 @@ def _bootstrap_public_oauth_urls(settings: "Settings") -> None:
         "FACEBOOK_REDIRECT_URI": f"{base}/api/v1/auth/meta/callback",
         "YOUTUBE_REDIRECT_URI": f"{base}/api/v1/auth/youtube/callback",
         "LINKEDIN_REDIRECT_URI": f"{base}/api/v1/auth/linkedin/callback",
+        "TIKTOK_REDIRECT_URI": f"{base}/api/v1/auth/tiktok/callback",
     }
     for key, url in derived.items():
         current = (getattr(settings, key, "") or "").strip()

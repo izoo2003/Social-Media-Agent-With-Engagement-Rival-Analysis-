@@ -359,10 +359,12 @@ def get_content_history(
                 facebook_post_status=c.get("facebook_post_status", "pending"),
                 instagram_post_status=c.get("instagram_post_status", "pending"),
                 youtube_post_status=c.get("youtube_post_status", "pending"),
+                tiktok_post_status=c.get("tiktok_post_status", "pending"),
                 linkedin_post_id=c.get("linkedin_post_id"),
                 facebook_post_id=c.get("facebook_post_id"),
                 instagram_post_id=c.get("instagram_post_id"),
                 youtube_post_id=c.get("youtube_post_id"),
+                tiktok_post_id=c.get("tiktok_post_id"),
                 linkedin_accounts_results=c.get("linkedin_accounts_results"),
             )
             for c in contents
@@ -407,10 +409,12 @@ async def get_content_detail(
             facebook_post_status=content.get("facebook_post_status", "pending"),
             instagram_post_status=content.get("instagram_post_status", "pending"),
             youtube_post_status=content.get("youtube_post_status", "pending"),
+            tiktok_post_status=content.get("tiktok_post_status", "pending"),
             linkedin_post_id=content.get("linkedin_post_id"),
             facebook_post_id=content.get("facebook_post_id"),
             instagram_post_id=content.get("instagram_post_id"),
             youtube_post_id=content.get("youtube_post_id"),
+            tiktok_post_id=content.get("tiktok_post_id"),
             linkedin_accounts_results=content.get("linkedin_accounts_results"),
         )
 

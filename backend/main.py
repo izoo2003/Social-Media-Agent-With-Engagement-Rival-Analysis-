@@ -21,7 +21,7 @@ from app.middleware.dashboard_auth import dashboard_auth_middleware
 from app.middleware.security import SecurityHeadersMiddleware
 from app.routes import (
     health, content, calendar, analytics, qa,
-    scraper, rival, youtube_auth, meta_auth, linkedin_auth, social, creation, approval, auth,
+    scraper, rival, youtube_auth, meta_auth, linkedin_auth, tiktok_auth, social, creation, approval, auth,
 )
 from app.services import auth_service
 
@@ -186,6 +186,7 @@ app.include_router(creation.router, prefix="/api/v1", tags=["Content Creation"])
 app.include_router(youtube_auth.router, prefix="/api/v1", tags=["YouTube Auth"])
 app.include_router(linkedin_auth.router, prefix="/api/v1", tags=["LinkedIn Auth"])
 app.include_router(meta_auth.router,    prefix="/api/v1", tags=["Meta Auth"])
+app.include_router(tiktok_auth.router,  prefix="/api/v1", tags=["TikTok Auth"])
 
 if settings.APP_MODE == "full":
     app.include_router(content.router,      prefix="/api/v1", tags=["Content"])

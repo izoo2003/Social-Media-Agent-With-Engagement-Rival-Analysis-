@@ -1,7 +1,7 @@
 """
 Social media analytics service.
 
-Fetches account-level analytics from Facebook, Instagram, and YouTube
+Fetches account-level analytics from Facebook, Instagram, YouTube, and TikTok
 and normalizes them into one response shape for the dashboard.
 """
 
@@ -25,11 +25,12 @@ class SocialAnalyticsService:
 
     YOUTUBE_TOKEN_URL = "https://oauth2.googleapis.com/token"
     YOUTUBE_ANALYTICS_URL = "https://youtubeanalytics.googleapis.com/v2/reports"
+    TIKTOK_VIDEO_LIST_URL = "https://open.tiktokapis.com/v2/video/list/"
     REQUEST_TIMEOUT = 10  # seconds — keep dashboard loads snappy
 
     def get_summary(self, days: int = 30) -> dict:
         """Fetch analytics for all platforms."""
-        platforms = ["facebook", "instagram", "youtube"]
+        platforms = ["facebook", "instagram", "youtube", "tiktok"]
         with ThreadPoolExecutor(max_workers=len(platforms)) as pool:
             results = list(pool.map(lambda p: self.get_platform(p, days), platforms))
 
@@ -66,6 +67,7 @@ class SocialAnalyticsService:
             "facebook": self._facebook_analytics,
             "instagram": self._instagram_analytics,
             "youtube": self._youtube_analytics,
+            "tiktok": self._tiktok_analytics,
         }
 
         if platform not in fetchers:
@@ -625,6 +627,157 @@ class SocialAnalyticsService:
             totals=totals,
             series=series,
             message="YouTube channel analytics fetched successfully.",
+        )
+
+    def _tiktok_analytics(self, days: int) -> dict:
+        """
+        Account + recent-video analytics via TikTok Display API.
+
+        TikTok does not expose day-level insight series on the public API.
+        We return lifetime account stats plus aggregates from recent videos
+        created inside the selected window (when create_time is available).
+        """
+        if not (
+            settings.TIKTOK_CLIENT_KEY.strip()
+            and settings.TIKTOK_CLIENT_SECRET.strip()
+            and settings.TIKTOK_REFRESH_TOKEN.strip()
+        ):
+            return self._response(
+                platform="tiktok",
+                days=days,
+                status="not_configured",
+                message=(
+                    "TikTok analytics needs TIKTOK_CLIENT_KEY, "
+                    "TIKTOK_CLIENT_SECRET, and a refresh token. "
+                    "Connect at …/api/v1/auth/tiktok."
+                ),
+            )
+
+        from app.services.social_publisher import TikTokClient
+
+        client = TikTokClient(draft_mode=False)
+        access_token = client._get_access_token()
+        if not access_token:
+            return self._response(
+                platform="tiktok",
+                days=days,
+                status="token_expired",
+                message=(
+                    "TikTok refresh token expired or was revoked. "
+                    "Reconnect at …/api/v1/auth/tiktok."
+                ),
+            )
+
+        user = client.get_user_info(access_token=access_token) or {}
+        start, end = self._range_dates(days)
+        start_ts = datetime.combine(start, datetime.min.time()).timestamp()
+        end_ts = datetime.combine(end, datetime.max.time()).timestamp()
+
+        views = 0
+        likes = 0
+        comments = 0
+        shares = 0
+        videos_in_range = 0
+        cursor = 0
+        pages = 0
+
+        while pages < 5:
+            pages += 1
+            try:
+                response = requests.post(
+                    f"{self.TIKTOK_VIDEO_LIST_URL}?fields="
+                    "id,create_time,view_count,like_count,comment_count,share_count,title",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"max_count": 20, "cursor": cursor},
+                    timeout=self.REQUEST_TIMEOUT,
+                )
+            except requests.RequestException as exc:
+                logger.warning(f"TikTok video list failed: {exc}")
+                break
+
+            if not response.ok:
+                # User/profile stats may still be usable if video.list isn't granted.
+                if pages == 1 and user:
+                    break
+                error = self._platform_error("tiktok", response, days)
+                if error:
+                    return error
+                break
+
+            payload = response.json() if response.content else {}
+            api_error = (payload.get("error") or {}).get("code")
+            if api_error and api_error not in ("", "ok"):
+                if pages == 1 and user:
+                    break
+                return self._response(
+                    platform="tiktok",
+                    days=days,
+                    status="permission_error",
+                    message=(
+                        "TikTok video.list failed — re-authorize with video.list "
+                        f"scope. Detail: {(payload.get('error') or {}).get('message', '')}"
+                    ),
+                )
+
+            data = payload.get("data") or {}
+            videos = data.get("videos") or []
+            oldest_in_page = None
+            for video in videos:
+                create_time = self._number(video.get("create_time"))
+                if create_time:
+                    oldest_in_page = (
+                        create_time
+                        if oldest_in_page is None
+                        else min(oldest_in_page, create_time)
+                    )
+                    if create_time < start_ts or create_time > end_ts:
+                        continue
+                videos_in_range += 1
+                views += self._number(video.get("view_count"))
+                likes += self._number(video.get("like_count"))
+                comments += self._number(video.get("comment_count"))
+                shares += self._number(video.get("share_count"))
+
+            if not data.get("has_more"):
+                break
+            if oldest_in_page is not None and oldest_in_page < start_ts:
+                break
+            cursor = data.get("cursor") or 0
+            if not cursor:
+                break
+
+        engagements = likes + comments + shares
+        totals = {
+            "views": views,
+            "engagements": engagements,
+            "likes": likes,
+            "comments": comments,
+            "shares": shares,
+            "followers": self._number(user.get("follower_count")),
+            "videos": videos_in_range or self._number(user.get("video_count")),
+        }
+        series = [
+            {"date": start.isoformat(), "views": 0, "engagements": 0},
+            {
+                "date": end.isoformat(),
+                "views": views,
+                "engagements": engagements,
+            },
+        ]
+        username = user.get("username") or user.get("display_name") or "TikTok"
+        return self._response(
+            platform="tiktok",
+            days=days,
+            status="ok",
+            totals=totals,
+            series=series,
+            message=(
+                f"TikTok analytics for @{username}: {videos_in_range} recent videos "
+                f"in range + account follower stats."
+            ),
         )
 
     def _repair_meta_token(self) -> bool:

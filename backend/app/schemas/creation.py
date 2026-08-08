@@ -194,3 +194,51 @@ class VoiceGenerateResponse(BaseModel):
     mood: str
     voice: str
     script_preview: str
+
+
+class SuggestMode(str, PyEnum):
+    """How aggressively to rewrite the user's text."""
+
+    FIX = "fix"  # spelling / grammar only
+    IMPROVE = "improve"  # clearer wording, keep meaning
+
+
+class SuggestContext(str, PyEnum):
+    """Where the text came from — steers tone slightly."""
+
+    CHAT = "chat"
+    CAPTION_TITLE = "caption_title"
+    CAPTION_BODY = "caption_body"
+
+
+class SuggestRequest(BaseModel):
+    """Request body for AI fix / improve suggestions."""
+
+    text: str = Field(..., min_length=1, max_length=4000)
+    mode: SuggestMode = SuggestMode.FIX
+    context: SuggestContext = SuggestContext.CHAT
+    language: str = Field(
+        default="en",
+        description="ISO-style language code for the suggestion (e.g. en, ur, de).",
+    )
+
+    @field_validator("language")
+    @classmethod
+    def validate_language(cls, value: str) -> str:
+        return normalize_language_code(value)
+
+    @field_validator("text")
+    @classmethod
+    def strip_text(cls, value: str) -> str:
+        cleaned = (value or "").strip()
+        if not cleaned:
+            raise ValueError("Text cannot be empty.")
+        return cleaned
+
+
+class SuggestResponse(BaseModel):
+    """AI-suggested rewrite of the user's text."""
+
+    suggestion: str
+    mode: SuggestMode
+    model: str

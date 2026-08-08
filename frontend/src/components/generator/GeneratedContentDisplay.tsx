@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ContentGenerationResponse, ContentRegenerateRequest } from '@/lib/types';
 import SocialPlatformIcon from '@/components/icons/SocialPlatformIcon';
+import TextSuggestionBar from '@/components/ui/TextSuggestionBar';
 
 export interface GenerationContext {
   topic: string;
@@ -239,13 +240,20 @@ export default function GeneratedContentDisplay({
                     Caption Title
                   </label>
                   {editingContentId === selectedContent.content_id ? (
-                    <input
-                      type="text"
-                      value={editTitle}
-                      onChange={(e) => setEditTitle(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-semibold text-gray-800"
-                      placeholder="Enter caption title..."
-                    />
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={editTitle}
+                        onChange={(e) => setEditTitle(e.target.value)}
+                        className="w-full px-4 py-3 border-2 border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-lg font-semibold text-gray-800"
+                        placeholder="Enter caption title..."
+                      />
+                      <TextSuggestionBar
+                        value={editTitle}
+                        onApply={setEditTitle}
+                        context="caption_title"
+                      />
+                    </div>
                   ) : (
                     <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
                       <h4 className="text-lg font-semibold text-gray-800">{selectedContent.title}</h4>
@@ -259,13 +267,20 @@ export default function GeneratedContentDisplay({
                     Caption Body
                   </label>
                   {editingContentId === selectedContent.content_id ? (
-                    <textarea
-                      value={editBody}
-                      onChange={(e) => setEditBody(e.target.value)}
-                      rows={8}
-                      className="w-full px-4 py-3 border-2 border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 whitespace-pre-wrap text-sm leading-relaxed resize-y"
-                      placeholder="Enter caption body..."
-                    />
+                    <div className="space-y-2">
+                      <textarea
+                        value={editBody}
+                        onChange={(e) => setEditBody(e.target.value)}
+                        rows={8}
+                        className="w-full px-4 py-3 border-2 border-blue-400 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-700 whitespace-pre-wrap text-sm leading-relaxed resize-y"
+                        placeholder="Enter caption body..."
+                      />
+                      <TextSuggestionBar
+                        value={editBody}
+                        onApply={setEditBody}
+                        context="caption_body"
+                      />
+                    </div>
                   ) : (
                     <>
                       <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 max-h-64 overflow-y-auto">

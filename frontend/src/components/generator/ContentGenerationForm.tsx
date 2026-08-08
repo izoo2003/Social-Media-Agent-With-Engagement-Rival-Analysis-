@@ -313,10 +313,12 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
 
   // Validate the post selection. Returns the platforms to post to, or null.
   const validatePost = (): string[] | null => {
-    const platformsToPost = selectedPlatforms.filter(p => ['linkedin', 'facebook', 'instagram', 'youtube'].includes(p));
+    const platformsToPost = selectedPlatforms.filter(p =>
+      ['linkedin', 'facebook', 'instagram', 'youtube', 'tiktok'].includes(p),
+    );
 
     if (platformsToPost.length === 0) {
-      setError('Select at least LinkedIn, Facebook, Instagram, or YouTube to post');
+      setError('Select at least LinkedIn, Facebook, Instagram, YouTube, or TikTok to post');
       return null;
     }
 
@@ -552,7 +554,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
               Post to these platforms:
             </label>
             <div className="flex flex-wrap gap-3">
-              {['linkedin', 'facebook', 'instagram', 'youtube'].map((pid) => {
+              {['linkedin', 'facebook', 'instagram', 'youtube', 'tiktok'].map((pid) => {
                 const platform = PLATFORMS.find(p => p.id === pid);
                 if (!platform) return null;
                 const state = postingStates[pid] || 'idle';

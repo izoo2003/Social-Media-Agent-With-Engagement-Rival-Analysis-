@@ -39,6 +39,7 @@ const platforms: Array<{
   { id: 'facebook', label: 'Facebook', accent: 'bg-blue-500' },
   { id: 'instagram', label: 'Instagram', accent: 'bg-pink-500' },
   { id: 'youtube', label: 'YouTube', accent: 'bg-red-600' },
+  { id: 'tiktok', label: 'TikTok', accent: 'bg-black' },
   { id: 'linkedin', label: 'LinkedIn', accent: 'bg-[#0A66C2]' },
 ];
 
@@ -199,6 +200,7 @@ export default function AnalyticsPage() {
   const isStaticPlatform = STATIC_PLATFORMS.includes(activePlatform);
   const isLinkedIn = activePlatform === 'linkedin';
   const metaReconnectUrl = API_ENDPOINTS.META_AUTH;
+  const tiktokReconnectUrl = API_ENDPOINTS.TIKTOK_AUTH;
   const needsReconnect =
     activeData.status === 'token_expired' || activeData.status === 'permission_error';
 
@@ -285,6 +287,20 @@ export default function AnalyticsPage() {
                 </a>
               </div>
             )}
+
+          {activePlatform === 'tiktok' && needsReconnect && (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/30 dark:text-amber-200">
+              TikTok analytics need a reconnect.{' '}
+              <a
+                href={tiktokReconnectUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold underline underline-offset-2"
+              >
+                Reconnect TikTok
+              </a>
+            </div>
+          )}
 
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             <MetricCard

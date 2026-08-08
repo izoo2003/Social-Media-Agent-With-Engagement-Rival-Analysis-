@@ -7,7 +7,7 @@ import { LinkedInAccountInfo, SocialPostResponse } from '@/lib/types';
 import SocialPlatformIcon, { SOCIAL_PLATFORMS } from '@/components/icons/SocialPlatformIcon';
 
 const POSTABLE_PLATFORMS = SOCIAL_PLATFORMS.filter((p) =>
-  ['linkedin', 'facebook', 'instagram', 'youtube'].includes(p.id),
+  ['linkedin', 'facebook', 'instagram', 'youtube', 'tiktok'].includes(p.id),
 );
 
 interface DraftContent {

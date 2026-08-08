@@ -1387,6 +1387,468 @@ class YouTubeClient:
             }
 
 
+class TikTokClient:
+    """
+    TikTok Content Posting API client (Direct Post, video only).
+
+    Uses OAuth 2.0 (Login Kit v2). Access tokens last 24 hours and are
+    refreshed automatically from the refresh token (valid up to 365 days,
+    rotates on refresh — the new token is persisted via the token store).
+
+    Photos are not supported: TikTok's photo endpoint only accepts
+    PULL_FROM_URL from a domain verified in the TikTok developer app.
+
+    Requirements (set in .env or connect at /api/v1/auth/tiktok):
+        TIKTOK_CLIENT_KEY
+        TIKTOK_CLIENT_SECRET
+        TIKTOK_REFRESH_TOKEN (saved by the OAuth callback)
+
+    Reference:
+        https://developers.tiktok.com/doc/content-posting-api-reference-direct-post
+    """
+
+    TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/"
+    CREATOR_INFO_URL = "https://open.tiktokapis.com/v2/post/publish/creator_info/query/"
+    VIDEO_INIT_URL = "https://open.tiktokapis.com/v2/post/publish/video/init/"
+    STATUS_FETCH_URL = "https://open.tiktokapis.com/v2/post/publish/status/fetch/"
+    USER_INFO_URL = "https://open.tiktokapis.com/v2/user/info/"
+
+    # Chunking rules from TikTok's media transfer guide:
+    # files <= 64MB upload as one chunk; larger files use 10MB chunks where the
+    # final chunk absorbs the remainder (allowed up to 128MB).
+    SINGLE_CHUNK_MAX = 64 * 1024 * 1024
+    CHUNK_SIZE = 10 * 1024 * 1024
+
+    VIDEO_MIME_TYPES = {
+        ".mp4": "video/mp4",
+        ".mov": "video/quicktime",
+        ".webm": "video/webm",
+    }
+
+    def __init__(self, draft_mode: bool = False):
+        def _clean(value: str) -> str:
+            clean = (value or "").strip()
+            if len(clean) >= 2 and clean[0] == clean[-1] and clean[0] in ("'", '"'):
+                clean = clean[1:-1].strip()
+            return clean
+
+        self.client_key = _clean(settings.TIKTOK_CLIENT_KEY or "")
+        self.client_secret = _clean(settings.TIKTOK_CLIENT_SECRET or "")
+        self.refresh_token = _clean(settings.TIKTOK_REFRESH_TOKEN or "")
+        self.open_id = _clean(settings.TIKTOK_OPEN_ID or "")
+        self.draft_mode = draft_mode
+        self._access_token: Optional[str] = None
+
+    @property
+    def is_configured(self) -> bool:
+        return bool(self.client_key and self.client_secret and self.refresh_token)
+
+    def _refresh_access_token(self) -> Optional[str]:
+        """Exchange the refresh token for a fresh access token (24h lifetime)."""
+        try:
+            response = requests.post(
+                self.TOKEN_URL,
+                data={
+                    "client_key": self.client_key,
+                    "client_secret": self.client_secret,
+                    "grant_type": "refresh_token",
+                    "refresh_token": self.refresh_token,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                timeout=30,
+            )
+            data = response.json() if response.content else {}
+            access_token = data.get("access_token", "")
+            if not response.ok or not access_token:
+                logger.error(
+                    f"TikTok token refresh failed: {response.status_code} "
+                    f"{response.text[:500]}"
+                )
+                return None
+
+            self._access_token = access_token
+
+            # TikTok rotates refresh tokens — persist the new one immediately
+            # so posting keeps working after this access token expires.
+            new_refresh = data.get("refresh_token", "")
+            updates = {"TIKTOK_ACCESS_TOKEN": access_token}
+            if new_refresh and new_refresh != self.refresh_token:
+                self.refresh_token = new_refresh
+                updates["TIKTOK_REFRESH_TOKEN"] = new_refresh
+            if data.get("open_id"):
+                self.open_id = data["open_id"]
+                updates["TIKTOK_OPEN_ID"] = data["open_id"]
+            try:
+                from app.services.token_store import save_credentials
+
+                save_credentials(updates)
+            except Exception as exc:
+                logger.warning(f"Could not persist refreshed TikTok tokens: {exc}")
+
+            logger.info("TikTok OAuth token refreshed successfully")
+            return access_token
+        except requests.RequestException as e:
+            logger.error(f"TikTok token refresh error: {str(e)}")
+            return None
+
+    def _get_access_token(self) -> Optional[str]:
+        token = self._refresh_access_token()
+        if token:
+            return token
+        # Fall back to a stored access token (valid up to 24h after connect).
+        stored = (settings.TIKTOK_ACCESS_TOKEN or "").strip()
+        return stored or None
+
+    def get_user_info(self, access_token: Optional[str] = None) -> Optional[dict]:
+        """Fetch the connected TikTok account's profile (name, username, stats)."""
+        token = access_token or self._get_access_token()
+        if not token:
+            return None
+        try:
+            response = requests.get(
+                self.USER_INFO_URL,
+                params={
+                    "fields": (
+                        "open_id,union_id,avatar_url,display_name,username,"
+                        "follower_count,following_count,likes_count,video_count"
+                    )
+                },
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=20,
+            )
+            if not response.ok:
+                logger.warning(
+                    f"TikTok user info failed: {response.status_code} "
+                    f"{response.text[:300]}"
+                )
+                return None
+            return response.json().get("data", {}).get("user") or None
+        except requests.RequestException as exc:
+            logger.warning(f"TikTok user info error: {exc}")
+            return None
+
+    def _query_creator_info(self, access_token: str) -> tuple[Optional[dict], Optional[str]]:
+        """Required pre-post call — returns creator posting options."""
+        try:
+            response = requests.post(
+                self.CREATOR_INFO_URL,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json; charset=UTF-8",
+                },
+                timeout=20,
+            )
+            payload = response.json() if response.content else {}
+            error = payload.get("error", {}) or {}
+            if not response.ok or error.get("code") not in (None, "", "ok"):
+                message = error.get("message") or response.text[:300]
+                return None, f"TikTok creator info query failed: {message}"
+            return payload.get("data", {}) or {}, None
+        except requests.RequestException as exc:
+            return None, f"TikTok creator info query error: {exc}"
+
+    def _resolve_privacy_level(self, creator_info: dict) -> str:
+        """Pick the configured privacy level, falling back to what TikTok allows."""
+        desired = (settings.TIKTOK_DEFAULT_PRIVACY_LEVEL or "PUBLIC_TO_EVERYONE").strip()
+        options = creator_info.get("privacy_level_options") or []
+        if not options:
+            return desired
+        if desired in options:
+            return desired
+        # Unaudited apps only get SELF_ONLY; otherwise take the first option.
+        fallback = "SELF_ONLY" if "SELF_ONLY" in options else options[0]
+        logger.warning(
+            f"TikTok privacy level '{desired}' not available (options: {options}). "
+            f"Using '{fallback}'. Public posting requires TikTok app audit approval."
+        )
+        return fallback
+
+    def _chunk_plan(self, file_size: int) -> tuple[int, int]:
+        """Return (chunk_size, total_chunk_count) per TikTok chunking rules."""
+        if file_size <= self.SINGLE_CHUNK_MAX:
+            return file_size, 1
+        total_chunks = file_size // self.CHUNK_SIZE
+        return self.CHUNK_SIZE, total_chunks
+
+    def _upload_file(self, upload_url: str, video_path: str, mime_type: str) -> Optional[str]:
+        """PUT the video bytes (sequential chunks). Returns error message or None."""
+        file_size = os.path.getsize(video_path)
+        chunk_size, total_chunks = self._chunk_plan(file_size)
+
+        with open(video_path, "rb") as f:
+            for index in range(total_chunks):
+                start = index * chunk_size
+                is_last = index == total_chunks - 1
+                # Final chunk absorbs any remainder bytes.
+                end = file_size - 1 if is_last else (start + chunk_size - 1)
+                f.seek(start)
+                data = f.read(end - start + 1)
+
+                response = requests.put(
+                    upload_url,
+                    headers={
+                        "Content-Type": mime_type,
+                        "Content-Length": str(len(data)),
+                        "Content-Range": f"bytes {start}-{end}/{file_size}",
+                    },
+                    data=data,
+                    timeout=600,
+                )
+                if response.status_code not in (200, 201, 206):
+                    logger.error(
+                        f"TikTok chunk upload failed ({index + 1}/{total_chunks}): "
+                        f"{response.status_code} {response.text[:300]}"
+                    )
+                    return (
+                        f"TikTok video upload failed at chunk {index + 1}/{total_chunks}: "
+                        f"{response.text[:200]}"
+                    )
+        return None
+
+    def _wait_for_publish(self, access_token: str, publish_id: str) -> dict:
+        """Poll publish status until TikTok finishes processing (or timeout)."""
+        deadline = time.time() + 90
+        last_status = "PROCESSING"
+        while time.time() < deadline:
+            try:
+                response = requests.post(
+                    self.STATUS_FETCH_URL,
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json; charset=UTF-8",
+                    },
+                    json={"publish_id": publish_id},
+                    timeout=20,
+                )
+                data = response.json().get("data", {}) if response.ok else {}
+                last_status = data.get("status", last_status)
+                if last_status == "PUBLISH_COMPLETE":
+                    post_ids = data.get("publicaly_available_post_id") or []
+                    return {"status": "PUBLISH_COMPLETE", "post_ids": post_ids}
+                if last_status == "FAILED":
+                    return {
+                        "status": "FAILED",
+                        "reason": data.get("fail_reason", "unknown"),
+                    }
+            except requests.RequestException as exc:
+                logger.warning(f"TikTok status poll error: {exc}")
+            time.sleep(5)
+        return {"status": last_status}
+
+    def post_video(self, video_path: str, title: str) -> dict:
+        """
+        Publish a video to the connected TikTok account via Direct Post.
+
+        Args:
+            video_path: Local filesystem path to the video file
+            title: Post caption (hashtags supported), max 2200 chars
+
+        Returns:
+            Dict with status, post_id, post_url, error_message
+        """
+        if self.draft_mode:
+            logger.info(
+                f"[DRAFT] TikTok video would be posted:\n"
+                f"  Caption: {title[:80]}\n"
+                f"  File: {video_path}"
+            )
+            return {
+                "status": "draft",
+                "post_id": None,
+                "post_url": None,
+                "error_message": None,
+            }
+
+        if not self.is_configured:
+            return {
+                "status": "failed",
+                "post_id": None,
+                "post_url": None,
+                "error_message": (
+                    "TikTok is not connected. Set TIKTOK_CLIENT_KEY and "
+                    "TIKTOK_CLIENT_SECRET in .env, then authorize once at "
+                    "/api/v1/auth/tiktok with the marketing TikTok account."
+                ),
+            }
+
+        if not os.path.exists(video_path):
+            return {
+                "status": "failed",
+                "post_id": None,
+                "post_url": None,
+                "error_message": f"Video file not found: {video_path}",
+            }
+
+        extension = os.path.splitext(video_path)[1].lower()
+        mime_type = self.VIDEO_MIME_TYPES.get(extension)
+        if not mime_type:
+            return {
+                "status": "failed",
+                "post_id": None,
+                "post_url": None,
+                "error_message": (
+                    f"TikTok does not accept '{extension}' files. "
+                    "Use MP4, MOV, or WebM video."
+                ),
+            }
+
+        try:
+            access_token = self._get_access_token()
+            if not access_token:
+                return {
+                    "status": "failed",
+                    "post_id": None,
+                    "post_url": None,
+                    "error_message": (
+                        "Could not refresh the TikTok access token. "
+                        "Re-authorize at /api/v1/auth/tiktok."
+                    ),
+                }
+
+            creator_info, creator_error = self._query_creator_info(access_token)
+            if creator_info is None:
+                return {
+                    "status": "failed",
+                    "post_id": None,
+                    "post_url": None,
+                    "error_message": creator_error,
+                }
+
+            privacy_level = self._resolve_privacy_level(creator_info)
+            file_size = os.path.getsize(video_path)
+            chunk_size, total_chunks = self._chunk_plan(file_size)
+
+            init_response = requests.post(
+                self.VIDEO_INIT_URL,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json; charset=UTF-8",
+                },
+                json={
+                    "post_info": {
+                        # TikTok uses the title as the caption (hashtags included).
+                        "title": title[:2200],
+                        "privacy_level": privacy_level,
+                        "disable_duet": False,
+                        "disable_comment": False,
+                        "disable_stitch": False,
+                    },
+                    "source_info": {
+                        "source": "FILE_UPLOAD",
+                        "video_size": file_size,
+                        "chunk_size": chunk_size,
+                        "total_chunk_count": total_chunks,
+                    },
+                },
+                timeout=30,
+            )
+
+            init_payload = init_response.json() if init_response.content else {}
+            init_error = init_payload.get("error", {}) or {}
+            if not init_response.ok or init_error.get("code") not in (None, "", "ok"):
+                error_code = str(init_error.get("code") or init_response.status_code)
+                error_message = init_error.get("message") or init_response.text[:300]
+                logger.error(f"TikTok post init failed: {error_code} - {error_message}")
+                if error_code in ("access_token_invalid", "scope_not_authorized"):
+                    error_message = (
+                        "TikTok token is invalid or missing the video.publish scope. "
+                        "Re-authorize at /api/v1/auth/tiktok and approve all permissions."
+                    )
+                elif error_code == "unaudited_client_can_only_post_to_private_accounts":
+                    error_message = (
+                        "TikTok blocked the post: unaudited developer apps can only "
+                        "post as private (SELF_ONLY). Request Content Posting API "
+                        "audit approval in the TikTok developer portal, or set "
+                        "TIKTOK_DEFAULT_PRIVACY_LEVEL=SELF_ONLY to post privately."
+                    )
+                return {
+                    "status": "failed",
+                    "post_id": None,
+                    "post_url": None,
+                    "error_message": f"TikTok post init failed: {error_message}",
+                }
+
+            init_data = init_payload.get("data", {}) or {}
+            publish_id = init_data.get("publish_id", "")
+            upload_url = init_data.get("upload_url", "")
+            if not publish_id or not upload_url:
+                return {
+                    "status": "failed",
+                    "post_id": None,
+                    "post_url": None,
+                    "error_message": "TikTok did not return an upload URL / publish ID.",
+                }
+
+            upload_error = self._upload_file(upload_url, video_path, mime_type)
+            if upload_error:
+                return {
+                    "status": "failed",
+                    "post_id": None,
+                    "post_url": None,
+                    "error_message": upload_error,
+                }
+
+            outcome = self._wait_for_publish(access_token, publish_id)
+            if outcome["status"] == "FAILED":
+                return {
+                    "status": "failed",
+                    "post_id": publish_id,
+                    "post_url": None,
+                    "error_message": f"TikTok rejected the post: {outcome.get('reason')}",
+                }
+
+            # Build the post URL when TikTok already exposes the video ID.
+            post_url = None
+            post_ids = outcome.get("post_ids") or []
+            username = ""
+            user = self.get_user_info(access_token) or {}
+            username = user.get("username") or ""
+            if post_ids and username:
+                post_url = f"https://www.tiktok.com/@{username}/video/{post_ids[0]}"
+            elif username:
+                post_url = f"https://www.tiktok.com/@{username}"
+
+            if outcome["status"] != "PUBLISH_COMPLETE":
+                logger.info(
+                    f"TikTok post {publish_id} accepted, still processing "
+                    f"(status: {outcome['status']})"
+                )
+            else:
+                logger.info(f"TikTok video published successfully: {publish_id}")
+
+            return {
+                "status": "published",
+                "post_id": post_ids[0] if post_ids else publish_id,
+                "post_url": post_url,
+                "error_message": None,
+            }
+
+        except requests.exceptions.Timeout:
+            logger.error("TikTok video upload timed out")
+            return {
+                "status": "failed",
+                "post_id": None,
+                "post_url": None,
+                "error_message": "TikTok upload timed out. Try a smaller file.",
+            }
+        except requests.exceptions.RequestException as e:
+            logger.error(f"TikTok upload request error: {str(e)}")
+            return {
+                "status": "failed",
+                "post_id": None,
+                "post_url": None,
+                "error_message": f"TikTok upload request failed: {str(e)}",
+            }
+        except Exception as e:
+            logger.error(f"TikTok video post failed: {str(e)}")
+            return {
+                "status": "failed",
+                "post_id": None,
+                "post_url": None,
+                "error_message": str(e),
+            }
+
+
 class SocialPublisher:
     """
     Orchestrates posting content to multiple social media platforms.
@@ -1408,6 +1870,7 @@ class SocialPublisher:
         self.facebook = FacebookClient(draft_mode=self.draft_mode)
         self.instagram = InstagramClient(draft_mode=self.draft_mode)
         self.youtube = YouTubeClient(draft_mode=self.draft_mode)
+        self.tiktok = TikTokClient(draft_mode=self.draft_mode)
 
     def post_to_multiple(
         self,
@@ -1524,6 +1987,22 @@ class SocialPublisher:
                 tags=tags,
                 privacy_status=privacy_status or settings.YOUTUBE_DEFAULT_PRIVACY_STATUS,
             )
+        elif platform == "tiktok":
+            if not media_file_path or media_type != "video":
+                return {
+                    "status": "failed",
+                    "post_id": None,
+                    "post_url": None,
+                    "error_message": (
+                        "TikTok requires a video file (MP4/MOV/WebM). "
+                        "Attach a video to your content first."
+                    ),
+                }
+            caption = f"{title}\n\n{body}".strip() if body else title
+            return self.tiktok.post_video(
+                video_path=media_file_path,
+                title=caption,
+            )
         else:
             return {
                 "status": "failed",
@@ -1611,6 +2090,7 @@ class SocialPublisher:
             "facebook": self.facebook.is_configured,
             "instagram": self.instagram.is_configured,
             "youtube": self.youtube.is_configured,
+            "tiktok": self.tiktok.is_configured,
         }
 
 
@@ -1626,6 +2106,7 @@ def fetch_connected_account_details() -> dict:
         "facebook": None,
         "instagram": None,
         "youtube": None,
+        "tiktok": None,
     }
 
     graph_version = (settings.META_GRAPH_API_VERSION or "v21.0").strip()
@@ -1705,5 +2186,24 @@ def fetch_connected_account_details() -> dict:
         except requests.RequestException as exc:
             logger.warning(f"YouTube account lookup failed: {exc}")
             details["youtube"] = {"error": str(exc)}
+
+    tiktok_client = TikTokClient(draft_mode=False)
+    if tiktok_client.is_configured:
+        try:
+            user = tiktok_client.get_user_info()
+            if user:
+                details["tiktok"] = {
+                    "id": user.get("open_id", ""),
+                    "name": user.get("display_name"),
+                    "username": user.get("username"),
+                    "followers": user.get("follower_count"),
+                }
+            else:
+                details["tiktok"] = {
+                    "error": "Could not verify TikTok token — reconnect at /api/v1/auth/tiktok"
+                }
+        except Exception as exc:
+            logger.warning(f"TikTok account lookup failed: {exc}")
+            details["tiktok"] = {"error": str(exc)}
 
     return details

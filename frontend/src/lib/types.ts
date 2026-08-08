@@ -157,7 +157,7 @@ export interface AnalyticsOverview {
   qa_pass_rate: number;
 }
 
-export type AnalyticsPlatform = 'facebook' | 'instagram' | 'youtube' | 'linkedin';
+export type AnalyticsPlatform = 'facebook' | 'instagram' | 'youtube' | 'linkedin' | 'tiktok';
 
 export type AnalyticsStatus =
   | 'ok'
@@ -413,6 +413,22 @@ export interface ChatResponse {
   reply: string;
   matched_product?: MatchedProduct | null;
   intent?: CreationIntent;
+}
+
+export type SuggestMode = 'fix' | 'improve';
+export type SuggestContext = 'chat' | 'caption_title' | 'caption_body';
+
+export interface SuggestRequest {
+  text: string;
+  mode: SuggestMode;
+  context: SuggestContext;
+  language?: string;
+}
+
+export interface SuggestResponse {
+  suggestion: string;
+  mode: SuggestMode;
+  model: string;
 }
 
 export interface CreationModel {

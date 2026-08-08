@@ -31,6 +31,7 @@ const POSTABLE_PLATFORMS = [
   { id: 'facebook', name: 'Facebook', icon: '👍' },
   { id: 'instagram', name: 'Instagram', icon: '📷' },
   { id: 'youtube', name: 'YouTube', icon: '▶️' },
+  { id: 'tiktok', name: 'TikTok', icon: '🎵' },
 ];
 
 const PLATFORM_ICONS: Record<string, string> = {

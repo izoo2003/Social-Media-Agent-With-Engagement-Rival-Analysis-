@@ -577,10 +577,12 @@ BODY: [Your new short, punchy caption with hashtags here]"""
             "facebook_post_status": content.facebook_post_status.value if content.facebook_post_status else "pending",
             "instagram_post_status": content.instagram_post_status.value if content.instagram_post_status else "pending",
             "youtube_post_status": content.youtube_post_status.value if content.youtube_post_status else "pending",
+            "tiktok_post_status": content.tiktok_post_status.value if content.tiktok_post_status else "pending",
             "linkedin_post_id": content.linkedin_post_id,
             "facebook_post_id": content.facebook_post_id,
             "instagram_post_id": content.instagram_post_id,
             "youtube_post_id": content.youtube_post_id,
+            "tiktok_post_id": content.tiktok_post_id,
             "linkedin_accounts_results": content.linkedin_accounts_results,
         }
 
@@ -617,10 +619,12 @@ BODY: [Your new short, punchy caption with hashtags here]"""
                 "facebook_post_status": c.facebook_post_status.value if c.facebook_post_status else "pending",
                 "instagram_post_status": c.instagram_post_status.value if c.instagram_post_status else "pending",
                 "youtube_post_status": c.youtube_post_status.value if c.youtube_post_status else "pending",
+                "tiktok_post_status": c.tiktok_post_status.value if c.tiktok_post_status else "pending",
                 "linkedin_post_id": c.linkedin_post_id,
                 "facebook_post_id": c.facebook_post_id,
                 "instagram_post_id": c.instagram_post_id,
                 "youtube_post_id": c.youtube_post_id,
+                "tiktok_post_id": c.tiktok_post_id,
                 "linkedin_accounts_results": c.linkedin_accounts_results,
             }
             for c in contents

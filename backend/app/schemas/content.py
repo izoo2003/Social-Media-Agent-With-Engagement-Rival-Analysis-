@@ -104,10 +104,12 @@ class ContentHistoryResponse(BaseModel):
     facebook_post_status: str = "pending"
     instagram_post_status: str = "pending"
     youtube_post_status: str = "pending"
+    tiktok_post_status: str = "pending"
     linkedin_post_id: Optional[str] = None
     facebook_post_id: Optional[str] = None
     instagram_post_id: Optional[str] = None
     youtube_post_id: Optional[str] = None
+    tiktok_post_id: Optional[str] = None
     linkedin_accounts_results: Optional[list[dict]] = None
 
     class Config:
@@ -133,10 +135,12 @@ class ContentDetailResponse(BaseModel):
     facebook_post_status: str = "pending"
     instagram_post_status: str = "pending"
     youtube_post_status: str = "pending"
+    tiktok_post_status: str = "pending"
     linkedin_post_id: Optional[str] = None
     facebook_post_id: Optional[str] = None
     instagram_post_id: Optional[str] = None
     youtube_post_id: Optional[str] = None
+    tiktok_post_id: Optional[str] = None
     linkedin_accounts_results: Optional[list[dict]] = None
 
     class Config:

@@ -101,6 +101,8 @@ class Content(Base):
     instagram_post_status = Column(Enum(PostStatus), default=PostStatus.PENDING)
     youtube_post_id = Column(String(255), nullable=True)
     youtube_post_status = Column(Enum(PostStatus), default=PostStatus.PENDING)
+    tiktok_post_id = Column(String(255), nullable=True)
+    tiktok_post_status = Column(Enum(PostStatus), default=PostStatus.PENDING)
 
     generated_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)

@@ -72,6 +72,7 @@ export const API_ENDPOINTS = {
   // Content Creation (chatbot)
   CREATION_MODELS: `${API_BASE_URL}/api/${API_VERSION}/creation/models`,
   CREATION_CHAT: `${API_BASE_URL}/api/${API_VERSION}/creation/chat`,
+  CREATION_SUGGEST: `${API_BASE_URL}/api/${API_VERSION}/creation/suggest`,
   CREATION_GENERATE_IMAGE: `${API_BASE_URL}/api/${API_VERSION}/creation/generate-image`,
   CREATION_GENERATE_VOICE: `${API_BASE_URL}/api/${API_VERSION}/creation/generate-voice`,
 
@@ -104,6 +105,7 @@ export const API_ENDPOINTS = {
   RIVALS_INSIGHTS: `${API_BASE_URL}/api/${API_VERSION}/rivals/insights`,
   RIVALS_CONFIG: `${API_BASE_URL}/api/${API_VERSION}/rivals/config`,
   META_AUTH: `${API_BASE_URL}/api/${API_VERSION}/auth/meta`,
+  TIKTOK_AUTH: `${API_BASE_URL}/api/${API_VERSION}/auth/tiktok`,
 
   // Uploads
   UPLOADS: `${API_BASE_URL}/uploads`,

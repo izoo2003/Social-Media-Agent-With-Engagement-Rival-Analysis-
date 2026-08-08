@@ -33,6 +33,9 @@ MANAGED_KEYS = frozenset(
         "INSTAGRAM_ACCOUNT_ID",
         "YOUTUBE_REFRESH_TOKEN",
         "YOUTUBE_CHANNEL_ID",
+        "TIKTOK_ACCESS_TOKEN",
+        "TIKTOK_REFRESH_TOKEN",
+        "TIKTOK_OPEN_ID",
     }
 )
 

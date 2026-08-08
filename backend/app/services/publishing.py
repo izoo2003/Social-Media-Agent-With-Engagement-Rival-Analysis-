@@ -147,6 +147,9 @@ def publish_content(
             elif platform_name == "youtube":
                 db_content.youtube_post_status = _map_post_status(response_status)
                 db_content.youtube_post_id = post_id_value
+            elif platform_name == "tiktok":
+                db_content.tiktok_post_status = _map_post_status(response_status)
+                db_content.tiktok_post_id = post_id_value
 
         if platform_name == "linkedin" and result.get("accounts"):
             for account_result in result["accounts"]:
