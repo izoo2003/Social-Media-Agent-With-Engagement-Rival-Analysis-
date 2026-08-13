@@ -229,6 +229,8 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     );
   };
 
+  const MAX_MEDIA_UPLOAD_MB = 200;
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -239,6 +241,14 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
 
     if (!isImage && !isVideo) {
       setError('Please select an image or video file (JPG, PNG, GIF, MP4, MOV, etc.)');
+      return;
+    }
+
+    if (file.size > MAX_MEDIA_UPLOAD_MB * 1024 * 1024) {
+      setError(
+        `File is too large (${(file.size / (1024 * 1024)).toFixed(0)} MB). Max upload size is ${MAX_MEDIA_UPLOAD_MB} MB — compress the video and try again.`,
+      );
+      e.target.value = '';
       return;
     }
 
@@ -305,7 +315,15 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
       setStep('preview');
       onGenerate?.(results);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      const message = err instanceof Error ? err.message : 'An error occurred';
+      const looksLikeNetworkDrop =
+        /failed to fetch|networkerror|load failed|http2|err_http/i.test(message) ||
+        (err instanceof TypeError && /fetch/i.test(message));
+      setError(
+        looksLikeNetworkDrop
+          ? 'Connection to the server dropped while uploading or generating. Usually the media file is still too large for Railway, or the request timed out. Compress to under ~100 MB if possible, or generate without media first.'
+          : message,
+      );
     } finally {
       setLoading(false);
     }
@@ -854,7 +872,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                 Click to upload image or video
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                JPG, PNG, GIF, MP4, MOV (max 50MB)
+                JPG, PNG, GIF, MP4, MOV (max 200MB)
               </p>
               <input
                 ref={fileInputRef}

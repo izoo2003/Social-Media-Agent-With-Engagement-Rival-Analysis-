@@ -128,7 +128,17 @@ async def _rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONR
 app.add_middleware(SecurityHeadersMiddleware)
 
 # 2. Request body size limit (must sit inside CORS so 413 responses get CORS headers)
-_MAX_BODY_BYTES = settings.MAX_REQUEST_BODY_MB * 1024 * 1024
+# Multipart uploads (generate-with-media) may be larger than JSON bodies — allow
+# the higher of MAX_REQUEST_BODY_MB and MAX_UPLOAD_SIZE_MB so video uploads are
+# not killed mid-stream (which browsers surface as ERR_HTTP2_PROTOCOL_ERROR).
+_MAX_JSON_BODY_BYTES = settings.MAX_REQUEST_BODY_MB * 1024 * 1024
+_MAX_UPLOAD_BODY_BYTES = (
+    max(settings.MAX_REQUEST_BODY_MB, settings.MAX_UPLOAD_SIZE_MB) * 1024 * 1024
+)
+_UPLOAD_PATH_MARKERS = (
+    "/content/generate-with-media",
+    "/upload",
+)
 
 
 @app.middleware("http")
@@ -141,19 +151,29 @@ async def limit_request_body_size(request: Request, call_next):
     content_length = request.headers.get("content-length")
     if content_length:
         try:
-            if int(content_length) > _MAX_BODY_BYTES:
-                return JSONResponse(
-                    status_code=413,
-                    content={
-                        "detail": (
-                            f"Request body exceeds the {settings.MAX_REQUEST_BODY_MB} MB limit."
-                        )
-                    },
-                )
+            size = int(content_length)
         except ValueError:
             return JSONResponse(
                 status_code=400,
                 content={"detail": "Invalid Content-Length header."},
+            )
+
+        content_type = (request.headers.get("content-type") or "").lower()
+        path = request.url.path or ""
+        is_upload = "multipart/form-data" in content_type or any(
+            marker in path for marker in _UPLOAD_PATH_MARKERS
+        )
+        limit_bytes = _MAX_UPLOAD_BODY_BYTES if is_upload else _MAX_JSON_BODY_BYTES
+        limit_mb = (settings.MAX_UPLOAD_SIZE_MB if is_upload else settings.MAX_REQUEST_BODY_MB)
+
+        if size > limit_bytes:
+            return JSONResponse(
+                status_code=413,
+                content={
+                    "detail": (
+                        f"Request body exceeds the {limit_mb} MB limit."
+                    )
+                },
             )
     return await call_next(request)
 

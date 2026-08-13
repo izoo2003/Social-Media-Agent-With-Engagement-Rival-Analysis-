@@ -32,8 +32,8 @@ ALLOWED_EXTENSIONS = (
     | ALLOWED_DOCUMENT_EXTENSIONS
 )
 
-# Max file size (from settings; hard cap here as a safety net)
-MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
+# Legacy constant — runtime checks use settings.MAX_UPLOAD_SIZE_MB.
+MAX_FILE_SIZE = 200 * 1024 * 1024  # 200 MB
 
 # Local fallback directory
 LOCAL_UPLOAD_DIR = Path(__file__).parent.parent.parent / "uploads"

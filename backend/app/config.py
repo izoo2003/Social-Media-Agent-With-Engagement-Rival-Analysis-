@@ -258,8 +258,10 @@ class Settings(BaseSettings):
     # … for this many minutes.
     PIN_LOCKOUT_MINUTES: int = 15
 
-    # Maximum request body size in megabytes (enforced by middleware)
-    MAX_REQUEST_BODY_MB: int = 20
+    # Maximum request body size in megabytes (enforced by middleware for JSON).
+    # Multipart uploads use max(this, MAX_UPLOAD_SIZE_MB) so media posts are not
+    # cut off below the upload limit.
+    MAX_REQUEST_BODY_MB: int = 200
 
     # Public backend URL used for OAuth callbacks (Railway production).
     # Auth links and redirect URIs are derived from this — no localhost needed.
@@ -351,7 +353,8 @@ class Settings(BaseSettings):
 
     # Upload Settings
     UPLOAD_DIR: str = "uploads"
-    MAX_UPLOAD_SIZE_MB: int = 50
+    # Practical ceiling for Railway Hobby media uploads (compress larger files).
+    MAX_UPLOAD_SIZE_MB: int = 200
 
     # Designer Approval Workflow (QA Checker)
     # When True, non-designers must get a post approved by the designer before it
