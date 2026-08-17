@@ -7,6 +7,7 @@ import { isJuniorTier } from '@/lib/app-mode';
 import GeneratedContentDisplay from './GeneratedContentDisplay';
 import DesignerGateModal from './DesignerGateModal';
 import ScheduleModal from '@/components/calendar/ScheduleModal';
+import MediaProcessingBar from '@/components/media/MediaProcessingBar';
 import SocialPlatformIcon, { SOCIAL_PLATFORMS } from '@/components/icons/SocialPlatformIcon';
 
 interface ContentGenerationFormProps {
@@ -55,6 +56,8 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [mediaProcessing, setMediaProcessing] = useState(false);
+  const [mediaProgress, setMediaProgress] = useState(0);
+  const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Generation state
@@ -281,7 +284,14 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
       }
 
       setMediaProcessing(true);
-      const readyFile = await prepareMediaForUpload(file);
+      setMediaProgress(1);
+      setMediaProgressLabel('Preparing…');
+      const readyFile = await prepareMediaForUpload(file, {
+        onProgress: ({ percent, label }) => {
+          setMediaProgress(percent);
+          setMediaProgressLabel(label);
+        },
+      });
       if (immediatePreview) URL.revokeObjectURL(immediatePreview);
       const nextPreview = URL.createObjectURL(readyFile);
       setMediaPreview(nextPreview);
@@ -296,6 +306,8 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
       setError(err instanceof Error ? err.message : 'Processing failed. Try another file.');
     } finally {
       setMediaProcessing(false);
+      setMediaProgress(0);
+      setMediaProgressLabel('Processing…');
     }
   };
 
@@ -305,6 +317,8 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     setMediaPreview(null);
     setMediaType(null);
     setMediaProcessing(false);
+    setMediaProgress(0);
+    setMediaProgressLabel('Processing…');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -943,11 +957,8 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
           ) : (
             <div className="relative">
               {mediaProcessing && (
-                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/80 backdrop-blur-[1px]">
-                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                    <span className="animate-spin inline-block w-4 h-4 border-2 border-brand-700 border-t-transparent rounded-full" />
-                    Processing...
-                  </span>
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/85 backdrop-blur-[1px]">
+                  <MediaProcessingBar percent={mediaProgress} label={mediaProgressLabel} />
                 </div>
               )}
               {mediaType === 'image' ? (
@@ -969,7 +980,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                 </span>
                 <span className="text-xs text-gray-500">
                   {mediaProcessing
-                    ? 'Processing...'
+                    ? `${Math.round(mediaProgress)}%`
                     : mediaFile
                     ? formatFileSize(mediaFile.size)
                     : ''}
@@ -1120,9 +1131,13 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
           }`}
         >
           {mediaProcessing ? (
-            <span className="flex items-center justify-center">
-              <span className="animate-spin inline-block w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full"></span>
-              Processing...
+            <span className="flex flex-col items-center justify-center gap-2 py-1 w-full">
+              <MediaProcessingBar
+                percent={mediaProgress}
+                label={mediaProgressLabel}
+                compact
+                onDark
+              />
             </span>
           ) : loading ? (
             <span className="flex items-center justify-center">

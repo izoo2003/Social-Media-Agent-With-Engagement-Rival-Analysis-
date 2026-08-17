@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { API_ENDPOINTS, apiFetch } from '@/lib/api-client';
 import { formatFileSize, uploadMediaFile } from '@/lib/media-upload';
 import { CalendarEvent, LinkedInAccountInfo } from '@/lib/types';
+import MediaProcessingBar from '@/components/media/MediaProcessingBar';
 
 interface ContentItem {
   id: number;
@@ -100,6 +101,8 @@ export default function ScheduleModal({
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [mediaProcessing, setMediaProcessing] = useState(false);
+  const [mediaProgress, setMediaProgress] = useState(0);
+  const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
 
   // LinkedIn multi-account selection
   const [linkedinAccounts, setLinkedinAccounts] = useState<LinkedInAccountInfo[]>([]);
@@ -115,6 +118,8 @@ export default function ScheduleModal({
     setMediaPreview(null);
     setMediaType(null);
     setMediaProcessing(false);
+    setMediaProgress(0);
+    setMediaProgressLabel('Processing…');
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -267,7 +272,14 @@ export default function ScheduleModal({
         return;
       }
       setMediaProcessing(true);
-      const readyFile = await prepareMediaForUpload(file);
+      setMediaProgress(1);
+      setMediaProgressLabel('Preparing…');
+      const readyFile = await prepareMediaForUpload(file, {
+        onProgress: ({ percent, label }) => {
+          setMediaProgress(percent);
+          setMediaProgressLabel(label);
+        },
+      });
       URL.revokeObjectURL(immediatePreview);
       setMediaPreview(URL.createObjectURL(readyFile));
       setMediaFile(readyFile);
@@ -278,6 +290,8 @@ export default function ScheduleModal({
       setError(err instanceof Error ? err.message : 'Processing failed. Try another file.');
     } finally {
       setMediaProcessing(false);
+      setMediaProgress(0);
+      setMediaProgressLabel('Processing…');
     }
   };
 
@@ -598,11 +612,11 @@ export default function ScheduleModal({
                 ) : (
                   <div className="relative border border-gray-200 rounded-xl overflow-hidden">
                     {mediaProcessing && (
-                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
-                        <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-                          <span className="animate-spin inline-block w-4 h-4 border-2 border-brand-700 border-t-transparent rounded-full" />
-                          Processing...
-                        </span>
+                      <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/85">
+                        <MediaProcessingBar
+                          percent={mediaProgress}
+                          label={mediaProgressLabel}
+                        />
                       </div>
                     )}
                     {mediaType === 'video' ? (
@@ -623,7 +637,7 @@ export default function ScheduleModal({
                         <p className="text-sm text-gray-800 truncate">{mediaFile?.name}</p>
                         <p className="text-xs text-gray-500">
                           {mediaProcessing
-                            ? 'Processing...'
+                            ? `${Math.round(mediaProgress)}%`
                             : mediaFile
                             ? formatFileSize(mediaFile.size)
                             : ''}
@@ -803,9 +817,13 @@ export default function ScheduleModal({
             }`}
           >
             {mediaProcessing ? (
-              <span className="flex items-center justify-center">
-                <span className="animate-spin inline-block w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full" />
-                Processing...
+              <span className="flex flex-col items-center justify-center gap-2 w-full py-1">
+                <MediaProcessingBar
+                  percent={mediaProgress}
+                  label={mediaProgressLabel}
+                  compact
+                  onDark
+                />
               </span>
             ) : submitting ? (
               <span className="flex items-center justify-center">

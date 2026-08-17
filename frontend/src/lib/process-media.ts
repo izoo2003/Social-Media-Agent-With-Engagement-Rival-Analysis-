@@ -17,15 +17,31 @@ export const PROCESS_VIDEO_ABOVE_BYTES = 40 * 1024 * 1024;
 const FFMPEG_CORE_BASE =
   'https://cdn.jsdelivr.net/npm/@ffmpeg/core@0.12.6/dist/umd';
 
+export type ProcessMediaProgress = {
+  /** 0–100 overall progress */
+  percent: number;
+  /** Short status for the UI (never says "compress") */
+  label: string;
+};
+
+export type ProcessMediaOptions = {
+  onProgress?: (progress: ProcessMediaProgress) => void;
+};
+
 let ffmpegSingleton: FFmpeg | null = null;
 let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
 
-async function getFFmpeg(): Promise<FFmpeg> {
+async function getFFmpeg(
+  onProgress?: (progress: ProcessMediaProgress) => void,
+): Promise<FFmpeg> {
   if (ffmpegSingleton?.loaded) return ffmpegSingleton;
   if (ffmpegLoadPromise) return ffmpegLoadPromise;
 
+  onProgress?.({ percent: 2, label: 'Preparing…' });
+
   ffmpegLoadPromise = (async () => {
     const ffmpeg = new FFmpeg();
+    onProgress?.({ percent: 5, label: 'Preparing…' });
     await ffmpeg.load({
       coreURL: await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
       wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
@@ -139,20 +155,36 @@ async function encodePass(
  * Images and small videos are returned unchanged.
  * Call this as soon as the user picks a file (not only on submit).
  */
-export async function prepareMediaForUpload(file: File): Promise<File> {
+export async function prepareMediaForUpload(
+  file: File,
+  options: ProcessMediaOptions = {},
+): Promise<File> {
+  const { onProgress } = options;
+
   if (!needsVideoProcessing(file)) {
+    onProgress?.({ percent: 100, label: 'Ready' });
     return file;
   }
 
-  const ffmpeg = await getFFmpeg();
+  const report = (percent: number, label: string) => {
+    onProgress?.({
+      percent: Math.max(0, Math.min(100, Math.round(percent))),
+      label,
+    });
+  };
+
+  report(3, 'Preparing…');
+  const ffmpeg = await getFFmpeg(onProgress);
   const ext = extensionOf(file.name) || '.mp4';
   const inputName = `input${ext === '.mov' ? '.mov' : ext === '.webm' ? '.webm' : '.mp4'}`;
   const outputName = 'output.mp4';
+
+  report(10, 'Reading video…');
   const durationSec = await readVideoDurationSeconds(file);
 
+  report(14, 'Loading media…');
   await ffmpeg.writeFile(inputName, await fetchFile(file));
 
-  // Aggressive passes aimed at landing under SAFE_UPLOAD_BYTES (~18 MB).
   const passes: EncodePass[] = [
     { scaleHeight: 720, crf: 30, audioKbps: 96 },
     { scaleHeight: 720, crf: 32, audioKbps: 96 },
@@ -162,29 +194,54 @@ export async function prepareMediaForUpload(file: File): Promise<File> {
   ];
 
   let best: Uint8Array | null = null;
+  const encodeStart = 18;
+  const encodeSpan = 78;
+  let currentPassProgress = 0;
+
+  const progressHandler = ({ progress }: { progress: number }) => {
+    currentPassProgress = Number.isFinite(progress) ? Math.max(0, Math.min(1, progress)) : 0;
+  };
+
+  ffmpeg.on('progress', progressHandler);
 
   try {
-    for (const pass of passes) {
+    for (let i = 0; i < passes.length; i++) {
+      const pass = passes[i];
       try {
         await ffmpeg.deleteFile(outputName);
       } catch {
         /* output may not exist yet */
       }
 
-      const data = await encodePass(
-        ffmpeg,
-        inputName,
-        outputName,
-        pass,
-        durationSec,
-        SAFE_UPLOAD_BYTES,
-      );
-      best = data;
-      if (data.byteLength <= SAFE_UPLOAD_BYTES) {
-        break;
+      const passBase = encodeStart + (encodeSpan * i) / passes.length;
+      const passWidth = encodeSpan / passes.length;
+
+      const tick = setInterval(() => {
+        report(passBase + currentPassProgress * passWidth * 0.95, 'Processing…');
+      }, 200);
+
+      try {
+        currentPassProgress = 0;
+        report(passBase, 'Processing…');
+        const data = await encodePass(
+          ffmpeg,
+          inputName,
+          outputName,
+          pass,
+          durationSec,
+          SAFE_UPLOAD_BYTES,
+        );
+        best = data;
+        report(passBase + passWidth, 'Processing…');
+        if (data.byteLength <= SAFE_UPLOAD_BYTES) {
+          break;
+        }
+      } finally {
+        clearInterval(tick);
       }
     }
   } finally {
+    ffmpeg.off('progress', progressHandler);
     try {
       await ffmpeg.deleteFile(inputName);
     } catch {
@@ -201,12 +258,16 @@ export async function prepareMediaForUpload(file: File): Promise<File> {
     throw new Error('Processing failed. Try a shorter clip or generate without media.');
   }
 
+  report(96, 'Finishing…');
+
   if (best.byteLength >= file.size) {
+    report(100, 'Ready');
     return file;
   }
 
   const outName = `${baseName(file.name) || 'video'}.mp4`;
   const bytes = new Uint8Array(best);
   const blob = new Blob([bytes.buffer], { type: 'video/mp4' });
+  report(100, 'Ready');
   return new File([blob], outName, { type: 'video/mp4', lastModified: Date.now() });
 }
