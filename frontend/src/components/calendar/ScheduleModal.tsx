@@ -103,6 +103,7 @@ export default function ScheduleModal({
   const [mediaProcessing, setMediaProcessing] = useState(false);
   const [mediaProgress, setMediaProgress] = useState(0);
   const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
+  const [mediaElapsedSec, setMediaElapsedSec] = useState(0);
 
   // LinkedIn multi-account selection
   const [linkedinAccounts, setLinkedinAccounts] = useState<LinkedInAccountInfo[]>([]);
@@ -120,6 +121,7 @@ export default function ScheduleModal({
     setMediaProcessing(false);
     setMediaProgress(0);
     setMediaProgressLabel('Processing…');
+    setMediaElapsedSec(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -274,10 +276,12 @@ export default function ScheduleModal({
       setMediaProcessing(true);
       setMediaProgress(1);
       setMediaProgressLabel('Preparing…');
+      setMediaElapsedSec(0);
       const readyFile = await prepareMediaForUpload(file, {
-        onProgress: ({ percent, label }) => {
+        onProgress: ({ percent, label, elapsedSec }) => {
           setMediaProgress(percent);
           setMediaProgressLabel(label);
+          if (typeof elapsedSec === 'number') setMediaElapsedSec(elapsedSec);
         },
       });
       URL.revokeObjectURL(immediatePreview);
@@ -292,6 +296,7 @@ export default function ScheduleModal({
       setMediaProcessing(false);
       setMediaProgress(0);
       setMediaProgressLabel('Processing…');
+      setMediaElapsedSec(0);
     }
   };
 
@@ -616,6 +621,7 @@ export default function ScheduleModal({
                         <MediaProcessingBar
                           percent={mediaProgress}
                           label={mediaProgressLabel}
+                          elapsedSec={mediaElapsedSec}
                         />
                       </div>
                     )}
@@ -821,6 +827,7 @@ export default function ScheduleModal({
                 <MediaProcessingBar
                   percent={mediaProgress}
                   label={mediaProgressLabel}
+                  elapsedSec={mediaElapsedSec}
                   compact
                   onDark
                 />

@@ -3,15 +3,24 @@
 interface MediaProcessingBarProps {
   percent: number;
   label?: string;
+  elapsedSec?: number;
   compact?: boolean;
   /** Use on dark buttons (white text/bar). */
   onDark?: boolean;
+}
+
+function formatElapsed(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return `${m}m ${s.toString().padStart(2, '0')}s`;
 }
 
 /** Progress UI shown while a large video is being processed. */
 export default function MediaProcessingBar({
   percent,
   label = 'Processing…',
+  elapsedSec = 0,
   compact = false,
   onDark = false,
 }: MediaProcessingBarProps) {
@@ -31,6 +40,7 @@ export default function MediaProcessingBar({
           }`}
         >
           {safe}%
+          {elapsedSec > 0 ? ` · ${formatElapsed(elapsedSec)}` : ''}
         </span>
       </div>
       <div
@@ -56,7 +66,8 @@ export default function MediaProcessingBar({
             onDark ? 'text-white/80' : 'text-slate-500'
           }`}
         >
-          Large videos can take a minute or two — hang tight.
+          Running in your browser — large videos can take several minutes. The bar
+          updates as frames are processed.
         </p>
       )}
     </div>

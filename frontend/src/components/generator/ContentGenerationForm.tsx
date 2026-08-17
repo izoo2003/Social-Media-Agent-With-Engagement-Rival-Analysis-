@@ -58,6 +58,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
   const [mediaProcessing, setMediaProcessing] = useState(false);
   const [mediaProgress, setMediaProgress] = useState(0);
   const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
+  const [mediaElapsedSec, setMediaElapsedSec] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Generation state
@@ -286,10 +287,12 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
       setMediaProcessing(true);
       setMediaProgress(1);
       setMediaProgressLabel('Preparing…');
+      setMediaElapsedSec(0);
       const readyFile = await prepareMediaForUpload(file, {
-        onProgress: ({ percent, label }) => {
+        onProgress: ({ percent, label, elapsedSec }) => {
           setMediaProgress(percent);
           setMediaProgressLabel(label);
+          if (typeof elapsedSec === 'number') setMediaElapsedSec(elapsedSec);
         },
       });
       if (immediatePreview) URL.revokeObjectURL(immediatePreview);
@@ -308,6 +311,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
       setMediaProcessing(false);
       setMediaProgress(0);
       setMediaProgressLabel('Processing…');
+      setMediaElapsedSec(0);
     }
   };
 
@@ -319,6 +323,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     setMediaProcessing(false);
     setMediaProgress(0);
     setMediaProgressLabel('Processing…');
+    setMediaElapsedSec(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -958,7 +963,11 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
             <div className="relative">
               {mediaProcessing && (
                 <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/85 backdrop-blur-[1px]">
-                  <MediaProcessingBar percent={mediaProgress} label={mediaProgressLabel} />
+                  <MediaProcessingBar
+                    percent={mediaProgress}
+                    label={mediaProgressLabel}
+                    elapsedSec={mediaElapsedSec}
+                  />
                 </div>
               )}
               {mediaType === 'image' ? (
@@ -1135,6 +1144,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
               <MediaProcessingBar
                 percent={mediaProgress}
                 label={mediaProgressLabel}
+                elapsedSec={mediaElapsedSec}
                 compact
                 onDark
               />

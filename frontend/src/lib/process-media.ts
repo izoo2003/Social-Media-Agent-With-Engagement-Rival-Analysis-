@@ -3,6 +3,10 @@
  * UI should label this as "Processing" — never mention compression to the user.
  *
  * Runs as soon as a large video is selected (Content Posting + Calendar).
+ *
+ * Note: encoding in the browser (ffmpeg.wasm) is much slower than native ffmpeg.
+ * We optimize for speed (ultrafast, few passes) and report progress from media time
+ * so the bar keeps moving instead of sitting near ~19%.
  */
 
 import { FFmpeg } from '@ffmpeg/ffmpeg';
@@ -22,6 +26,8 @@ export type ProcessMediaProgress = {
   percent: number;
   /** Short status for the UI (never says "compress") */
   label: string;
+  /** Seconds elapsed since processing started */
+  elapsedSec?: number;
 };
 
 export type ProcessMediaOptions = {
@@ -37,11 +43,11 @@ async function getFFmpeg(
   if (ffmpegSingleton?.loaded) return ffmpegSingleton;
   if (ffmpegLoadPromise) return ffmpegLoadPromise;
 
-  onProgress?.({ percent: 2, label: 'Preparing…' });
+  onProgress?.({ percent: 2, label: 'Downloading tools…', elapsedSec: 0 });
 
   ffmpegLoadPromise = (async () => {
     const ffmpeg = new FFmpeg();
-    onProgress?.({ percent: 5, label: 'Preparing…' });
+    onProgress?.({ percent: 6, label: 'Downloading tools…', elapsedSec: 0 });
     await ffmpeg.load({
       coreURL: await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.js`, 'text/javascript'),
       wasmURL: await toBlobURL(`${FFMPEG_CORE_BASE}/ffmpeg-core.wasm`, 'application/wasm'),
@@ -103,6 +109,7 @@ type EncodePass = {
   scaleHeight: number;
   crf: number;
   audioKbps: number;
+  maxFps: number;
 };
 
 async function encodePass(
@@ -113,21 +120,26 @@ async function encodePass(
   durationSec: number,
   targetBytes: number,
 ): Promise<Uint8Array> {
+  // ultrafast + capped fps: browser WASM is ~10–50× slower than native ffmpeg
   const args = [
     '-i',
     inputName,
     '-c:v',
     'libx264',
     '-preset',
-    'veryfast',
+    'ultrafast',
+    '-tune',
+    'fastdecode',
     '-crf',
     String(pass.crf),
     '-vf',
-    `scale=-2:'min(${pass.scaleHeight},ih)'`,
+    `scale=-2:'min(${pass.scaleHeight},ih)',fps=${pass.maxFps}`,
     '-c:a',
     'aac',
     '-b:a',
     `${pass.audioKbps}k`,
+    '-ac',
+    '2',
     '-movflags',
     '+faststart',
     '-y',
@@ -136,8 +148,8 @@ async function encodePass(
 
   if (durationSec > 1) {
     const audioBits = pass.audioKbps * 1000;
-    const totalBits = Math.max(200_000, Math.floor((targetBytes * 8) / durationSec) - audioBits);
-    const videoKbps = Math.max(200, Math.floor(totalBits / 1000));
+    const totalBits = Math.max(180_000, Math.floor((targetBytes * 8) / durationSec) - audioBits);
+    const videoKbps = Math.max(180, Math.floor(totalBits / 1000));
     const crfIdx = args.indexOf('-crf');
     args.splice(crfIdx + 2, 0, '-maxrate', `${videoKbps}k`, '-bufsize', `${videoKbps * 2}k`);
   }
@@ -153,28 +165,33 @@ async function encodePass(
 /**
  * If the file is a large video, re-encode it down toward ~10–20 MB.
  * Images and small videos are returned unchanged.
- * Call this as soon as the user picks a file (not only on submit).
  */
 export async function prepareMediaForUpload(
   file: File,
   options: ProcessMediaOptions = {},
 ): Promise<File> {
   const { onProgress } = options;
+  const startedAt = Date.now();
 
-  if (!needsVideoProcessing(file)) {
-    onProgress?.({ percent: 100, label: 'Ready' });
-    return file;
-  }
+  const elapsed = () => Math.floor((Date.now() - startedAt) / 1000);
 
   const report = (percent: number, label: string) => {
     onProgress?.({
       percent: Math.max(0, Math.min(100, Math.round(percent))),
       label,
+      elapsedSec: elapsed(),
     });
   };
 
+  if (!needsVideoProcessing(file)) {
+    report(100, 'Ready');
+    return file;
+  }
+
   report(3, 'Preparing…');
-  const ffmpeg = await getFFmpeg(onProgress);
+  const ffmpeg = await getFFmpeg((p) =>
+    onProgress?.({ ...p, elapsedSec: elapsed() }),
+  );
   const ext = extensionOf(file.name) || '.mp4';
   const inputName = `input${ext === '.mov' ? '.mov' : ext === '.webm' ? '.webm' : '.mp4'}`;
   const outputName = 'output.mp4';
@@ -185,21 +202,31 @@ export async function prepareMediaForUpload(
   report(14, 'Loading media…');
   await ffmpeg.writeFile(inputName, await fetchFile(file));
 
+  // Two aggressive passes only — prefer finishing in pass 1.
+  // Pass 1 owns most of the progress bar (18 → 88) so it visibly moves.
   const passes: EncodePass[] = [
-    { scaleHeight: 720, crf: 30, audioKbps: 96 },
-    { scaleHeight: 720, crf: 32, audioKbps: 96 },
-    { scaleHeight: 540, crf: 34, audioKbps: 64 },
-    { scaleHeight: 480, crf: 36, audioKbps: 64 },
-    { scaleHeight: 360, crf: 38, audioKbps: 48 },
+    { scaleHeight: 540, crf: 32, audioKbps: 64, maxFps: 24 },
+    { scaleHeight: 360, crf: 36, audioKbps: 48, maxFps: 24 },
   ];
 
   let best: Uint8Array | null = null;
-  const encodeStart = 18;
-  const encodeSpan = 78;
   let currentPassProgress = 0;
 
-  const progressHandler = ({ progress }: { progress: number }) => {
-    currentPassProgress = Number.isFinite(progress) ? Math.max(0, Math.min(1, progress)) : 0;
+  const progressHandler = ({
+    progress,
+    time,
+  }: {
+    progress: number;
+    time: number;
+  }) => {
+    // Prefer media timestamp (µs) — much steadier than ratio early in the encode.
+    if (durationSec > 1 && Number.isFinite(time) && time > 0) {
+      currentPassProgress = Math.min(0.99, time / 1_000_000 / durationSec);
+      return;
+    }
+    if (Number.isFinite(progress)) {
+      currentPassProgress = Math.max(0, Math.min(1, progress));
+    }
   };
 
   ffmpeg.on('progress', progressHandler);
@@ -213,12 +240,16 @@ export async function prepareMediaForUpload(
         /* output may not exist yet */
       }
 
-      const passBase = encodeStart + (encodeSpan * i) / passes.length;
-      const passWidth = encodeSpan / passes.length;
+      // Pass 1: 18–88, Pass 2: 88–96
+      const passBase = i === 0 ? 18 : 88;
+      const passWidth = i === 0 ? 70 : 8;
 
       const tick = setInterval(() => {
-        report(passBase + currentPassProgress * passWidth * 0.95, 'Processing…');
-      }, 200);
+        // Soft floor so the bar never looks frozen at ~19% for minutes
+        const softFloor = Math.min(0.08, elapsed() / 600);
+        const p = Math.max(currentPassProgress, softFloor * 0.5);
+        report(passBase + p * passWidth * 0.98, 'Processing…');
+      }, 250);
 
       try {
         currentPassProgress = 0;
@@ -258,7 +289,7 @@ export async function prepareMediaForUpload(
     throw new Error('Processing failed. Try a shorter clip or generate without media.');
   }
 
-  report(96, 'Finishing…');
+  report(97, 'Finishing…');
 
   if (best.byteLength >= file.size) {
     report(100, 'Ready');
