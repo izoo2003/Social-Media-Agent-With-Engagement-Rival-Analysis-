@@ -49,6 +49,9 @@ export const API_ENDPOINTS = {
 
   // Media
   MEDIA_UPLOAD: `${API_BASE_URL}/api/${API_VERSION}/content/media/upload`,
+  MEDIA_PROCESS_CONFIG: `${API_BASE_URL}/api/${API_VERSION}/content/media/process-config`,
+  MEDIA_PROCESS_START: `${API_BASE_URL}/api/${API_VERSION}/content/media/process/start`,
+  MEDIA_PROCESS_COMPLETE: `${API_BASE_URL}/api/${API_VERSION}/content/media/process/complete`,
 
   // Social Posting
   SOCIAL_POST: (id: number) => `${API_BASE_URL}/api/${API_VERSION}/content/${id}/post`,

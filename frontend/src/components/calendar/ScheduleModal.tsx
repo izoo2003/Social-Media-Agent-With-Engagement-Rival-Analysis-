@@ -100,6 +100,11 @@ export default function ScheduleModal({
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+  const [storedMedia, setStoredMedia] = useState<{
+    media_path: string;
+    media_type: string;
+    media_original_name: string;
+  } | null>(null);
   const [mediaProcessing, setMediaProcessing] = useState(false);
   const [mediaProgress, setMediaProgress] = useState(0);
   const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
@@ -118,6 +123,7 @@ export default function ScheduleModal({
     setMediaFile(null);
     setMediaPreview(null);
     setMediaType(null);
+    setStoredMedia(null);
     setMediaProcessing(false);
     setMediaProgress(0);
     setMediaProgressLabel('Processing…');
@@ -263,6 +269,7 @@ export default function ScheduleModal({
 
     setError(null);
     setMediaType(isImage ? 'image' : 'video');
+    setStoredMedia(null);
     if (mediaPreview) URL.revokeObjectURL(mediaPreview);
     const immediatePreview = URL.createObjectURL(file);
     setMediaPreview(immediatePreview);
@@ -277,7 +284,7 @@ export default function ScheduleModal({
       setMediaProgress(1);
       setMediaProgressLabel('Preparing…');
       setMediaElapsedSec(0);
-      const readyFile = await prepareMediaForUpload(file, {
+      const prepared = await prepareMediaForUpload(file, {
         onProgress: ({ percent, label, elapsedSec }) => {
           setMediaProgress(percent);
           setMediaProgressLabel(label);
@@ -285,9 +292,21 @@ export default function ScheduleModal({
         },
       });
       URL.revokeObjectURL(immediatePreview);
-      setMediaPreview(URL.createObjectURL(readyFile));
-      setMediaFile(readyFile);
-      setMediaType('video');
+      if (prepared.mode === 'stored') {
+        setStoredMedia({
+          media_path: prepared.media_path,
+          media_type: prepared.media_type,
+          media_original_name: prepared.media_original_name,
+        });
+        setMediaPreview(URL.createObjectURL(file));
+        setMediaFile(file);
+        setMediaType('video');
+      } else {
+        setMediaPreview(URL.createObjectURL(prepared.file));
+        setMediaFile(prepared.file);
+        setMediaType('video');
+        setStoredMedia(null);
+      }
     } catch (err) {
       URL.revokeObjectURL(immediatePreview);
       clearMedia();
@@ -312,9 +331,9 @@ export default function ScheduleModal({
       media_path: string;
       media_type: string;
       media_original_name: string;
-    } | null = null;
+    } | null = storedMedia;
 
-    if (mediaFile) {
+    if (!mediaMeta && mediaFile) {
       setBusyPhase('uploading');
       mediaMeta = await uploadMediaFile(mediaFile);
     }

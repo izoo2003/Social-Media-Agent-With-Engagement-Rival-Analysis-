@@ -180,6 +180,30 @@ class ManualContentCreate(BaseModel):
     media_original_name: Optional[str] = None
 
 
+class MediaProcessConfigResponse(BaseModel):
+    """Which processor the frontend should use for large videos."""
+
+    provider: str  # cloudconvert | browser
+    cloudconvert_enabled: bool
+
+
+class MediaProcessStartRequest(BaseModel):
+    filename: str = Field(..., min_length=1)
+    content_type: str = Field(default="video/mp4")
+    size_bytes: int = Field(default=0, ge=0)
+
+
+class MediaProcessStartResponse(BaseModel):
+    job_id: str
+    upload_url: str
+    upload_parameters: dict
+
+
+class MediaProcessCompleteRequest(BaseModel):
+    job_id: str = Field(..., min_length=1)
+    original_filename: str = Field(default="video.mp4")
+
+
 class SocialPostRequest(BaseModel):
     """Request to post content to social media."""
 

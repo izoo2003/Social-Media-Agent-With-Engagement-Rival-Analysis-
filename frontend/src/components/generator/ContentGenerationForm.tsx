@@ -55,6 +55,11 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+  const [storedMedia, setStoredMedia] = useState<{
+    media_path: string;
+    media_type: string;
+    media_original_name: string;
+  } | null>(null);
   const [mediaProcessing, setMediaProcessing] = useState(false);
   const [mediaProgress, setMediaProgress] = useState(0);
   const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
@@ -272,6 +277,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
 
     setError(null);
     setMediaType(isImage ? 'image' : 'video');
+    setStoredMedia(null);
 
     if (mediaPreview) URL.revokeObjectURL(mediaPreview);
     const immediatePreview = URL.createObjectURL(file);
@@ -288,7 +294,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
       setMediaProgress(1);
       setMediaProgressLabel('Preparing…');
       setMediaElapsedSec(0);
-      const readyFile = await prepareMediaForUpload(file, {
+      const prepared = await prepareMediaForUpload(file, {
         onProgress: ({ percent, label, elapsedSec }) => {
           setMediaProgress(percent);
           setMediaProgressLabel(label);
@@ -296,15 +302,30 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
         },
       });
       if (immediatePreview) URL.revokeObjectURL(immediatePreview);
-      const nextPreview = URL.createObjectURL(readyFile);
-      setMediaPreview(nextPreview);
-      setMediaFile(readyFile);
-      setMediaType('video');
+
+      if (prepared.mode === 'stored') {
+        setStoredMedia({
+          media_path: prepared.media_path,
+          media_type: prepared.media_type,
+          media_original_name: prepared.media_original_name,
+        });
+        // Keep original for local preview; file is already on the server.
+        setMediaPreview(URL.createObjectURL(file));
+        setMediaFile(file);
+        setMediaType('video');
+      } else {
+        const nextPreview = URL.createObjectURL(prepared.file);
+        setMediaPreview(nextPreview);
+        setMediaFile(prepared.file);
+        setMediaType('video');
+        setStoredMedia(null);
+      }
     } catch (err) {
       if (immediatePreview) URL.revokeObjectURL(immediatePreview);
       setMediaFile(null);
       setMediaPreview(null);
       setMediaType(null);
+      setStoredMedia(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       setError(err instanceof Error ? err.message : 'Processing failed. Try another file.');
     } finally {
@@ -320,6 +341,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     setMediaFile(null);
     setMediaPreview(null);
     setMediaType(null);
+    setStoredMedia(null);
     setMediaProcessing(false);
     setMediaProgress(0);
     setMediaProgressLabel('Processing…');
@@ -347,17 +369,19 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     }
 
     setLoading(true);
-    setBusyPhase(mediaFile ? 'uploading' : 'generating');
+    setBusyPhase(mediaFile || storedMedia ? 'uploading' : 'generating');
 
     try {
       let mediaMeta: {
         media_path: string;
         media_type: string;
         media_original_name: string;
-      } | null = null;
+      } | null = storedMedia;
 
-      if (mediaFile) {
+      if (!mediaMeta && mediaFile) {
         mediaMeta = await uploadMediaForGeneration(mediaFile);
+        setBusyPhase('generating');
+      } else if (mediaMeta) {
         setBusyPhase('generating');
       }
 

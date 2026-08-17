@@ -28,11 +28,16 @@ from app.schemas.content import (
     ContentRegenerateRequest,
     MediaUploadResponse,
     ManualContentCreate,
+    MediaProcessConfigResponse,
+    MediaProcessStartRequest,
+    MediaProcessStartResponse,
+    MediaProcessCompleteRequest,
     SocialPostRequest,
     SocialPostResponse,
 )
 from app.services.content import ContentService
 from app.services.media import MediaService
+from app.services import cloudconvert_video
 from app.services.publishing import publish_content
 from app.utils.exceptions import ContentGenerationError, LLMConnectionError
 from app.utils.logger import logger
@@ -350,6 +355,90 @@ async def upload_media(
     except Exception as e:
         logger.error(f"Media upload error: {str(e)}")
         raise HTTPException(status_code=400, detail=safe_error_detail(e, "File upload failed"))
+
+
+@router.get("/content/media/process-config", response_model=MediaProcessConfigResponse)
+async def media_process_config():
+    """Tell the frontend whether fast CloudConvert processing is available."""
+    enabled = cloudconvert_video.cloudconvert_enabled()
+    return MediaProcessConfigResponse(
+        provider="cloudconvert" if enabled else "browser",
+        cloudconvert_enabled=enabled,
+    )
+
+
+@router.post("/content/media/process/start", response_model=MediaProcessStartResponse)
+@limiter.limit("10/minute")
+async def media_process_start(request: Request, body: MediaProcessStartRequest):
+    """
+    Start a CloudConvert job and return a direct-upload form for the browser.
+    The large file never passes through Railway.
+    """
+    if not cloudconvert_video.cloudconvert_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="Fast video processing is not configured (set CLOUDCONVERT_API_KEY).",
+        )
+    try:
+        max_size = settings.MAX_UPLOAD_SIZE_MB * 1024 * 1024
+        if body.size_bytes and body.size_bytes > max_size:
+            raise ContentGenerationError(
+                f"File size exceeds the maximum of {settings.MAX_UPLOAD_SIZE_MB} MB"
+            )
+        result = cloudconvert_video.create_process_job(filename=body.filename)
+        return MediaProcessStartResponse(**result)
+    except ContentGenerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Media process start error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=safe_error_detail(e, "Failed to start video processing"),
+        )
+
+
+@router.post("/content/media/process/complete", response_model=MediaUploadResponse)
+@limiter.limit("10/minute")
+async def media_process_complete(request: Request, body: MediaProcessCompleteRequest):
+    """
+    Wait for CloudConvert to finish, download the smaller MP4, and store it
+    in our media backend (Supabase/local).
+    """
+    if not cloudconvert_video.cloudconvert_enabled():
+        raise HTTPException(
+            status_code=503,
+            detail="Fast video processing is not configured (set CLOUDCONVERT_API_KEY).",
+        )
+    try:
+        export_url = await asyncio.to_thread(
+            cloudconvert_video.wait_for_export_url, body.job_id
+        )
+        content = await asyncio.to_thread(
+            cloudconvert_video.download_processed_bytes, export_url
+        )
+        original = body.original_filename or "video.mp4"
+        base = original.rsplit(".", 1)[0] if "." in original else original
+        result = media_service.save_bytes(
+            content,
+            extension=".mp4",
+            media_type="video",
+            original_name=f"{base}.mp4",
+            validate=True,
+        )
+        return MediaUploadResponse(
+            media_path=result["media_path"],
+            media_type=result["media_type"],
+            media_original_name=result["media_original_name"],
+            media_url=result["media_url"],
+        )
+    except ContentGenerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Media process complete error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=safe_error_detail(e, "Failed to finish video processing"),
+        )
 
 
 @router.post("/content/{content_id}/post", response_model=list[SocialPostResponse])

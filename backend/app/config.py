@@ -356,6 +356,16 @@ class Settings(BaseSettings):
     # Practical ceiling for Railway Hobby media uploads (compress larger files).
     MAX_UPLOAD_SIZE_MB: int = 200
 
+    # Fast video processing via CloudConvert (optional free API key).
+    # Sign up: https://cloudconvert.com/register → Dashboard → API → Create API Key
+    # Free accounts get limited daily credits; when unset, browser processing is used.
+    CLOUDCONVERT_API_KEY: str = ""
+    # Target height (keeps aspect ratio) and quality for CloudConvert encodes.
+    CLOUDCONVERT_TARGET_HEIGHT: int = 720
+    CLOUDCONVERT_CRF: int = 28
+    CLOUDCONVERT_AUDIO_BITRATE_K: int = 96
+    CLOUDCONVERT_POLL_TIMEOUT_SEC: int = 600
+
     # Designer Approval Workflow (QA Checker)
     # When True, non-designers must get a post approved by the designer before it
     # publishes. Designers prove identity with DESIGNER_PIN to post directly.
