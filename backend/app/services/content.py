@@ -441,6 +441,54 @@ Do NOT include any introductory text, explanations, greetings, or concluding rem
         )
         return content
 
+    def create_manual_content(
+        self,
+        *,
+        platform: ContentPlatform,
+        title: str,
+        body: str,
+        media_path: Optional[str] = None,
+        media_type: Optional[str] = None,
+        media_original_name: Optional[str] = None,
+    ) -> dict:
+        """
+        Create a content row from a user-supplied caption + optional media
+        (used by the calendar scheduler "upload new" flow).
+        """
+        media_type_enum = None
+        if media_type:
+            try:
+                media_type_enum = MediaType(media_type)
+            except ValueError:
+                logger.warning(f"Unknown media type: {media_type}, ignoring")
+
+        record = self._save_content(
+            platform=platform,
+            title=title.strip(),
+            body=body.strip(),
+            metadata={
+                "source": "manual_schedule",
+                "tone": "professional",
+                "hashtags": [],
+                "keywords": [],
+            },
+            media_path=media_path,
+            media_type=media_type_enum,
+            media_original_name=media_original_name,
+        )
+        return {
+            "id": record.id,
+            "platform": record.platform.value if hasattr(record.platform, "value") else record.platform,
+            "title": record.title,
+            "body": record.body,
+            "status": record.status.value if hasattr(record.status, "value") else record.status,
+            "generated_at": record.generated_at.isoformat() if record.generated_at else datetime.utcnow().isoformat(),
+            "meta_data": record.meta_data or {},
+            "media_path": record.media_path,
+            "media_type": record.media_type.value if record.media_type else None,
+            "media_original_name": record.media_original_name,
+        }
+
     def regenerate_content(self, content_id: int, request: ContentRegenerateRequest) -> dict:
         """
         Regenerate title and body for an existing content record using user feedback.

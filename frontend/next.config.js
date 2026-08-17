@@ -9,6 +9,16 @@ const nextConfig = {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
     NEXT_PUBLIC_APP_MODE: process.env.NEXT_PUBLIC_APP_MODE || 'full',
   },
+  webpack: (config) => {
+    // @ffmpeg/ffmpeg uses browser-only APIs; avoid Node polyfill resolution noise.
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      path: false,
+      crypto: false,
+    };
+    return config;
+  },
   headers: async () => {
     return [
       {

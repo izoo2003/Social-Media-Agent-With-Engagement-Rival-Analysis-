@@ -10,6 +10,9 @@ export interface ContentGenerationRequest {
   target_audience?: string;
   call_to_action?: string;
   additional_instructions?: string;
+  media_path?: string | null;
+  media_type?: string | null;
+  media_original_name?: string | null;
 }
 
 export interface ContentRegenerateRequest {

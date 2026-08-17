@@ -27,6 +27,18 @@ const TONES = [
 
 const AUDIENCES = ['business', 'consumer', 'general', 'youth', 'enterprise'];
 
+type BusyPhase = 'processing' | 'uploading' | 'generating' | null;
+
+/** Two-step: upload media first, then generate captions with media_path only. */
+async function uploadMediaForGeneration(file: File): Promise<{
+  media_path: string;
+  media_type: string;
+  media_original_name: string;
+}> {
+  const { uploadMediaFile } = await import('@/lib/media-upload');
+  return uploadMediaFile(file);
+}
+
 export default function ContentGenerationForm({ onGenerate }: ContentGenerationFormProps) {
   // Form state
   const [step, setStep] = useState<'input' | 'preview'>('input');
@@ -42,11 +54,13 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [mediaPreview, setMediaPreview] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+  const [mediaProcessing, setMediaProcessing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Generation state
   const [generatedContents, setGeneratedContents] = useState<ContentGenerationResponse[]>([]);
   const [loading, setLoading] = useState(false);
+  const [busyPhase, setBusyPhase] = useState<BusyPhase>(null);
   const [postingStates, setPostingStates] = useState<Record<string, 'idle' | 'posting' | 'done' | 'error' | 'partial'>>({});
   const [postResults, setPostResults] = useState<SocialPostResponse[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -231,34 +245,58 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
 
   const MAX_MEDIA_UPLOAD_MB = 200;
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate file type
     const isImage = file.type.startsWith('image/');
     const isVideo = file.type.startsWith('video/');
 
     if (!isImage && !isVideo) {
       setError('Please select an image or video file (JPG, PNG, GIF, MP4, MOV, etc.)');
+      e.target.value = '';
       return;
     }
 
     if (file.size > MAX_MEDIA_UPLOAD_MB * 1024 * 1024) {
       setError(
-        `File is too large (${(file.size / (1024 * 1024)).toFixed(0)} MB). Max upload size is ${MAX_MEDIA_UPLOAD_MB} MB — compress the video and try again.`,
+        `File is too large (${(file.size / (1024 * 1024)).toFixed(0)} MB). Max is ${MAX_MEDIA_UPLOAD_MB} MB.`,
       );
       e.target.value = '';
       return;
     }
 
-    setMediaFile(file);
-    setMediaType(isImage ? 'image' : 'video');
     setError(null);
+    setMediaType(isImage ? 'image' : 'video');
 
-    // Create preview URL
-    const previewUrl = URL.createObjectURL(file);
-    setMediaPreview(previewUrl);
+    if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+    const immediatePreview = URL.createObjectURL(file);
+    setMediaPreview(immediatePreview);
+    setMediaFile(file);
+
+    try {
+      const { needsVideoProcessing, prepareMediaForUpload } = await import('@/lib/process-media');
+      if (!needsVideoProcessing(file)) {
+        return;
+      }
+
+      setMediaProcessing(true);
+      const readyFile = await prepareMediaForUpload(file);
+      if (immediatePreview) URL.revokeObjectURL(immediatePreview);
+      const nextPreview = URL.createObjectURL(readyFile);
+      setMediaPreview(nextPreview);
+      setMediaFile(readyFile);
+      setMediaType('video');
+    } catch (err) {
+      if (immediatePreview) URL.revokeObjectURL(immediatePreview);
+      setMediaFile(null);
+      setMediaPreview(null);
+      setMediaType(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setError(err instanceof Error ? err.message : 'Processing failed. Try another file.');
+    } finally {
+      setMediaProcessing(false);
+    }
   };
 
   const handleRemoveMedia = () => {
@@ -266,6 +304,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     setMediaFile(null);
     setMediaPreview(null);
     setMediaType(null);
+    setMediaProcessing(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -273,7 +312,11 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     e.preventDefault();
     setError(null);
 
-    // Validation
+    if (mediaProcessing) {
+      setError('Please wait until media processing finishes.');
+      return;
+    }
+
     if (selectedPlatforms.length === 0) {
       setError('Please select at least one platform to post to');
       return;
@@ -285,24 +328,38 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     }
 
     setLoading(true);
+    setBusyPhase(mediaFile ? 'uploading' : 'generating');
 
     try {
-      const formData = new FormData();
-      formData.append('platforms', JSON.stringify(selectedPlatforms));
-      formData.append('topic', topic.trim());
-      formData.append('brand_context', brandContext);
-      formData.append('tone', tone);
-      formData.append('target_audience', targetAudience);
-      formData.append('call_to_action', callToAction);
-      formData.append('additional_instructions', additionalInstructions);
+      let mediaMeta: {
+        media_path: string;
+        media_type: string;
+        media_original_name: string;
+      } | null = null;
 
       if (mediaFile) {
-        formData.append('media_file', mediaFile);
+        mediaMeta = await uploadMediaForGeneration(mediaFile);
+        setBusyPhase('generating');
       }
 
-      const response = await apiFetch(API_ENDPOINTS.CONTENT_GENERATE_WITH_MEDIA, {
+      const response = await apiFetch(API_ENDPOINTS.CONTENT_GENERATE, {
         method: 'POST',
-        body: formData,
+        body: JSON.stringify({
+          platforms: selectedPlatforms,
+          topic: topic.trim(),
+          brand_context: brandContext,
+          tone,
+          target_audience: targetAudience,
+          call_to_action: callToAction,
+          additional_instructions: additionalInstructions,
+          ...(mediaMeta
+            ? {
+                media_path: mediaMeta.media_path,
+                media_type: mediaMeta.media_type,
+                media_original_name: mediaMeta.media_original_name,
+              }
+            : {}),
+        }),
       });
 
       if (!response.ok) {
@@ -321,11 +378,12 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
         (err instanceof TypeError && /fetch/i.test(message));
       setError(
         looksLikeNetworkDrop
-          ? 'Connection to the server dropped while uploading or generating. Usually the media file is still too large for Railway, or the request timed out. Compress to under ~100 MB if possible, or generate without media first.'
+          ? 'Connection dropped while uploading or generating. Try again, use a shorter video, or generate without media first.'
           : message,
       );
     } finally {
       setLoading(false);
+      setBusyPhase(null);
     }
   };
 
@@ -884,6 +942,14 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
             </div>
           ) : (
             <div className="relative">
+              {mediaProcessing && (
+                <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-white/80 backdrop-blur-[1px]">
+                  <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+                    <span className="animate-spin inline-block w-4 h-4 border-2 border-brand-700 border-t-transparent rounded-full" />
+                    Processing...
+                  </span>
+                </div>
+              )}
               {mediaType === 'image' ? (
                 <img
                   src={mediaPreview}
@@ -894,7 +960,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                 <video
                   src={mediaPreview}
                   className="max-h-64 rounded-lg mx-auto"
-                  controls
+                  controls={!mediaProcessing}
                 />
               )}
               <div className="flex items-center justify-between mt-3 bg-gray-50 rounded-lg px-4 py-2">
@@ -902,12 +968,17 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                   {mediaFile?.name}
                 </span>
                 <span className="text-xs text-gray-500">
-                  {mediaFile ? formatFileSize(mediaFile.size) : ''}
+                  {mediaProcessing
+                    ? 'Processing...'
+                    : mediaFile
+                    ? formatFileSize(mediaFile.size)
+                    : ''}
                 </span>
                 <button
                   type="button"
                   onClick={handleRemoveMedia}
-                  className="text-red-500 hover:text-red-700 text-sm font-medium ml-2"
+                  disabled={mediaProcessing}
+                  className="text-red-500 hover:text-red-700 text-sm font-medium ml-2 disabled:opacity-40"
                 >
                   Remove
                 </button>
@@ -1041,17 +1112,24 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
         {/* Generate Button */}
         <button
           type="submit"
-          disabled={loading}
+          disabled={loading || mediaProcessing}
           className={`w-full py-3 px-4 rounded-lg font-semibold text-white transition-all ${
-            loading
+            loading || mediaProcessing
               ? 'bg-gray-400 cursor-not-allowed'
               : 'bg-brand-700 hover:bg-brand-800'
           }`}
         >
-          {loading ? (
+          {mediaProcessing ? (
             <span className="flex items-center justify-center">
               <span className="animate-spin inline-block w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full"></span>
-              ✨ Generating Captions...
+              Processing...
+            </span>
+          ) : loading ? (
+            <span className="flex items-center justify-center">
+              <span className="animate-spin inline-block w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full"></span>
+              {busyPhase === 'uploading'
+                ? 'Uploading...'
+                : '✨ Generating Captions...'}
             </span>
           ) : (
             '✨ Generate Captions & Preview'

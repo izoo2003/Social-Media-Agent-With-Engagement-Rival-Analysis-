@@ -56,6 +56,15 @@ class ContentGenerationRequest(BaseModel):
     )
     call_to_action: str = Field(default="", description="Call to action to include")
     additional_instructions: str = Field(default="", description="Additional specific instructions")
+    # Optional media already stored (e.g. after browser→Supabase direct upload)
+    media_path: Optional[str] = Field(
+        default=None,
+        description="Storage path from a prior upload (e.g. videos/20240101_abc.mp4)",
+    )
+    media_type: Optional[str] = Field(default=None, description="image | video | document")
+    media_original_name: Optional[str] = Field(
+        default=None, description="Original filename of the attached media"
+    )
 
 
 class ContentRegenerateRequest(BaseModel):
@@ -154,6 +163,21 @@ class MediaUploadResponse(BaseModel):
     media_type: str
     media_original_name: str
     media_url: str
+
+
+class ManualContentCreate(BaseModel):
+    """Create a ready-to-schedule content record without AI generation."""
+
+    platform: ContentPlatform = Field(
+        ..., description="Primary platform for the content record"
+    )
+    title: str = Field(..., min_length=1, max_length=500)
+    body: str = Field(..., min_length=1)
+    media_path: Optional[str] = Field(
+        default=None, description="Storage path from /content/media/upload"
+    )
+    media_type: Optional[str] = Field(default=None, description="image | video | document")
+    media_original_name: Optional[str] = None
 
 
 class SocialPostRequest(BaseModel):

@@ -1,6 +1,7 @@
 """
 API Routes - Content Generation & Social Media Posting
-POST /content/generate - Generate content with optional media attachment
+POST /content/generate - Generate content with optional media_path attachment
+POST /content/manual - Create caption+media content without AI (calendar upload)
 POST /content/media/upload - Upload media file (image/video)
 POST /content/{id}/post - Post content to social media
 GET /content/history - Fetch content history
@@ -10,6 +11,7 @@ DELETE /content/{id} - Delete content
 """
 
 import asyncio
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, UploadFile, File, Form
 from sqlalchemy.orm import Session
@@ -25,6 +27,7 @@ from app.schemas.content import (
     ContentDetailResponse,
     ContentRegenerateRequest,
     MediaUploadResponse,
+    ManualContentCreate,
     SocialPostRequest,
     SocialPostResponse,
 )
@@ -50,13 +53,31 @@ async def generate_content(
 ):
     """
     Generate AI-powered social media post captions for selected platforms.
-    The graphic designer provides media separately - this generates text only.
+
+    Optionally attach media that was already uploaded via /content/media/upload
+    using media_path / media_type / media_original_name.
     """
     try:
         logger.info(f"Received content generation request for platforms: {body.platforms}")
 
+        media_path = None
+        media_type = None
+        media_original_name = None
+        if body.media_path:
+            try:
+                media_path = validate_media_path(body.media_path)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            media_type = body.media_type
+            media_original_name = body.media_original_name
+
         service = ContentService(db)
-        generated_contents = service.generate_content(body)
+        generated_contents = service.generate_content(
+            body,
+            media_path=media_path,
+            media_type=media_type,
+            media_original_name=media_original_name,
+        )
 
         responses = []
         for content in generated_contents:
@@ -75,14 +96,81 @@ async def generate_content(
                     },
                     status=content["status"],
                     generated_at=content["generated_at"],
+                    media_path=content.get("media_path"),
+                    media_type=content.get("media_type"),
+                    media_original_name=content.get("media_original_name"),
                 )
             )
 
         return responses
 
+    except HTTPException:
+        raise
+    except ContentGenerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except LLMConnectionError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     except Exception as e:
         logger.error(f"Content generation endpoint error: {str(e)}")
         raise HTTPException(status_code=500, detail=safe_error_detail(e, "Content generation failed"))
+
+
+@router.post("/content/manual", response_model=ContentGenerationResponse)
+@limiter.limit("20/minute")
+async def create_manual_content(
+    request: Request,
+    body: ManualContentCreate,
+    db: Session = Depends(get_db),
+):
+    """
+    Create a content record from a user caption + optional uploaded media
+    (no AI). Used by the calendar scheduler "Upload new" flow.
+    """
+    try:
+        media_path = None
+        if body.media_path:
+            try:
+                media_path = validate_media_path(body.media_path)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        service = ContentService(db, with_llm=False)
+        content = service.create_manual_content(
+            platform=body.platform,
+            title=body.title,
+            body=body.body,
+            media_path=media_path,
+            media_type=body.media_type,
+            media_original_name=body.media_original_name,
+        )
+        return ContentGenerationResponse(
+            content_id=content["id"],
+            platform=content["platform"],
+            title=content["title"],
+            body=content["body"],
+            metadata={
+                "hashtags": content["meta_data"].get("hashtags", []),
+                "keywords": content["meta_data"].get("keywords", []),
+                "tone": content["meta_data"].get("tone", "professional"),
+                "target_audience": "",
+                "call_to_action": "",
+            },
+            status=content["status"],
+            generated_at=content["generated_at"],
+            media_path=content.get("media_path"),
+            media_type=content.get("media_type"),
+            media_original_name=content.get("media_original_name"),
+        )
+    except HTTPException:
+        raise
+    except ContentGenerationError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Manual content create error: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=safe_error_detail(e, "Failed to create content"),
+        )
 
 
 @router.post("/content/generate-with-media", response_model=list[ContentGenerationResponse])
@@ -96,18 +184,21 @@ async def generate_content_with_media(
     target_audience: str = Form("business"),
     call_to_action: str = Form(""),
     additional_instructions: str = Form(""),
-    media_file: UploadFile = File(None),
+    media_file: Optional[UploadFile] = File(None),
+    media_path: Optional[str] = Form(None),
+    media_type: Optional[str] = Form(None),
+    media_original_name: Optional[str] = Form(None),
     db: Session = Depends(get_db),
 ):
     """
-    Generate AI social media captions AND attach a media file (image/video)
-    uploaded by the graphic designer. Then you can post the media + caption
-    directly to social platforms.
+    Generate AI captions and attach media in one multipart request.
 
-    This is the main endpoint for the graphic designer workflow:
-    1. Upload their image/video
-    2. AI generates the caption
-    3. Both are saved together for posting
+    Prefer the two-step flow for large videos:
+      1. POST /content/media/upload
+      2. POST /content/generate with media_path (JSON)
+
+    This endpoint remains for smaller files. You may also pass media_path
+    (already uploaded) instead of media_file.
     """
     try:
         logger.info(
@@ -118,8 +209,7 @@ async def generate_content_with_media(
         import json
         platform_list = json.loads(platforms) if isinstance(platforms, str) else platforms
 
-        # Build request
-        request = ContentGenerationRequest(
+        request_body = ContentGenerationRequest(
             platforms=[p.strip() for p in platform_list],
             topic=topic,
             brand_context=brand_context,
@@ -131,27 +221,32 @@ async def generate_content_with_media(
 
         service = ContentService(db)
 
-        # Handle media upload if provided
-        media_path = None
-        media_type = None
-        media_original_name = None
+        resolved_path = None
+        resolved_type = None
+        resolved_name = None
 
-        if media_file:
+        if media_file and media_file.filename:
             media_info = await media_service.upload_file(media_file)
-            media_path = media_info["media_path"]
-            media_type = media_info["media_type"]
-            media_original_name = media_info["media_original_name"]
-            logger.info(f"Media attached: {media_original_name} ({media_type})")
+            resolved_path = media_info["media_path"]
+            resolved_type = media_info["media_type"]
+            resolved_name = media_info["media_original_name"]
+            logger.info(f"Media attached: {resolved_name} ({resolved_type})")
+        elif media_path:
+            try:
+                resolved_path = validate_media_path(media_path)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            resolved_type = media_type
+            resolved_name = media_original_name
+            logger.info(f"Media path attached: {resolved_path} ({resolved_type})")
 
-        # Generate content with media info
         generated_contents = service.generate_content(
-            request,
-            media_path=media_path,
-            media_type=media_type,
-            media_original_name=media_original_name,
+            request_body,
+            media_path=resolved_path,
+            media_type=resolved_type,
+            media_original_name=resolved_name,
         )
 
-        # Map to response model
         responses = []
         for content in generated_contents:
             responses.append(
@@ -164,8 +259,8 @@ async def generate_content_with_media(
                         "hashtags": content["meta_data"].get("hashtags", []),
                         "keywords": content["meta_data"].get("keywords", []),
                         "tone": content["meta_data"].get("tone", "professional"),
-                        "target_audience": request.target_audience,
-                        "call_to_action": request.call_to_action,
+                        "target_audience": request_body.target_audience,
+                        "call_to_action": request_body.call_to_action,
                     },
                     status=content["status"],
                     generated_at=content["generated_at"],
@@ -177,6 +272,8 @@ async def generate_content_with_media(
 
         return responses
 
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Content-with-media generation error: {str(e)}")
         raise HTTPException(status_code=500, detail=safe_error_detail(e, "Content generation failed"))

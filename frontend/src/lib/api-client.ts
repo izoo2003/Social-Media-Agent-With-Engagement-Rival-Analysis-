@@ -41,6 +41,7 @@ export const API_ENDPOINTS = {
   // Content
   CONTENT_GENERATE: `${API_BASE_URL}/api/${API_VERSION}/content/generate`,
   CONTENT_GENERATE_WITH_MEDIA: `${API_BASE_URL}/api/${API_VERSION}/content/generate-with-media`,
+  CONTENT_MANUAL: `${API_BASE_URL}/api/${API_VERSION}/content/manual`,
   CONTENT_HISTORY: `${API_BASE_URL}/api/${API_VERSION}/content/history`,
   CONTENT_DETAIL: (id: number) => `${API_BASE_URL}/api/${API_VERSION}/content/${id}`,
   CONTENT_REGENERATE: (id: number) =>
@@ -114,6 +115,8 @@ export const API_ENDPOINTS = {
 export const API_CONFIG = {
   baseURL: API_BASE_URL,
   timeout: 120000, // 2 min timeout for generation
+  /** Allow slow media uploads after client-side processing. */
+  uploadTimeout: 10 * 60 * 1000, // 10 min
   readTimeout: 10000, // 10s for dashboard/list reads — fail fast instead of hanging
   headers: {
     'Content-Type': 'application/json',
