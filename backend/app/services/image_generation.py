@@ -1,11 +1,8 @@
 """
-Prompt Studio image generation — routes by IMAGE_PROVIDER (gemini, modelslab, cloudflare).
+Prompt Studio image generation — Cloudflare Flux.2 only.
 
-Gemini-first policy:
-  - Prefer Gemini for the first IMAGE_GEMINI_PRIORITY_COUNT successful images each day
-  - After that daily Gemini budget, use Cloudflare Flux
-  - If Gemini hits quota/billing before the budget is used, fall back to Cloudflare
-    so the user still gets an image (and the UI labels the provider clearly)
+Attachments are sent as Flux.2 reference images (input_image_0…).
+Gemini image-generation keys are not used (free tier has no usable image quota).
 """
 
 from __future__ import annotations
@@ -14,10 +11,13 @@ import json
 from datetime import date
 from pathlib import Path
 
-from app.config import _cloudflare_image_ready, settings, resolve_image_provider
+from app.config import (
+    _cloudflare_image_ready,
+    settings,
+    resolve_image_provider,
+)
 from app.services.cloudflare_image import generate_cloudflare_image
-from app.services.gemini_image import extract_image_prompt, generate_image as generate_gemini_image
-from app.services.modelslab_image import generate_modelslab_image
+from app.services.gemini_image import extract_image_prompt
 from app.utils.exceptions import LLMConnectionError
 from app.utils.logger import logger
 
@@ -83,8 +83,13 @@ def _increment_gemini_daily_count() -> int:
     return count
 
 
-def _cloudflare_result(prompt: str, *, reason: str) -> dict:
-    result = generate_cloudflare_image(prompt)
+def _cloudflare_result(
+    prompt: str,
+    *,
+    reason: str,
+    reference_images: list[dict] | None = None,
+) -> dict:
+    result = generate_cloudflare_image(prompt, reference_images=reference_images)
     result["provider"] = "cloudflare"
     model = result.get("model", "@cf/black-forest-labs/flux-1-schnell")
     if reason == "daily_budget":
@@ -95,20 +100,20 @@ def _cloudflare_result(prompt: str, *, reason: str) -> dict:
         )
     elif reason == "quota":
         result["model"] = f"{model} (Gemini quota fallback)"
-        result["fallback_reason"] = (
-            "Gemini image quota exceeded on the configured API key. "
-            "Used Cloudflare Flux instead. Fix STUDIO_IMAGE_GEMINI_API_KEY billing "
-            "or wait for quota reset to prefer Gemini again."
+        prior = result.get("fallback_reason")
+        result["fallback_reason"] = prior or (
+            "Gemini image quota exceeded on the configured API keys. "
+            "Used Cloudflare with reference-aware generation instead."
         )
     elif reason == "auth":
         result["model"] = f"{model} (Gemini auth fallback)"
         result["fallback_reason"] = (
-            "STUDIO_IMAGE_GEMINI_API_KEY was rejected (401). Used Cloudflare Flux instead. "
+            "STUDIO_IMAGE_GEMINI_API_KEY was rejected (401). Used Cloudflare instead. "
             "In AI Studio, restrict the key to 'Gemini API only' (AQ... and AIza... keys both work), "
             "save STUDIO_IMAGE_GEMINI_API_KEY in .env, and restart the backend."
         )
     else:
-        result["fallback_reason"] = reason
+        result["fallback_reason"] = result.get("fallback_reason") or reason
     return result
 
 
@@ -117,119 +122,40 @@ def generate_image(
     preferred_provider: str | None = None,
     reference_images: list[dict] | None = None,
 ) -> dict:
-    """Generate an image using IMAGE_PROVIDER, or an explicit preferred_provider override.
+    """Generate an image via Cloudflare (Prompt Studio).
 
-    When reference_images are attached (product/logo photos), generation uses Gemini
-    image-to-image so packaging and branding stay faithful. Cloudflare Flux Schnell
-    is text-only and cannot preserve attached artwork.
+    Gemini image generation is intentionally not used — free Gemini image keys
+    have no usable quota. Attachments go to Flux.2 as input_image_0….
     """
     override = (preferred_provider or "").strip().lower()
     provider = override or resolve_image_provider()
-    refs = [r for r in (reference_images or []) if isinstance(r, dict)]
+    refs = [
+        r
+        for r in (reference_images or [])
+        if isinstance(r, dict)
+        and str(r.get("image_base64") or r.get("data") or "").strip()
+    ]
 
-    # Product-reference mode: pixels must reach Gemini; Flux Schnell cannot do this.
-    if refs:
-        if not (settings.STUDIO_IMAGE_GEMINI_API_KEY or "").strip():
-            raise LLMConnectionError(
-                "Product reference images require Gemini image generation. "
-                "Set STUDIO_IMAGE_GEMINI_API_KEY in the backend .env, or generate "
-                "without attachments using Cloudflare."
-            )
-        logger.info(
-            f"Product-reference image mode: {len(refs)} attachment(s); "
-            f"using Gemini i2i (requested provider was '{provider or 'default'}')."
-        )
-        try:
-            result = generate_gemini_image(prompt, reference_images=refs)
-            result["provider"] = "gemini"
-            if override == "cloudflare":
-                result["fallback_reason"] = (
-                    "Attached reference images require Gemini product-reference mode "
-                    "(Cloudflare Flux Schnell is text-only and cannot keep logos/packaging exact)."
-                )
-            else:
-                result["fallback_reason"] = None
-            _increment_gemini_daily_count()
-            return result
-        except LLMConnectionError:
-            # Do not fall back to text-only Cloudflare — that would reinvent the product.
-            raise
-
-    # Explicit UI selection: Gemini without a dedicated paid image key.
-    if provider == "gemini" and not (settings.STUDIO_IMAGE_GEMINI_API_KEY or "").strip():
+    if not _cloudflare_image_ready():
         raise LLMConnectionError(
-            "Paid API not connected yet. Gemini image generation requires "
-            "STUDIO_IMAGE_GEMINI_API_KEY. Switch the image provider to Cloudflare "
-            "to generate images."
+            "Cloudflare image generation is required for Prompt Studio. "
+            "Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in the backend .env "
+            "(and on Railway). Gemini image keys are not used."
         )
 
-    if provider == "cloudflare":
-        if not _cloudflare_image_ready():
-            raise LLMConnectionError(
-                "Cloudflare image generation is not configured. "
-                "Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN."
-            )
-        result = generate_cloudflare_image(prompt)
-        result["provider"] = "cloudflare"
-        result["fallback_reason"] = None
-        return result
-
-    if provider == "gemini":
-        # Explicit Gemini selection: do not silently fall back to Cloudflare.
-        if override == "gemini":
-            result = generate_gemini_image(prompt)
-            result["provider"] = "gemini"
-            result["fallback_reason"] = None
-            _increment_gemini_daily_count()
-            return result
-
-        limit = _gemini_priority_limit()
-        day, used = _read_gemini_daily_count()
-        cloudflare_ready = _cloudflare_image_ready()
-
-        # After the daily Gemini budget, prefer Cloudflare directly.
-        if limit > 0 and used >= limit and cloudflare_ready:
-            logger.info(
-                f"Gemini daily image budget reached ({used}/{limit} on {day}); "
-                "using Cloudflare Flux."
-            )
-            return _cloudflare_result(prompt, reason="daily_budget")
-
-        # Otherwise always try Gemini first.
-        try:
-            result = generate_gemini_image(prompt)
-            result["provider"] = "gemini"
-            result["fallback_reason"] = None
-            new_count = _increment_gemini_daily_count()
-            logger.info(
-                f"Gemini image generated successfully "
-                f"({new_count}/{limit or '∞'} today)."
-            )
-            return result
-        except LLMConnectionError as exc:
-            if cloudflare_ready and _is_gemini_auth_error(exc):
-                logger.warning(
-                    "Gemini image auth error; falling back to Cloudflare. "
-                    f"Reason: {exc}"
-                )
-                return _cloudflare_result(prompt, reason="auth")
-            if cloudflare_ready and _is_gemini_quota_error(exc):
-                logger.warning(
-                    "Gemini image quota/billing error; falling back to Cloudflare. "
-                    f"Reason: {exc}"
-                )
-                return _cloudflare_result(prompt, reason="quota")
-            raise
-
-    if provider == "modelslab":
-        result = generate_modelslab_image(prompt)
-        result["provider"] = result.get("provider") or "modelslab"
-        return result
-
-    raise LLMConnectionError(
-        f"Image provider '{provider}' is not supported. "
-        "Set IMAGE_PROVIDER=gemini|cloudflare|modelslab, or pick a provider in Prompt Studio."
+    logger.info(
+        f"Image gen via Cloudflare only (requested={provider or 'default'}, refs={len(refs)})"
     )
+    result = generate_cloudflare_image(prompt, reference_images=refs or None)
+    result["provider"] = "cloudflare"
+    if refs and result.get("used_reference_images"):
+        result["fallback_reason"] = (
+            result.get("fallback_reason")
+            or "Cloudflare Flux.2 used your prompt and attached reference image(s)."
+        )
+    elif not result.get("fallback_reason"):
+        result["fallback_reason"] = None
+    return result
 
 
 __all__ = ["extract_image_prompt", "generate_image"]

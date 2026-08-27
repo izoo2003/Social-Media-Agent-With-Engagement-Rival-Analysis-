@@ -172,7 +172,7 @@ class CreationModelsResponse(BaseModel):
 class ImageGenerateRequest(BaseModel):
     """Generate an image from prompt text (usually extracted from chat reply)."""
 
-    prompt: str = Field(..., min_length=3, max_length=4000)
+    prompt: str = Field(..., min_length=3, max_length=8000)
     provider: Optional[str] = Field(
         default=None,
         description="Optional override: cloudflare | gemini | modelslab. Defaults to IMAGE_PROVIDER.",
@@ -181,8 +181,8 @@ class ImageGenerateRequest(BaseModel):
         default=None,
         max_length=5,
         description=(
-            "Optional product/logo reference images. When present, generation uses "
-            "Gemini image-to-image so packaging, logo, and labels stay faithful."
+            "Optional product/logo reference images. Sent to Cloudflare Flux.2 as "
+            "input_image_0… so packaging/logo stay faithful to the attachment."
         ),
     )
 

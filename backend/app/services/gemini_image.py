@@ -13,7 +13,7 @@ from typing import Optional
 
 import requests
 
-from app.config import get_image_gemini_api_keys, get_image_gemini_models, settings
+from app.config import get_image_gemini_slots, settings
 from app.services.media import MediaService
 from app.utils.exceptions import ContentGenerationError, LLMConnectionError
 from app.utils.logger import logger
@@ -66,37 +66,38 @@ def generate_image(
     """
     Generate an image via Gemini and store it in uploads/Supabase.
 
+    Rotation: for each configured studio slot, try base model then that slot's
+    fallback model. Only move to the next API key after both models are exhausted
+    (or the key is rejected).
+
     When reference_images are provided, they are sent as multimodal inputs so the
     model can preserve product packaging, logos, and labels (image-to-image).
 
     Returns:
         dict with media_path, media_url, model, optional caption text
     """
-    api_keys = get_image_gemini_api_keys()
-    if not api_keys:
+    slots = get_image_gemini_slots()
+    if not slots:
         raise LLMConnectionError(
             "Image generation is not configured. "
-            "Set IMAGE_PROVIDER=gemini and STUDIO_IMAGE_GEMINI_API_KEY "
-            "(or CREATION_GEMINI_API_KEY / GEMINI_API_KEY) in backend .env."
+            "Set STUDIO_IMAGE_GEMINI_API_KEY (and optional _2 / _3) with "
+            "IMAGE_GEMINI_MODEL / IMAGE_GEMINI_FALLBACK_MODEL in backend .env."
         )
-
-    models = get_image_gemini_models()
-    if not models:
-        raise LLMConnectionError("No IMAGE_GEMINI_MODEL configured.")
 
     refs = _normalize_reference_images(reference_images)
     last_error: Exception | None = None
-    for key_index, api_key in enumerate(api_keys):
-        key_label = (
-            "STUDIO_IMAGE_GEMINI_API_KEY" if key_index == 0 else f"fallback key #{key_index + 1}"
-        )
-        for model in models:
+    for slot in slots:
+        api_key = slot["key"]
+        key_label = slot["label"]
+        models = slot.get("models") or []
+        for model_index, model in enumerate(models):
+            role = "base" if model_index == 0 else "fallback"
             try:
                 image_bytes, mime_type, caption = _generate_with_model(
                     prompt,
                     model,
                     api_key,
-                    key_label=key_label,
+                    key_label=f"{key_label} ({role})",
                     reference_images=refs,
                 )
                 media_service = MediaService()
@@ -106,31 +107,43 @@ def generate_image(
                     media_type="image",
                     original_name="gemini-generated.png",
                 )
+                logger.info(
+                    f"Gemini image OK via {key_label} {role} model={model}"
+                )
                 return {
                     "media_path": stored["media_path"],
                     "media_url": stored["media_url"],
-                    "model": model,
+                    "model": f"{model} ({key_label})",
                     "provider": "gemini",
                     "caption": caption,
                 }
             except (LLMConnectionError, ContentGenerationError) as exc:
                 last_error = exc
-                logger.warning(f"Gemini image model {model} ({key_label}) failed: {exc}")
                 message = str(exc)
+                logger.warning(
+                    f"Gemini image {model} on {key_label} ({role}) failed: {exc}"
+                )
                 if _is_auth_error_message(message):
                     logger.warning(
-                        f"Gemini image key rejected ({key_label}); trying next configured key."
+                        f"Gemini image key rejected ({key_label}); "
+                        "skipping remaining models on this key."
                     )
                     break
                 if _is_quota_error_message(message):
+                    # Exhaust base then fallback on this key before rotating.
                     logger.warning(
-                        f"Gemini image quota hit on {key_label}; trying next configured key."
+                        f"Gemini image quota/rate limit on {key_label} ({role}); "
+                        "trying next model on this key, then next key."
                     )
-                    break
+                    continue
                 if "not available" in message.lower() or "404" in message:
                     continue
+                # Other errors: try next model, then next key.
+                continue
 
-    raise LLMConnectionError(f"Image generation failed: {last_error}") from last_error
+    raise LLMConnectionError(
+        f"Image generation failed after trying all Gemini image keys/models: {last_error}"
+    ) from last_error
 
 
 _PRODUCT_FIDELITY_PREFIX = (

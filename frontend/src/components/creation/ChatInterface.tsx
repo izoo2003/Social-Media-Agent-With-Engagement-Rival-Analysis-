@@ -317,7 +317,7 @@ export default function ChatInterface() {
       setImageModelLabel(
         imageProvider === 'cloudflare'
           ? cfReady
-            ? 'Cloudflare Flux'
+            ? 'Cloudflare Flux.2'
             : 'Cloudflare (not configured)'
           : geminiReady
             ? imageModel || 'Gemini'
@@ -372,6 +372,50 @@ export default function ChatInterface() {
     const text = input.trim();
     const hasAttachment = pendingAttachments.length > 0;
     if ((!text && !hasAttachment) || sending) return;
+
+    // Create image → Cloudflare only (skip Gemini chat/image). Attachments are
+    // sent as Flux.2 reference images with the user's typed prompt.
+    if (creationIntent === 'create_image') {
+      const caps = await refreshCreationCapabilities();
+      if (!caps.cloudflareConfigured) {
+        toast.error(
+          'Create image needs Cloudflare. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.'
+        );
+        return;
+      }
+
+      const attachmentPayload = pendingAttachments.map((a) => ({
+        image_base64: a.base64,
+        image_mime_type: a.mimeType,
+        image_preview_url: a.previewUrl,
+      }));
+      const userMsg: ExtendedChatMessage = {
+        role: 'user',
+        content:
+          text ||
+          (attachmentPayload.length
+            ? 'Generate a commercial product image matching my attached reference photo(s).'
+            : 'Generate a commercial product image.'),
+        ...(attachmentPayload.length ? { images: attachmentPayload } : {}),
+      };
+      const assistantMsg: ExtendedChatMessage = {
+        role: 'assistant',
+        content: userMsg.content,
+        intent: 'create_image',
+      };
+      const nextMessages = [...messages, userMsg, assistantMsg];
+      const assistantIndex = nextMessages.length - 1;
+      setMessages(nextMessages);
+      setInput('');
+      setPendingAttachments([]);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setImageProvider('cloudflare');
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(IMAGE_PROVIDER_PREF_KEY, 'cloudflare');
+      }
+      void runGenerateImage(assistantIndex, userMsg.content, userMsg.images);
+      return;
+    }
 
     if (!chatReady) {
       toast.error(
@@ -445,12 +489,7 @@ export default function ChatInterface() {
         content: data.reply,
         intent: creationIntent,
       };
-      const assistantIndex = nextMessages.length;
       setMessages((prev) => [...prev, assistantMsg]);
-
-      if (creationIntent === 'create_image') {
-        void runGenerateImage(assistantIndex, data.reply, userMsg.images ?? undefined);
-      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Chat request failed';
       toast.error(msg);
@@ -522,10 +561,11 @@ export default function ChatInterface() {
 
     const caps = await refreshCreationCapabilities();
 
-    // Product/logo attachments need Gemini image-to-image (Flux Schnell is text-only).
-    if (hasRefs && !caps.geminiImageConfigured) {
+    // Attachments use Cloudflare Flux.2 (prompt + image bytes). Free Gemini image
+    // models often cannot generate — do not block when only Gemini image keys exist.
+    if (hasRefs && !caps.cloudflareConfigured) {
       const refMsg =
-        'Product reference images require Gemini image generation. Set STUDIO_IMAGE_GEMINI_API_KEY, or generate without attachments using Cloudflare.';
+        'Attached product/logo images need Cloudflare. Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN, then select Images: Cloudflare.';
       toast.error(refMsg);
       setMessages((prev) =>
         prev.map((m, i) => (i === index ? { ...m, imageGenerationError: refMsg } : m))
@@ -535,7 +575,7 @@ export default function ChatInterface() {
 
     // Gemini image is a paid path — keep the UI switchable, but block until
     // STUDIO_IMAGE_GEMINI_API_KEY is configured on the backend.
-    if (imageProvider === 'gemini' && !caps.geminiImageConfigured) {
+    if (!hasRefs && imageProvider === 'gemini' && !caps.geminiImageConfigured) {
       toast.error(GEMINI_PAID_API_MSG);
       setMessages((prev) =>
         prev.map((m, i) =>
@@ -545,8 +585,8 @@ export default function ChatInterface() {
       return;
     }
 
-    if (imageProvider === 'cloudflare' && !hasRefs && !caps.cloudflareConfigured) {
-      const configMsg = imageNotReadyMessage(caps.imageModel || 'Cloudflare Flux');
+    if (!hasRefs && imageProvider === 'cloudflare' && !caps.cloudflareConfigured) {
+      const configMsg = imageNotReadyMessage(caps.imageModel || 'Cloudflare Flux.2');
       toast.error(configMsg);
       setMessages((prev) =>
         prev.map((m, i) => (i === index ? { ...m, imageGenerationError: configMsg } : m))
@@ -554,10 +594,11 @@ export default function ChatInterface() {
       return;
     }
 
-    if (hasRefs && imageProvider === 'cloudflare') {
-      toast(
-        'Using Gemini product-reference mode so the attached logo/packaging stays accurate.'
-      );
+    // Always Cloudflare for image generation (Gemini image quota is not used).
+    const effectiveProvider = 'cloudflare';
+
+    if (hasRefs) {
+      toast('Generating with Cloudflare from your prompt + attached reference image(s)…');
     }
 
     setGeneratingImageIndex(index);
@@ -567,7 +608,7 @@ export default function ChatInterface() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           prompt: promptText,
-          provider: hasRefs ? 'gemini' : imageProvider,
+          provider: effectiveProvider,
           ...(hasRefs ? { images: refs } : {}),
         }),
         signal: AbortSignal.timeout(API_CONFIG.timeout),
@@ -602,9 +643,11 @@ export default function ChatInterface() {
         );
       } else if (data.provider === 'cloudflare') {
         toast.success(
-          data.fallback_reason
-            ? 'Gemini unavailable — image generated by Cloudflare Flux'
-            : 'Image generated by Cloudflare Flux'
+          hasRefs
+            ? 'Image generated from your prompt + attachments (Cloudflare Flux.2)'
+            : data.fallback_reason
+              ? 'Gemini unavailable — image generated by Cloudflare Flux.2'
+              : 'Image generated by Cloudflare Flux.2'
         );
       } else if (data.provider === 'modelslab') {
         toast.success('Image generated by ModelsLab');
@@ -1018,7 +1061,7 @@ export default function ChatInterface() {
                       <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
                         Generated by{' '}
                         {msg.generatedImageProvider === 'cloudflare'
-                          ? 'Cloudflare Flux'
+                          ? 'Cloudflare Flux.2'
                           : msg.generatedImageProvider === 'gemini'
                             ? 'Gemini'
                             : msg.generatedImageProvider === 'modelslab'

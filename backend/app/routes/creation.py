@@ -15,6 +15,7 @@ from app.config import (
     get_creation_gemini_models,
     get_general_chat_gemini_api_keys,
     get_general_chat_gemini_models,
+    get_image_gemini_api_key,
     get_image_generation_model_label,
     is_image_generation_ready,
     resolve_image_provider,
@@ -120,7 +121,7 @@ async def list_creation_models():
         image_provider_configured=settings.IMAGE_PROVIDER,
         cloudflare_configured=_cloudflare_image_ready(),
         # Dedicated paid image key only — creation/chat keys do not count as "Gemini images ready".
-        gemini_image_configured=bool(settings.STUDIO_IMAGE_GEMINI_API_KEY.strip()),
+        gemini_image_configured=bool(get_image_gemini_api_key()),
         creation_api_keys_loaded=len(get_creation_gemini_api_keys()),
         voice_ready=True,
         voice_moods=[],

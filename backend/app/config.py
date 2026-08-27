@@ -137,17 +137,26 @@ class Settings(BaseSettings):
     # Previous default (kept for optional rollback):
     # IMAGE_PROVIDER=cloudflare  # Cloudflare Workers AI flux-1-schnell
     IMAGE_PROVIDER: Literal["gemini", "modelslab", "cloudflare"] = "gemini"
-    # Dedicated Gemini key for Prompt Studio image generation only (not chat/posting).
+    # Up to 3 dedicated Gemini image slots. Each slot uses its own API key with
+    # base model → fallback model, then rotates to the next slot on exhaustion.
     STUDIO_IMAGE_GEMINI_API_KEY: str = ""
-    # Primary image model (tried first), then up to 3 fallbacks in IMAGE_GEMINI_FALLBACK_MODELS.
     IMAGE_GEMINI_MODEL: str = "gemini-2.5-flash-image"
-    # Comma-separated fallback models (max 3). Tried in order when primary fails.
+    # Single fallback for slot 1 (preferred). IMAGE_GEMINI_FALLBACK_MODELS still
+    # accepted for backward compatibility (first entry used if this is empty).
+    IMAGE_GEMINI_FALLBACK_MODEL: str = "gemini-3.1-flash-image"
     IMAGE_GEMINI_FALLBACK_MODELS: str = (
         "gemini-3.1-flash-image,gemini-3-pro-image-preview,gemini-2.5-flash-image"
     )
+    STUDIO_IMAGE_GEMINI_API_KEY_2: str = ""
+    IMAGE_GEMINI_MODEL_2: str = "gemini-3.1-flash-image"
+    IMAGE_GEMINI_FALLBACK_MODEL_2: str = "gemini-2.5-flash-image"
+    STUDIO_IMAGE_GEMINI_API_KEY_3: str = ""
+    IMAGE_GEMINI_MODEL_3: str = "gemini-2.5-flash-image"
+    IMAGE_GEMINI_FALLBACK_MODEL_3: str = "gemini-3.1-flash-image"
     IMAGE_GEMINI_TIMEOUT: int = 180
-    # Prefer Gemini for the first N successful images each day, then use Cloudflare.
-    IMAGE_GEMINI_PRIORITY_COUNT: int = 5
+    # Prefer Gemini for the first N successful images each day, then Cloudflare.
+    # Set 0 to use all Gemini key slots until exhausted (recommended with 3 keys).
+    IMAGE_GEMINI_PRIORITY_COUNT: int = 0
     # ModelsLab — https://modelslab.com (free tier ~100 calls/day, no card)
     MODELSLAB_API_KEY: str = ""
     MODELSLAB_IMAGE_MODEL: str = "hidream-o1"
@@ -165,7 +174,10 @@ class Settings(BaseSettings):
     # To use again: set IMAGE_PROVIDER=cloudflare and fill the vars below.
     CLOUDFLARE_ACCOUNT_ID: str = ""
     CLOUDFLARE_API_TOKEN: str = ""
-    CLOUDFLARE_IMAGE_MODEL: str = "@cf/black-forest-labs/flux-1-schnell"
+    CLOUDFLARE_IMAGE_MODEL: str = "@cf/black-forest-labs/flux-2-klein-4b"
+    # Used when the user attaches product/logo reference images (multipart input_image_0…).
+    # Defaults to the same Klein 4B model (supports refs; still within free neurons).
+    CLOUDFLARE_REFERENCE_IMAGE_MODEL: str = "@cf/black-forest-labs/flux-2-klein-4b"
     CLOUDFLARE_IMAGE_STEPS: int = 4
     CLOUDFLARE_IMAGE_TIMEOUT: int = 120
 
@@ -522,15 +534,21 @@ def get_image_gemini_api_keys() -> list[str]:
     """
     Gemini API keys for image generation, in failover order.
 
-    STUDIO_IMAGE_GEMINI_API_KEY is tried first, then creation/chat keys so a dead
-    dedicated image key does not block a working CREATION_GEMINI_API_KEY.
+    Prefers the 3 dedicated studio image slots. If none are set, falls back to
+    creation/chat keys so a single Gemini key can still power images.
     """
     keys: list[str] = []
     for candidate in (
         settings.STUDIO_IMAGE_GEMINI_API_KEY,
-        *get_creation_gemini_api_keys(),
-        settings.GEMINI_API_KEY,
+        settings.STUDIO_IMAGE_GEMINI_API_KEY_2,
+        settings.STUDIO_IMAGE_GEMINI_API_KEY_3,
     ):
+        key = (candidate or "").strip()
+        if key and key not in keys:
+            keys.append(key)
+    if keys:
+        return keys
+    for candidate in (*get_creation_gemini_api_keys(), settings.GEMINI_API_KEY):
         key = (candidate or "").strip()
         if key and key not in keys:
             keys.append(key)
@@ -551,29 +569,119 @@ def get_image_gemini_api_key() -> str:
 _MAX_IMAGE_GEMINI_FALLBACK_MODELS = 3
 
 
+def _first_fallback_from_list(raw: str) -> str:
+    for part in (raw or "").split(","):
+        name = part.strip()
+        if name:
+            return name
+    return ""
+
+
 def get_image_gemini_models() -> list[str]:
     """
-    Gemini image models in failover order.
+    Default Gemini image models for slot 1 / legacy callers.
 
-    IMAGE_GEMINI_MODEL is tried first, then up to 3 entries from
-    IMAGE_GEMINI_FALLBACK_MODELS (comma-separated).
+    IMAGE_GEMINI_MODEL first, then IMAGE_GEMINI_FALLBACK_MODEL (or the first entry
+    from IMAGE_GEMINI_FALLBACK_MODELS for backward compatibility).
     """
     ordered: list[str] = []
     primary = (settings.IMAGE_GEMINI_MODEL or "").strip()
     if primary:
         ordered.append(primary)
 
+    fallback = (settings.IMAGE_GEMINI_FALLBACK_MODEL or "").strip()
+    if not fallback:
+        fallback = _first_fallback_from_list(settings.IMAGE_GEMINI_FALLBACK_MODELS)
+    if fallback and fallback not in ordered:
+        ordered.append(fallback)
+
+    # Legacy: allow extra entries from FALLBACK_MODELS after the primary pair.
     fallback_raw = (settings.IMAGE_GEMINI_FALLBACK_MODELS or "").strip()
-    fallback_count = 0
+    extra = 0
     if fallback_raw:
         for part in fallback_raw.split(","):
-            if fallback_count >= _MAX_IMAGE_GEMINI_FALLBACK_MODELS:
+            if extra >= _MAX_IMAGE_GEMINI_FALLBACK_MODELS:
                 break
             name = part.strip()
             if name and name not in ordered:
                 ordered.append(name)
-                fallback_count += 1
+                extra += 1
     return ordered
+
+
+def get_image_gemini_slots() -> list[dict]:
+    """
+    Ordered image-generation slots: each has one API key + base/fallback models.
+
+    Rotation order for each request:
+      slot1 base → slot1 fallback → slot2 base → slot2 fallback → slot3 …
+    """
+    default_base = (settings.IMAGE_GEMINI_MODEL or "").strip() or "gemini-2.5-flash-image"
+    default_fallback = (settings.IMAGE_GEMINI_FALLBACK_MODEL or "").strip()
+    if not default_fallback:
+        default_fallback = _first_fallback_from_list(settings.IMAGE_GEMINI_FALLBACK_MODELS)
+    if not default_fallback:
+        default_fallback = "gemini-3.1-flash-image"
+
+    slot_defs = [
+        (
+            "STUDIO_IMAGE_GEMINI_API_KEY",
+            settings.STUDIO_IMAGE_GEMINI_API_KEY,
+            settings.IMAGE_GEMINI_MODEL,
+            settings.IMAGE_GEMINI_FALLBACK_MODEL
+            or _first_fallback_from_list(settings.IMAGE_GEMINI_FALLBACK_MODELS),
+        ),
+        (
+            "STUDIO_IMAGE_GEMINI_API_KEY_2",
+            settings.STUDIO_IMAGE_GEMINI_API_KEY_2,
+            settings.IMAGE_GEMINI_MODEL_2,
+            settings.IMAGE_GEMINI_FALLBACK_MODEL_2,
+        ),
+        (
+            "STUDIO_IMAGE_GEMINI_API_KEY_3",
+            settings.STUDIO_IMAGE_GEMINI_API_KEY_3,
+            settings.IMAGE_GEMINI_MODEL_3,
+            settings.IMAGE_GEMINI_FALLBACK_MODEL_3,
+        ),
+    ]
+
+    slots: list[dict] = []
+    seen_keys: set[str] = set()
+    for label, raw_key, raw_base, raw_fallback in slot_defs:
+        key = (raw_key or "").strip()
+        if not key or key in seen_keys:
+            continue
+        seen_keys.add(key)
+        models: list[str] = []
+        base = (raw_base or "").strip() or default_base
+        fallback = (raw_fallback or "").strip() or default_fallback
+        if base:
+            models.append(base)
+        if fallback and fallback not in models:
+            models.append(fallback)
+        if not models:
+            continue
+        slots.append({"key": key, "label": label, "models": models})
+
+    if slots:
+        return slots
+
+    # No dedicated studio slots — legacy single-pool behavior.
+    legacy_keys = []
+    for candidate in (*get_creation_gemini_api_keys(), settings.GEMINI_API_KEY):
+        key = (candidate or "").strip()
+        if key and key not in legacy_keys:
+            legacy_keys.append(key)
+    models = get_image_gemini_models()
+    return [
+        {
+            "key": key,
+            "label": f"legacy image key #{index + 1}",
+            "models": models,
+        }
+        for index, key in enumerate(legacy_keys)
+        if models
+    ]
 
 
 def _cloudflare_image_ready() -> bool:
@@ -619,8 +727,7 @@ def get_image_generation_model_label() -> str:
         model = settings.MODELSLAB_IMAGE_MODEL.strip() or "hidream-o1"
         return f"ModelsLab {model}"
     if provider == "cloudflare":
-        # Optional fallback path: @cf/black-forest-labs/flux-1-schnell
-        model = settings.CLOUDFLARE_IMAGE_MODEL.strip() or "@cf/black-forest-labs/flux-1-schnell"
+        model = settings.CLOUDFLARE_IMAGE_MODEL.strip() or "@cf/black-forest-labs/flux-2-klein-4b"
         short = model.split("/")[-1] if "/" in model else model
         return f"Cloudflare {short}"
     model = settings.IMAGE_GEMINI_MODEL.strip() or "gemini"
