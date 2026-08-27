@@ -30,6 +30,7 @@ structlog>=23.0
 # Utilities
 python-dotenv>=1.0
 pytz>=2023
+Pillow>=10.0  # Resize product reference images for Cloudflare Flux.2 (≤512×512)
 
 # Async HTTP
 aiohttp>=3.9

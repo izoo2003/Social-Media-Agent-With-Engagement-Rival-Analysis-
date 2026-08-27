@@ -384,7 +384,7 @@ async def creation_suggest(request: Request, body: SuggestRequest):
 @router.post("/creation/generate-image", response_model=ImageGenerateResponse)
 @limiter.limit("10/minute")
 async def creation_generate_image(request: Request, body: ImageGenerateRequest):
-    """Generate a product image via IMAGE_PROVIDER (gemini, modelslab, or cloudflare)."""
+    """Generate a product image via Cloudflare Flux (attachments → Flux.2 refs)."""
     try:
         prompt = extract_image_prompt(body.prompt)
         preferred = (body.provider or "").strip().lower() or None
@@ -398,6 +398,10 @@ async def creation_generate_image(request: Request, body: ImageGenerateRequest):
                 for img in body.images
                 if (img.image_base64 or "").strip()
             ] or None
+        logger.info(
+            f"/creation/generate-image requested provider={preferred!r} "
+            f"refs={len(reference_images or [])} prompt_len={len(prompt)}"
+        )
         result = generate_image(
             prompt,
             preferred_provider=preferred,

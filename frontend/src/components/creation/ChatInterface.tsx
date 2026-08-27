@@ -19,7 +19,7 @@ import {
   Bookmark,
   BookmarkCheck,
 } from 'lucide-react';
-import { API_ENDPOINTS, API_CONFIG, apiFetch, fetchWithTimeout } from '@/lib/api-client';
+import { API_ENDPOINTS, API_CONFIG, API_BASE_URL, apiFetch, fetchWithTimeout } from '@/lib/api-client';
 import {
   FALLBACK_CREATION_LANGUAGES,
   readStoredCreationLanguage,
@@ -603,6 +603,10 @@ export default function ChatInterface() {
 
     setGeneratingImageIndex(index);
     try {
+      // Attachments are large base64 payloads — allow a longer timeout.
+      const timeoutMs = hasRefs
+        ? Math.max(API_CONFIG.timeout, 180_000)
+        : API_CONFIG.timeout;
       const res = await apiFetch(API_ENDPOINTS.CREATION_GENERATE_IMAGE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -611,11 +615,20 @@ export default function ChatInterface() {
           provider: effectiveProvider,
           ...(hasRefs ? { images: refs } : {}),
         }),
-        signal: AbortSignal.timeout(API_CONFIG.timeout),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(typeof err.detail === 'string' ? err.detail : 'Image generation failed');
+        let detail =
+          typeof err.detail === 'string' ? err.detail : 'Image generation failed';
+        // Stale backends still return Gemini quota text — make the cause obvious.
+        if (/STUDIO_IMAGE_GEMINI|Gemini image quota/i.test(detail)) {
+          detail =
+            `${detail} — This response is from an OLD API that still uses Gemini for attachments. ` +
+            `Your UI is calling: ${API_BASE_URL}. Use localhost:8000 with the latest backend, ` +
+            `or wait for Railway to finish deploying, then hard-refresh.`;
+        }
+        throw new Error(detail);
       }
       const data: ImageGenerateResponse = await res.json();
       if (!data.media_url) {

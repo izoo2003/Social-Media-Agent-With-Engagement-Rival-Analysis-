@@ -69,8 +69,39 @@ def _normalize_refs(reference_images: list[dict] | None) -> list[dict[str, str]]
             mime = "image/jpeg"
         if mime not in allowed:
             continue
+        # Flux.2 requires each input image ≤ 512×512.
+        data, mime = _resize_ref_for_flux2(data, mime)
         cleaned.append({"mime": mime, "data": data})
     return cleaned
+
+
+def _resize_ref_for_flux2(b64_data: str, mime: str) -> tuple[str, str]:
+    """Downscale reference images to max 512×512 (Cloudflare Flux.2 limit)."""
+    try:
+        from io import BytesIO
+
+        from PIL import Image
+
+        raw = base64.b64decode(b64_data)
+        img = Image.open(BytesIO(raw))
+        img.load()
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGBA" if "A" in img.getbands() else "RGB")
+        max_side = 512
+        if max(img.size) > max_side:
+            img.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
+            logger.info(f"Resized reference image to {img.size[0]}x{img.size[1]} for Flux.2")
+        out = BytesIO()
+        # Prefer PNG to keep logo edges sharp after resize.
+        if img.mode == "RGBA":
+            img.save(out, format="PNG", optimize=True)
+            return base64.b64encode(out.getvalue()).decode("ascii"), "image/png"
+        img = img.convert("RGB")
+        img.save(out, format="JPEG", quality=92, optimize=True)
+        return base64.b64encode(out.getvalue()).decode("ascii"), "image/jpeg"
+    except Exception as exc:
+        logger.warning(f"Could not resize reference image for Flux.2: {exc}")
+        return b64_data, mime
 
 
 def build_reference_prompt(prompt: str, ref_count: int) -> str:
