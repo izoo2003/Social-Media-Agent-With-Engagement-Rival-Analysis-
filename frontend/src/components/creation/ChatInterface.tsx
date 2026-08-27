@@ -117,8 +117,10 @@ function readStoredImageProvider(): ImageProviderChoice {
   return raw === 'gemini' ? 'gemini' : 'cloudflare';
 }
 
-const MAX_REFERENCE_IMAGE_BYTES = 4 * 1024 * 1024;
+const MAX_REFERENCE_IMAGE_BYTES = 25 * 1024 * 1024; // accept large camera photos
 const MAX_REFERENCE_IMAGES = 5;
+/** Downscale in-browser before upload so huge photos still send reliably. */
+const CLIENT_UPLOAD_MAX_EDGE = 2048;
 const ALLOWED_REFERENCE_IMAGE_TYPES = new Set([
   'image/jpeg',
   'image/png',
@@ -145,16 +147,66 @@ function readImageFile(
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const result = reader.result as string;
-      resolve({
-        base64: stripDataUrlPrefix(result),
-        previewUrl: result,
-        mimeType: file.type,
-      });
+      void (async () => {
+        try {
+          const result = reader.result as string;
+          const prepared = await prepareReferenceImageForUpload(result, file.type || 'image/jpeg');
+          resolve(prepared);
+        } catch (err) {
+          reject(err instanceof Error ? err : new Error('Could not read image'));
+        }
+      })();
     };
     reader.onerror = () => reject(new Error('Could not read image'));
     reader.readAsDataURL(file);
   });
+}
+
+/** Accept any pixel size — shrink only for upload; Flux.2 fit happens on the server. */
+async function prepareReferenceImageForUpload(
+  dataUrl: string,
+  mimeType: string
+): Promise<{ base64: string; previewUrl: string; mimeType: string }> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return { base64: stripDataUrlPrefix(dataUrl), previewUrl: dataUrl, mimeType };
+  }
+
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const el = new window.Image();
+    el.onload = () => resolve(el);
+    el.onerror = () => reject(new Error('Could not decode image'));
+    el.src = dataUrl;
+  });
+
+  const w = img.naturalWidth || img.width;
+  const h = img.naturalHeight || img.height;
+  if (!w || !h) {
+    return { base64: stripDataUrlPrefix(dataUrl), previewUrl: dataUrl, mimeType };
+  }
+
+  const scale = Math.min(1, CLIENT_UPLOAD_MAX_EDGE / Math.max(w, h));
+  if (scale >= 1) {
+    return { base64: stripDataUrlPrefix(dataUrl), previewUrl: dataUrl, mimeType };
+  }
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w * scale));
+  canvas.height = Math.max(1, Math.round(h * scale));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return { base64: stripDataUrlPrefix(dataUrl), previewUrl: dataUrl, mimeType };
+  }
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  const outMime = mimeType === 'image/png' || mimeType === 'image/webp' ? mimeType : 'image/jpeg';
+  const outUrl =
+    outMime === 'image/jpeg'
+      ? canvas.toDataURL('image/jpeg', 0.92)
+      : canvas.toDataURL(outMime);
+  return {
+    base64: stripDataUrlPrefix(outUrl),
+    previewUrl: outUrl,
+    mimeType: outMime,
+  };
 }
 
 function toApiMessages(messages: ExtendedChatMessage[]): ChatMessage[] {
@@ -793,7 +845,7 @@ export default function ChatInterface() {
         continue;
       }
       if (file.size > MAX_REFERENCE_IMAGE_BYTES) {
-        toast.error(`${file.name}: must be under 4 MB.`);
+        toast.error(`${file.name}: must be under 25 MB.`);
         continue;
       }
       try {
@@ -1291,7 +1343,7 @@ export default function ChatInterface() {
             onClick={() => fileInputRef.current?.click()}
             disabled={sending || isListening || pendingAttachments.length >= MAX_REFERENCE_IMAGES}
             className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-slate-50 hover:text-brand-700 disabled:opacity-50 dark:border-slate-500 dark:text-slate-300 dark:hover:bg-slate-700"
-            title={`Attach up to ${MAX_REFERENCE_IMAGES} reference images (${pendingAttachments.length}/${MAX_REFERENCE_IMAGES})`}
+            title={`Attach up to ${MAX_REFERENCE_IMAGES} reference images — any size up to 25 MB (${pendingAttachments.length}/${MAX_REFERENCE_IMAGES})`}
           >
             <Paperclip className="w-4 h-4" />
           </button>

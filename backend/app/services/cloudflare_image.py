@@ -76,31 +76,42 @@ def _normalize_refs(reference_images: list[dict] | None) -> list[dict[str, str]]
 
 
 def _resize_ref_for_flux2(b64_data: str, mime: str) -> tuple[str, str]:
-    """Downscale reference images to max 512×512 (Cloudflare Flux.2 limit)."""
+    """
+    Accept any source resolution. Cloudflare Flux.2 only accepts reference
+    inputs under 512×512, so we fit larger photos into that box (no reject).
+    """
     try:
         from io import BytesIO
 
-        from PIL import Image
+        from PIL import Image, ImageOps
 
         raw = base64.b64decode(b64_data)
         img = Image.open(BytesIO(raw))
         img.load()
+        # Honor camera EXIF orientation so logos/products aren't sideways.
+        img = ImageOps.exif_transpose(img) or img
         if img.mode not in ("RGB", "RGBA"):
             img = img.convert("RGBA" if "A" in img.getbands() else "RGB")
-        max_side = 512
+
+        # Docs: "smaller than 512x512" — keep longest side at most 511.
+        max_side = 511
         if max(img.size) > max_side:
             img.thumbnail((max_side, max_side), Image.Resampling.LANCZOS)
-            logger.info(f"Resized reference image to {img.size[0]}x{img.size[1]} for Flux.2")
+            logger.info(
+                f"Fitted reference image to {img.size[0]}x{img.size[1]} "
+                f"for Cloudflare Flux.2 (API max <512×512; originals of any size are allowed)."
+            )
+
         out = BytesIO()
         # Prefer PNG to keep logo edges sharp after resize.
         if img.mode == "RGBA":
             img.save(out, format="PNG", optimize=True)
             return base64.b64encode(out.getvalue()).decode("ascii"), "image/png"
         img = img.convert("RGB")
-        img.save(out, format="JPEG", quality=92, optimize=True)
+        img.save(out, format="JPEG", quality=95, optimize=True)
         return base64.b64encode(out.getvalue()).decode("ascii"), "image/jpeg"
     except Exception as exc:
-        logger.warning(f"Could not resize reference image for Flux.2: {exc}")
+        logger.warning(f"Could not prepare reference image for Flux.2: {exc}")
         return b64_data, mime
 
 

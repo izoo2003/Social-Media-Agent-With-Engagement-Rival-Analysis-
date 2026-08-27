@@ -210,10 +210,11 @@ async def creation_chat(request: Request, body: ChatRequest):
                     b64 = (img.image_base64 or "").strip()
                     if not b64:
                         continue
-                    if len(b64) > 5_500_000:
+                    # ~25 MB binary ≈ 35M base64 chars; larger still OK after client compress.
+                    if len(b64) > 35_000_000:
                         raise HTTPException(
                             status_code=400,
-                            detail="One reference image is too large. Use images under 4 MB each.",
+                            detail="One reference image is too large. Use images under 25 MB each.",
                         )
                     image_entries.append(
                         {
@@ -222,10 +223,10 @@ async def creation_chat(request: Request, body: ChatRequest):
                         }
                     )
             elif m.image_base64 and m.image_base64.strip():
-                if len(m.image_base64) > 5_500_000:
+                if len(m.image_base64) > 35_000_000:
                     raise HTTPException(
                         status_code=400,
-                        detail="Reference image is too large. Use an image under 4 MB.",
+                        detail="Reference image is too large. Use an image under 25 MB.",
                     )
                 image_entries.append(
                     {
