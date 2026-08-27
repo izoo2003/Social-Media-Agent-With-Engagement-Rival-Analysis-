@@ -44,21 +44,32 @@ def create_process_job(*, filename: str) -> dict[str, Any]:
     crf = max(18, min(40, int(settings.CLOUDCONVERT_CRF or 28)))
     audio_br = max(48, int(settings.CLOUDCONVERT_AUDIO_BITRATE_K or 96))
 
+    # Hint format from filename so .MOV / QuickTime imports decode reliably.
+    ext = ""
+    if "." in (filename or ""):
+        ext = filename.rsplit(".", 1)[-1].lower().strip()
+    input_format = ext if ext in {"mp4", "mov", "webm", "mkv", "avi", "m4v"} else None
+
+    convert_task: dict[str, Any] = {
+        "operation": "convert",
+        "input": "import-1",
+        "output_format": "mp4",
+        "video_codec": "x264",
+        "crf": crf,
+        "preset": "veryfast",
+        "height": height,
+        "fit": "max",
+        "audio_codec": "aac",
+        "audio_bitrate": audio_br,
+        "filename": "processed.mp4",
+    }
+    if input_format:
+        convert_task["input_format"] = input_format
+
     payload = {
         "tasks": {
             "import-1": {"operation": "import/upload"},
-            "convert-1": {
-                "operation": "convert",
-                "input": "import-1",
-                "output_format": "mp4",
-                "video_codec": "x264",
-                "crf": crf,
-                "height": height,
-                "fit": "max",
-                "audio_codec": "aac",
-                "audio_bitrate": audio_br,
-                "filename": "processed.mp4",
-            },
+            "convert-1": convert_task,
             "export-1": {
                 "operation": "export/url",
                 "input": ["convert-1"],

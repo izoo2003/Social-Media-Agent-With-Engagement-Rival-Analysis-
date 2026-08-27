@@ -24,6 +24,8 @@ export type ProcessMediaProgress = {
   percent: number;
   label: string;
   elapsedSec?: number;
+  /** Which engine is running — drives UI helper text. */
+  engine?: 'cloud' | 'browser';
 };
 
 export type ProcessMediaOptions = {
@@ -45,22 +47,15 @@ export type PreparedMedia =
 
 let ffmpegSingleton: FFmpeg | null = null;
 let ffmpegLoadPromise: Promise<FFmpeg> | null = null;
-let processConfigCache: { provider: string; at: number } | null = null;
 
-async function getProcessProvider(): Promise<'cloudconvert' | 'browser'> {
-  const now = Date.now();
-  if (processConfigCache && now - processConfigCache.at < 60_000) {
-    return processConfigCache.provider === 'cloudconvert' ? 'cloudconvert' : 'browser';
-  }
+async function cloudConvertAvailable(): Promise<boolean> {
   try {
     const res = await apiFetch(API_ENDPOINTS.MEDIA_PROCESS_CONFIG);
-    if (!res.ok) return 'browser';
+    if (!res.ok) return false;
     const data = await res.json();
-    const provider = data.provider === 'cloudconvert' ? 'cloudconvert' : 'browser';
-    processConfigCache = { provider, at: now };
-    return provider;
+    return data.provider === 'cloudconvert' || data.cloudconvert_enabled === true;
   } catch {
-    return 'browser';
+    return false;
   }
 }
 
@@ -197,7 +192,7 @@ function uploadToCloudConvert(
   return new Promise((resolve, reject) => {
     const form = new FormData();
     for (const [key, value] of Object.entries(parameters || {})) {
-      form.append(key, value);
+      form.append(key, String(value));
     }
     form.append('file', file);
 
@@ -232,6 +227,7 @@ async function prepareViaCloudConvert(
       percent: Math.max(0, Math.min(100, Math.round(percent))),
       label,
       elapsedSec: elapsed(),
+      engine: 'cloud',
     });
   };
 
@@ -246,24 +242,26 @@ async function prepareViaCloudConvert(
   });
   if (!startRes.ok) {
     const err = await startRes.json().catch(() => ({}));
-    throw new Error(err.detail || 'Could not start fast video processing');
+    const detail =
+      typeof err.detail === 'string'
+        ? err.detail
+        : 'Could not start fast video processing';
+    throw new Error(detail);
   }
   const start = await startRes.json();
 
-  report(8, 'Uploading…');
+  report(8, 'Uploading to cloud…');
   await uploadToCloudConvert(
     start.upload_url,
     start.upload_parameters || {},
     file,
-    (ratio) => report(8 + ratio * 52, 'Uploading…'),
+    (ratio) => report(8 + ratio * 52, 'Uploading to cloud…'),
   );
 
   report(62, 'Processing on server…');
-  // Poll-complete: backend waits for CloudConvert then stores the result.
-  // Keep UI alive with a soft crawl while waiting.
   let soft = 62;
   const tick = setInterval(() => {
-    soft = Math.min(90, soft + 0.4);
+    soft = Math.min(90, soft + 0.35);
     report(soft, 'Processing on server…');
   }, 1000);
 
@@ -277,7 +275,11 @@ async function prepareViaCloudConvert(
     });
     if (!completeRes.ok) {
       const err = await completeRes.json().catch(() => ({}));
-      throw new Error(err.detail || 'Fast video processing failed');
+      const detail =
+        typeof err.detail === 'string'
+          ? err.detail
+          : 'Fast video processing failed';
+      throw new Error(detail);
     }
     const stored = await completeRes.json();
     report(100, 'Ready');
@@ -306,12 +308,13 @@ async function prepareViaBrowser(
       percent: Math.max(0, Math.min(100, Math.round(percent))),
       label,
       elapsedSec: elapsed(),
+      engine: 'browser',
     });
   };
 
   report(3, 'Preparing…');
   const ffmpeg = await getFFmpeg((p) =>
-    onProgress?.({ ...p, elapsedSec: elapsed() }),
+    onProgress?.({ ...p, elapsedSec: elapsed(), engine: 'browser' }),
   );
   const ext = extensionOf(file.name) || '.mp4';
   const inputName = `input${ext === '.mov' ? '.mov' : ext === '.webm' ? '.webm' : '.mp4'}`;
@@ -422,8 +425,8 @@ async function prepareViaBrowser(
 }
 
 /**
- * Process a large video for upload. Uses CloudConvert when configured (fast),
- * otherwise browser ffmpeg (slower).
+ * Process a large video for upload. Prefer CloudConvert when available (fast),
+ * otherwise browser ffmpeg (slow for large .MOV files).
  */
 export async function prepareMediaForUpload(
   file: File,
@@ -434,17 +437,20 @@ export async function prepareMediaForUpload(
     return { mode: 'file', file };
   }
 
-  const provider = await getProcessProvider();
-  if (provider === 'cloudconvert') {
+  // Always probe CloudConvert first — avoid stale cache skipping the fast path.
+  if (await cloudConvertAvailable()) {
     try {
       return await prepareViaCloudConvert(file, options);
     } catch (err) {
       console.warn('CloudConvert processing failed; falling back to browser.', err);
+      const reason = err instanceof Error ? err.message : 'unavailable';
       options.onProgress?.({
-        percent: 5,
-        label: 'Switching to local processing…',
+        percent: 4,
+        label: `Cloud unavailable — local processing…`,
         elapsedSec: 0,
+        engine: 'browser',
       });
+      console.warn('CloudConvert fallback reason:', reason);
     }
   }
 

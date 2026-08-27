@@ -59,9 +59,15 @@ def extract_image_prompt(text: str) -> str:
     return cleaned
 
 
-def generate_image(prompt: str) -> dict:
+def generate_image(
+    prompt: str,
+    reference_images: list[dict] | None = None,
+) -> dict:
     """
     Generate an image via Gemini and store it in uploads/Supabase.
+
+    When reference_images are provided, they are sent as multimodal inputs so the
+    model can preserve product packaging, logos, and labels (image-to-image).
 
     Returns:
         dict with media_path, media_url, model, optional caption text
@@ -78,6 +84,7 @@ def generate_image(prompt: str) -> dict:
     if not models:
         raise LLMConnectionError("No IMAGE_GEMINI_MODEL configured.")
 
+    refs = _normalize_reference_images(reference_images)
     last_error: Exception | None = None
     for key_index, api_key in enumerate(api_keys):
         key_label = (
@@ -86,7 +93,11 @@ def generate_image(prompt: str) -> dict:
         for model in models:
             try:
                 image_bytes, mime_type, caption = _generate_with_model(
-                    prompt, model, api_key, key_label=key_label
+                    prompt,
+                    model,
+                    api_key,
+                    key_label=key_label,
+                    reference_images=refs,
                 )
                 media_service = MediaService()
                 stored = media_service.save_bytes(
@@ -120,6 +131,88 @@ def generate_image(prompt: str) -> dict:
                     continue
 
     raise LLMConnectionError(f"Image generation failed: {last_error}") from last_error
+
+
+_PRODUCT_FIDELITY_PREFIX = (
+    "PRODUCT ACCURACY (CRITICAL):\n"
+    "The attached image(s) are the ground-truth product, logo, and/or packaging. "
+    "You MUST keep the product's packaging, logo artwork, label text, brand colors, "
+    "shape, and proportions EXACTLY as shown in the reference image(s). "
+    "Do not redesign, restyle, redraw, or invent alternate branding. "
+    "Place that same product into the scene described below; only change "
+    "background, lighting, camera, props, and composition as requested.\n\n"
+    "Scene / creative brief:\n"
+)
+
+
+def _strip_data_url_prefix(raw: str) -> str:
+    value = (raw or "").strip()
+    if value.startswith("data:") and "," in value:
+        return value.split(",", 1)[1].strip()
+    return value
+
+
+def _normalize_reference_images(
+    reference_images: list[dict] | None,
+) -> list[dict[str, str]]:
+    """Return up to 3 cleaned {mime, data} dicts for Gemini inlineData parts."""
+    if not reference_images:
+        return []
+    allowed = {"image/jpeg", "image/jpg", "image/png", "image/webp", "image/gif"}
+    cleaned: list[dict[str, str]] = []
+    for item in reference_images[:5]:
+        if not isinstance(item, dict):
+            continue
+        data = _strip_data_url_prefix(
+            str(item.get("image_base64") or item.get("data") or "")
+        )
+        if not data:
+            continue
+        mime = (
+            str(
+                item.get("image_mime_type")
+                or item.get("mimeType")
+                or item.get("mime_type")
+                or "image/jpeg"
+            )
+            .strip()
+            .lower()
+            or "image/jpeg"
+        )
+        if mime == "image/jpg":
+            mime = "image/jpeg"
+        if mime not in allowed:
+            continue
+        # Soft size guard (~4MB base64 ≈ 3MB binary); skip oversized parts.
+        if len(data) > 5_500_000:
+            logger.warning("Skipping oversized reference image for Gemini i2i.")
+            continue
+        cleaned.append({"mime": mime, "data": data})
+        if len(cleaned) >= 3:
+            break
+    return cleaned
+
+
+def _build_generation_parts(
+    prompt: str,
+    reference_images: list[dict[str, str]] | None = None,
+) -> list[dict]:
+    parts: list[dict] = []
+    refs = reference_images or []
+    for ref in refs:
+        parts.append(
+            {
+                "inlineData": {
+                    "mimeType": ref["mime"],
+                    "data": ref["data"],
+                }
+            }
+        )
+    text = prompt.strip()
+    if refs:
+        text = f"{_PRODUCT_FIDELITY_PREFIX}{text}"
+    parts.append({"text": text})
+    return parts
 
 
 def _extension_for_mime(mime_type: str) -> str:
@@ -178,9 +271,11 @@ def _generate_with_model(
     api_key: str,
     *,
     key_label: str = "STUDIO_IMAGE_GEMINI_API_KEY",
+    reference_images: list[dict[str, str]] | None = None,
 ) -> tuple[bytes, str, Optional[str]]:
+    parts = _build_generation_parts(prompt, reference_images)
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
+        "contents": [{"parts": parts}],
         "generationConfig": {
             "responseModalities": ["TEXT", "IMAGE"],
         },
@@ -243,12 +338,12 @@ def _generate_with_model(
                     f"Gemini returned no image candidates: {str(data)[:200]}"
                 )
 
-            parts = candidates[0].get("content", {}).get("parts", [])
+            response_parts = candidates[0].get("content", {}).get("parts", [])
             image_bytes: bytes | None = None
             mime_type = "image/png"
             caption_parts: list[str] = []
 
-            for part in parts:
+            for part in response_parts:
                 text = part.get("text")
                 if text:
                     caption_parts.append(text.strip())

@@ -112,10 +112,48 @@ def _cloudflare_result(prompt: str, *, reason: str) -> dict:
     return result
 
 
-def generate_image(prompt: str, preferred_provider: str | None = None) -> dict:
-    """Generate an image using IMAGE_PROVIDER, or an explicit preferred_provider override."""
+def generate_image(
+    prompt: str,
+    preferred_provider: str | None = None,
+    reference_images: list[dict] | None = None,
+) -> dict:
+    """Generate an image using IMAGE_PROVIDER, or an explicit preferred_provider override.
+
+    When reference_images are attached (product/logo photos), generation uses Gemini
+    image-to-image so packaging and branding stay faithful. Cloudflare Flux Schnell
+    is text-only and cannot preserve attached artwork.
+    """
     override = (preferred_provider or "").strip().lower()
     provider = override or resolve_image_provider()
+    refs = [r for r in (reference_images or []) if isinstance(r, dict)]
+
+    # Product-reference mode: pixels must reach Gemini; Flux Schnell cannot do this.
+    if refs:
+        if not (settings.STUDIO_IMAGE_GEMINI_API_KEY or "").strip():
+            raise LLMConnectionError(
+                "Product reference images require Gemini image generation. "
+                "Set STUDIO_IMAGE_GEMINI_API_KEY in the backend .env, or generate "
+                "without attachments using Cloudflare."
+            )
+        logger.info(
+            f"Product-reference image mode: {len(refs)} attachment(s); "
+            f"using Gemini i2i (requested provider was '{provider or 'default'}')."
+        )
+        try:
+            result = generate_gemini_image(prompt, reference_images=refs)
+            result["provider"] = "gemini"
+            if override == "cloudflare":
+                result["fallback_reason"] = (
+                    "Attached reference images require Gemini product-reference mode "
+                    "(Cloudflare Flux Schnell is text-only and cannot keep logos/packaging exact)."
+                )
+            else:
+                result["fallback_reason"] = None
+            _increment_gemini_daily_count()
+            return result
+        except LLMConnectionError:
+            # Do not fall back to text-only Cloudflare — that would reinvent the product.
+            raise
 
     # Explicit UI selection: Gemini without a dedicated paid image key.
     if provider == "gemini" and not (settings.STUDIO_IMAGE_GEMINI_API_KEY or "").strip():

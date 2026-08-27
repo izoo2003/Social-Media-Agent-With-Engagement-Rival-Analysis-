@@ -447,6 +447,12 @@ export interface CreationModelsResponse {
   google_flow_characters_url?: string;
   google_flow_final_product_url?: string;
   chat_ready: boolean;
+  openrouter_configured?: boolean;
+  openrouter_model?: string;
+  openrouter_model_label?: string;
+  chatgpt_configured?: boolean;
+  chatgpt_model_label?: string;
+  deepseek_configured?: boolean;
   image_ready?: boolean;
   image_model?: string;
   image_provider?: string;
@@ -454,6 +460,9 @@ export interface CreationModelsResponse {
   gemini_image_configured?: boolean;
   voice_ready?: boolean;
   voice_moods?: { id: string; label: string }[];
+  voice_characters?: { id: string; label: string }[];
+  voice_providers?: { id: string; label: string }[];
+  fish_voice_configured?: boolean;
   languages?: { code: string; label: string; speech_lang: string }[];
 }
 
@@ -472,6 +481,8 @@ export interface VoiceGenerateResponse {
   media_path: string;
   media_url: string;
   mood: string;
+  character?: string;
+  provider?: string;
   voice: string;
   script_preview: string;
 }

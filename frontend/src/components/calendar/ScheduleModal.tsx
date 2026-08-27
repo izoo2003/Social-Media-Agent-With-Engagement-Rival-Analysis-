@@ -109,6 +109,7 @@ export default function ScheduleModal({
   const [mediaProgress, setMediaProgress] = useState(0);
   const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
   const [mediaElapsedSec, setMediaElapsedSec] = useState(0);
+  const [mediaEngine, setMediaEngine] = useState<'cloud' | 'browser' | undefined>();
 
   // LinkedIn multi-account selection
   const [linkedinAccounts, setLinkedinAccounts] = useState<LinkedInAccountInfo[]>([]);
@@ -128,6 +129,7 @@ export default function ScheduleModal({
     setMediaProgress(0);
     setMediaProgressLabel('Processing…');
     setMediaElapsedSec(0);
+    setMediaEngine(undefined);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -284,11 +286,13 @@ export default function ScheduleModal({
       setMediaProgress(1);
       setMediaProgressLabel('Preparing…');
       setMediaElapsedSec(0);
+      setMediaEngine(undefined);
       const prepared = await prepareMediaForUpload(file, {
-        onProgress: ({ percent, label, elapsedSec }) => {
+        onProgress: ({ percent, label, elapsedSec, engine }) => {
           setMediaProgress(percent);
           setMediaProgressLabel(label);
           if (typeof elapsedSec === 'number') setMediaElapsedSec(elapsedSec);
+          if (engine) setMediaEngine(engine);
         },
       });
       URL.revokeObjectURL(immediatePreview);
@@ -316,6 +320,7 @@ export default function ScheduleModal({
       setMediaProgress(0);
       setMediaProgressLabel('Processing…');
       setMediaElapsedSec(0);
+      setMediaEngine(undefined);
     }
   };
 
@@ -641,6 +646,7 @@ export default function ScheduleModal({
                           percent={mediaProgress}
                           label={mediaProgressLabel}
                           elapsedSec={mediaElapsedSec}
+                          engine={mediaEngine}
                         />
                       </div>
                     )}
@@ -847,6 +853,7 @@ export default function ScheduleModal({
                   percent={mediaProgress}
                   label={mediaProgressLabel}
                   elapsedSec={mediaElapsedSec}
+                  engine={mediaEngine}
                   compact
                   onDark
                 />

@@ -118,6 +118,20 @@ class Settings(BaseSettings):
         "gemini-2.5-flash,gemini-2.0-flash,gemini-1.5-flash,gemini-2.5-pro"
     )
 
+    # OpenRouter — optional creation-chat providers
+    # Get keys at https://openrouter.ai/keys
+    # Claude dropdown → NVIDIA Nemotron 3 Ultra (free)
+    OPENROUTER_API_KEY: str = ""
+    OPENROUTER_CHAT_MODEL: str = "nvidia/nemotron-3-ultra-550b-a55b:free"
+    # ChatGPT dropdown → Google Gemma 4 26B A4B (free)
+    OPENROUTER_CHATGPT_API_KEY: str = ""
+    OPENROUTER_CHATGPT_MODEL: str = "google/gemma-4-26b-a4b-it:free"
+    OPENROUTER_TIMEOUT: int = 120
+    # Voice-over — Fish Audio S2.1 Pro Free via OpenRouter TTS
+    OPENROUTER_FISH_API_KEY: str = ""
+    OPENROUTER_FISH_MODEL: str = "fish-audio/s2.1-pro-free:free"
+    OPENROUTER_FISH_TIMEOUT: int = 120
+
     # Content Creation — image generation (Gemini by default for clearer visuals)
     # IMAGE_PROVIDER: gemini (recommended) | modelslab | cloudflare
     # Previous default (kept for optional rollback):

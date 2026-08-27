@@ -13,7 +13,6 @@ import {
   Mic,
   Sparkles,
   ImageIcon,
-  Clapperboard,
   MessageCircle,
   Paperclip,
   X,
@@ -67,7 +66,7 @@ const CREATION_MODES: {
     icon: Mic,
     description: 'Write a voice-over script — click Generate voice when ready',
     placeholder:
-      'Describe the voice-over — e.g. 20s promo for Himalayan pink salt, warm and trustworthy tone…',
+      'Describe the voice-over — e.g. 20s promo, calm female voice, warm tone for Himalayan pink salt…',
   },
   {
     id: 'general_chat',
@@ -86,9 +85,28 @@ const CREATION_MODES: {
   },
 ];
 
-const GEMINI_WEB_FALLBACK_URL = 'https://gemini.google.com/app';
 const IMAGE_PROVIDER_PREF_KEY = 'creation_image_provider';
 type ImageProviderChoice = 'cloudflare' | 'gemini';
+
+type ChatModelChoice = 'gemini' | 'chatgpt' | 'deepseek' | 'claude';
+
+const CHAT_MODEL_OPTIONS: {
+  id: ChatModelChoice;
+  label: string;
+  /** When true until backend reports this provider as configured. */
+  requiresKey: boolean;
+}[] = [
+  { id: 'gemini', label: 'Gemini', requiresKey: false },
+  { id: 'chatgpt', label: 'DeepSeek', requiresKey: true },
+  { id: 'deepseek', label: 'ChatGPT', requiresKey: true },
+  { id: 'claude', label: 'Claude', requiresKey: true },
+];
+
+const LOCKED_CHAT_MODEL_MSG =
+  'You need to buy an API key for this model to work.';
+
+const PAID_CHATGPT_MSG =
+  'ChatGPT requires a paid API key.';
 
 const GEMINI_PAID_API_MSG =
   'Paid API not connected yet. Switch image provider to Cloudflare to generate images.';
@@ -98,7 +116,6 @@ function readStoredImageProvider(): ImageProviderChoice {
   const raw = window.localStorage.getItem(IMAGE_PROVIDER_PREF_KEY);
   return raw === 'gemini' ? 'gemini' : 'cloudflare';
 }
-const GOOGLE_FLOW_FALLBACK_URL = 'https://labs.google/fx/tools/flow';
 
 const MAX_REFERENCE_IMAGE_BYTES = 4 * 1024 * 1024;
 const MAX_REFERENCE_IMAGES = 5;
@@ -201,9 +218,13 @@ interface ExtendedChatMessage extends ChatMessage {
 // ---------------------------------------------------------------------------
 
 export default function ChatInterface() {
-  const [modelLabel, setModelLabel] = useState<string>('Loading…');
-  const [geminiWebUrl, setGeminiWebUrl] = useState<string>(GEMINI_WEB_FALLBACK_URL);
-  const [googleFlowUrl, setGoogleFlowUrl] = useState<string>(GOOGLE_FLOW_FALLBACK_URL);
+  const [modelLabel, setModelLabel] = useState<string>('Gemini');
+  const [chatModel, setChatModel] = useState<ChatModelChoice>('gemini');
+  const [openrouterConfigured, setOpenrouterConfigured] = useState(false);
+  const [openrouterModelLabel, setOpenrouterModelLabel] = useState('Claude');
+  const [chatgptConfigured, setChatgptConfigured] = useState(false);
+  const [chatgptModelLabel, setChatgptModelLabel] = useState('DeepSeek');
+  const [deepseekConfigured, setDeepseekConfigured] = useState(false);
   const [chatReady, setChatReady] = useState<boolean>(true);
   const [imageReady, setImageReady] = useState<boolean>(false);
   const [imageModelLabel, setImageModelLabel] = useState<string>('');
@@ -212,8 +233,12 @@ export default function ChatInterface() {
   const [imageProvider, setImageProvider] = useState<ImageProviderChoice>(() =>
     readStoredImageProvider()
   );
-  const [voiceMoods, setVoiceMoods] = useState<{ id: string; label: string }[]>([]);
-  const [voiceMood, setVoiceMood] = useState<string>('professional');
+  const [voiceProviders, setVoiceProviders] = useState<{ id: string; label: string }[]>([
+    { id: 'edge', label: 'Gemini' },
+    { id: 'fish', label: 'Fish Audio' },
+  ]);
+  const [voiceProvider, setVoiceProvider] = useState<string>('edge');
+  const [fishVoiceConfigured, setFishVoiceConfigured] = useState(false);
   const [creationLanguage, setCreationLanguage] = useState<string>(() => readStoredCreationLanguage());
   const [languageOptions, setLanguageOptions] = useState<CreationLanguageOption[]>(
     FALLBACK_CREATION_LANGUAGES
@@ -275,17 +300,18 @@ export default function ChatInterface() {
       const res = await fetchWithTimeout(API_ENDPOINTS.CREATION_MODELS);
       if (!res.ok) throw new Error('Failed to load models');
       const data: CreationModelsResponse = await res.json();
-      setModelLabel(data.models[0]?.label ?? 'AI Assistant');
-      setGeminiWebUrl(data.gemini_web_url || GEMINI_WEB_FALLBACK_URL);
-      setGoogleFlowUrl(GOOGLE_FLOW_FALLBACK_URL);
+      setModelLabel(data.models[0]?.label ?? 'Gemini');
       setChatReady(data.chat_ready);
+      setOpenrouterConfigured(Boolean(data.openrouter_configured));
+      setOpenrouterModelLabel(data.openrouter_model_label || 'Claude');
+      setChatgptConfigured(Boolean(data.chatgpt_configured));
+      setChatgptModelLabel(data.chatgpt_model_label || 'DeepSeek');
+      setDeepseekConfigured(Boolean(data.deepseek_configured));
       const cfReady = Boolean(data.cloudflare_configured);
       const geminiReady = Boolean(data.gemini_image_configured);
       const imageModel = data.image_model ?? '';
       setCloudflareConfigured(cfReady);
       setGeminiImageConfigured(geminiReady);
-      // Cloudflare must be configured to enable generation. Gemini stays clickable
-      // so the UI can show "Paid API not connected yet" when no key is present.
       const ready = imageProvider === 'cloudflare' ? cfReady : true;
       setImageReady(ready);
       setImageModelLabel(
@@ -297,7 +323,10 @@ export default function ChatInterface() {
             ? imageModel || 'Gemini'
             : 'Gemini (paid API not connected)'
       );
-      setVoiceMoods(data.voice_moods ?? []);
+      if (data.voice_providers?.length) {
+        setVoiceProviders(data.voice_providers);
+      }
+      setFishVoiceConfigured(Boolean(data.fish_voice_configured));
       if (data.languages?.length) {
         setLanguageOptions(data.languages);
       }
@@ -346,8 +375,21 @@ export default function ChatInterface() {
 
     if (!chatReady) {
       toast.error(
-        'Chat is not configured. Add CREATION_GEMINI_API_KEY in the backend .env (2nd free key from aistudio.google.com/apikey).'
+        'Chat is not configured. Add CREATION_GEMINI_API_KEY or OPENROUTER_API_KEY in the backend .env.'
       );
+      return;
+    }
+
+    if (chatModel === 'deepseek') {
+      toast.error(PAID_CHATGPT_MSG);
+      return;
+    }
+    if (chatModel === 'chatgpt' && !chatgptConfigured) {
+      toast.error(LOCKED_CHAT_MODEL_MSG);
+      return;
+    }
+    if (chatModel === 'claude' && !openrouterConfigured) {
+      toast.error(LOCKED_CHAT_MODEL_MSG);
       return;
     }
 
@@ -356,8 +398,8 @@ export default function ChatInterface() {
       content:
         text ||
         (pendingAttachments.length > 1
-          ? `Analyze all ${pendingAttachments.length} attached reference images carefully and write a detailed marketing prompt that matches their combined style and my request.`
-          : 'Analyze the attached reference image carefully and write a detailed marketing prompt that matches its style and my request.'),
+          ? `Analyze all ${pendingAttachments.length} attached reference images carefully. Keep the product packaging, logo, label text, colors, shape, and proportions exactly as shown. Write a detailed marketing prompt that places that same product into the scene I request.`
+          : 'Analyze the attached reference image carefully. Keep the product packaging, logo, label text, colors, shape, and proportions exactly as shown. Write a detailed marketing prompt that places that same product into the scene I request.'),
       ...(pendingAttachments.length
         ? {
             images: pendingAttachments.map((a) => ({
@@ -380,6 +422,7 @@ export default function ChatInterface() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: '',
+          provider: chatModel,
           intent: creationIntent,
           language: creationLanguage,
           messages: toApiMessages(nextMessages),
@@ -387,7 +430,14 @@ export default function ChatInterface() {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Chat request failed');
+        const detail = err.detail;
+        const message =
+          typeof detail === 'string'
+            ? detail
+            : Array.isArray(detail)
+              ? detail.map((d: { msg?: string }) => d?.msg).filter(Boolean).join(' ')
+              : 'Chat request failed';
+        throw new Error(message || 'Chat request failed');
       }
       const data: ChatResponse = await res.json();
       const assistantMsg: ExtendedChatMessage = {
@@ -399,7 +449,7 @@ export default function ChatInterface() {
       setMessages((prev) => [...prev, assistantMsg]);
 
       if (creationIntent === 'create_image') {
-        void runGenerateImage(assistantIndex, data.reply);
+        void runGenerateImage(assistantIndex, data.reply, userMsg.images ?? undefined);
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Chat request failed';
@@ -425,14 +475,6 @@ export default function ChatInterface() {
       fileInputRef.current.value = '';
     }
     toast.success('Started a new chat — previous memory cleared.');
-  };
-
-  const openGeminiWeb = () => {
-    window.open(geminiWebUrl, '_blank', 'noopener,noreferrer');
-  };
-
-  const openFlowAI = () => {
-    window.open(googleFlowUrl, '_blank', 'noopener,noreferrer');
   };
 
   useEffect(() => {
@@ -464,24 +506,46 @@ export default function ChatInterface() {
     toast.success('Cleared saved prompt');
   };
 
-  const runGenerateImage = async (index: number, promptText: string) => {
-    // Gemini image is a paid path — keep the UI switchable, but block until
-    // STUDIO_IMAGE_GEMINI_API_KEY is configured on the backend.
-    if (imageProvider === 'gemini') {
-      const caps = await refreshCreationCapabilities();
-      if (!caps.geminiImageConfigured) {
-        toast.error(GEMINI_PAID_API_MSG);
-        setMessages((prev) =>
-          prev.map((m, i) =>
-            i === index ? { ...m, imageGenerationError: GEMINI_PAID_API_MSG } : m
-          )
-        );
-        return;
-      }
-    }
+  const runGenerateImage = async (
+    index: number,
+    promptText: string,
+    referenceImages?: ChatMessage['images']
+  ) => {
+    const refs = (referenceImages || [])
+      .filter((img) => Boolean(img?.image_base64?.trim()))
+      .slice(0, MAX_REFERENCE_IMAGES)
+      .map((img) => ({
+        image_base64: img.image_base64,
+        image_mime_type: img.image_mime_type || 'image/jpeg',
+      }));
+    const hasRefs = refs.length > 0;
 
     const caps = await refreshCreationCapabilities();
-    if (imageProvider === 'cloudflare' && !caps.cloudflareConfigured) {
+
+    // Product/logo attachments need Gemini image-to-image (Flux Schnell is text-only).
+    if (hasRefs && !caps.geminiImageConfigured) {
+      const refMsg =
+        'Product reference images require Gemini image generation. Set STUDIO_IMAGE_GEMINI_API_KEY, or generate without attachments using Cloudflare.';
+      toast.error(refMsg);
+      setMessages((prev) =>
+        prev.map((m, i) => (i === index ? { ...m, imageGenerationError: refMsg } : m))
+      );
+      return;
+    }
+
+    // Gemini image is a paid path — keep the UI switchable, but block until
+    // STUDIO_IMAGE_GEMINI_API_KEY is configured on the backend.
+    if (imageProvider === 'gemini' && !caps.geminiImageConfigured) {
+      toast.error(GEMINI_PAID_API_MSG);
+      setMessages((prev) =>
+        prev.map((m, i) =>
+          i === index ? { ...m, imageGenerationError: GEMINI_PAID_API_MSG } : m
+        )
+      );
+      return;
+    }
+
+    if (imageProvider === 'cloudflare' && !hasRefs && !caps.cloudflareConfigured) {
       const configMsg = imageNotReadyMessage(caps.imageModel || 'Cloudflare Flux');
       toast.error(configMsg);
       setMessages((prev) =>
@@ -490,12 +554,22 @@ export default function ChatInterface() {
       return;
     }
 
+    if (hasRefs && imageProvider === 'cloudflare') {
+      toast(
+        'Using Gemini product-reference mode so the attached logo/packaging stays accurate.'
+      );
+    }
+
     setGeneratingImageIndex(index);
     try {
       const res = await apiFetch(API_ENDPOINTS.CREATION_GENERATE_IMAGE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: promptText, provider: imageProvider }),
+        body: JSON.stringify({
+          prompt: promptText,
+          provider: hasRefs ? 'gemini' : imageProvider,
+          ...(hasRefs ? { images: refs } : {}),
+        }),
         signal: AbortSignal.timeout(API_CONFIG.timeout),
       });
       if (!res.ok) {
@@ -521,7 +595,11 @@ export default function ChatInterface() {
         )
       );
       if (data.provider === 'gemini') {
-        toast.success('Image generated by Gemini');
+        toast.success(
+          hasRefs
+            ? 'Image generated with product reference (Gemini)'
+            : 'Image generated by Gemini'
+        );
       } else if (data.provider === 'cloudflare') {
         toast.success(
           data.fallback_reason
@@ -545,12 +623,20 @@ export default function ChatInterface() {
   };
 
   const runGenerateVoice = async (index: number, scriptText: string) => {
+    if (voiceProvider === 'fish' && !fishVoiceConfigured) {
+      toast.error('Fish Audio needs an API key in the backend .env.');
+      return;
+    }
     setGeneratingVoiceIndex(index);
     try {
       const res = await apiFetch(API_ENDPOINTS.CREATION_GENERATE_VOICE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: scriptText, mood: voiceMood, language: creationLanguage }),
+        body: JSON.stringify({
+          text: scriptText,
+          provider: voiceProvider,
+          language: creationLanguage,
+        }),
         signal: AbortSignal.timeout(API_CONFIG.timeout),
       });
       if (!res.ok) {
@@ -563,7 +649,11 @@ export default function ChatInterface() {
           i === index ? { ...m, generatedAudioUrl: data.media_url } : m
         )
       );
-      toast.success('Voice-over generated in-app');
+      toast.success(
+        `Voice-over generated (${data.provider || voiceProvider}${
+          data.mood ? `, ${data.mood}` : ''
+        })`
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Voice generation failed');
     } finally {
@@ -574,7 +664,16 @@ export default function ChatInterface() {
   const generateImage = async (index: number) => {
     const msg = messages[index];
     if (!msg || msg.role !== 'assistant') return;
-    await runGenerateImage(index, msg.content);
+    let refs: ChatMessage['images'] | undefined;
+    for (let i = index - 1; i >= 0; i -= 1) {
+      const prev = messages[i];
+      if (prev.role === 'user' && prev.images?.length) {
+        refs = prev.images;
+        break;
+      }
+      if (prev.role === 'user') break;
+    }
+    await runGenerateImage(index, msg.content, refs);
   };
 
   const generateVoice = async (index: number) => {
@@ -662,12 +761,60 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-[calc(100dvh-8.5rem)] sm:h-[calc(100dvh-9.25rem)] dark:bg-slate-800 dark:border-slate-600">
+    <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full min-h-0 overflow-hidden dark:bg-slate-800 dark:border-slate-600">
       {/* Toolbar — scrolls horizontally on narrow screens */}
-      <div className="flex flex-nowrap items-center gap-2 p-3 sm:p-4 border-b border-slate-200 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] dark:border-slate-600">
-        <span className="text-sm text-slate-600 bg-slate-100 rounded-lg px-3 py-1.5 shrink-0 dark:bg-slate-700 dark:text-slate-200">
-          {modelLabel}
-        </span>
+      <div className="flex flex-nowrap items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 border-b border-slate-200 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] shrink-0 dark:border-slate-600">
+        <select
+          value={chatModel}
+          onChange={(e) => {
+            const next = e.target.value as ChatModelChoice;
+            const unlocked =
+              next === 'gemini' ||
+              (next === 'claude' && openrouterConfigured) ||
+              (next === 'chatgpt' && chatgptConfigured) ||
+              (next === 'deepseek' && deepseekConfigured);
+            if (!unlocked) {
+              toast.error(
+                next === 'deepseek' ? PAID_CHATGPT_MSG : LOCKED_CHAT_MODEL_MSG
+              );
+              e.target.value = chatModel;
+              return;
+            }
+            setChatModel(next);
+          }}
+          className="shrink-0 text-sm rounded-lg border border-brand-200 bg-white px-2 py-1.5 text-brand-800 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100"
+          title="Chat AI model"
+        >
+          {CHAT_MODEL_OPTIONS.map((m) => {
+            const unlocked =
+              m.id === 'gemini' ||
+              (m.id === 'claude' && openrouterConfigured) ||
+              (m.id === 'chatgpt' && chatgptConfigured) ||
+              (m.id === 'deepseek' && deepseekConfigured);
+            const label =
+              m.id === 'gemini'
+                ? modelLabel
+                : m.id === 'claude'
+                  ? openrouterConfigured
+                    ? openrouterModelLabel
+                    : m.label
+                  : m.id === 'chatgpt'
+                    ? chatgptConfigured
+                      ? chatgptModelLabel
+                      : m.label
+                    : m.label;
+            return (
+              <option key={m.id} value={m.id}>
+                {label}
+                {!unlocked
+                  ? m.id === 'deepseek'
+                    ? ' (Require Paid Api Key)'
+                    : ' (API key required)'
+                  : ''}
+              </option>
+            );
+          })}
+        </select>
         <select
           value={creationLanguage}
           onChange={(e) => {
@@ -713,41 +860,28 @@ export default function ChatInterface() {
 
         <div className="flex-1 min-w-2" />
 
-        {voiceMoods.length > 0 && (
+        {voiceProviders.length > 0 && (
           <select
-            value={voiceMood}
-            onChange={(e) => setVoiceMood(e.target.value)}
+            value={voiceProvider}
+            onChange={(e) => {
+              const next = e.target.value;
+              if (next === 'fish' && !fishVoiceConfigured) {
+                toast.error('Fish Audio needs an API key in the backend .env.');
+                e.target.value = voiceProvider;
+                return;
+              }
+              setVoiceProvider(next);
+            }}
             className="shrink-0 text-sm rounded-lg border border-brand-200 bg-white px-2 py-1.5 text-brand-800 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100"
-            title="Voice-over mood for in-app generation"
+            title="Voice-over engine — write tone/gender in your prompt (calm, female, kid…)"
           >
-            {voiceMoods.map((m) => (
-              <option key={m.id} value={m.id}>
-                Voice: {m.label}
+            {voiceProviders.map((p) => (
+              <option key={p.id} value={p.id}>
+                Voice: {p.label}
               </option>
             ))}
           </select>
         )}
-        <button
-          type="button"
-          onClick={openGeminiWeb}
-          className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900 border border-brand-200 hover:bg-brand-50 rounded-lg px-3 py-1.5 transition-colors dark:text-gold-300 dark:hover:text-gold-200 dark:border-slate-500 dark:hover:bg-slate-700"
-          title="Open Google Gemini to create images"
-        >
-          <ImageIcon className="w-4 h-4" />
-          <span className="hidden sm:inline">Gemini Image Creation</span>
-          <span className="sm:hidden">Gemini</span>
-        </button>
-        <button
-          type="button"
-          onClick={openFlowAI}
-          className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium text-brand-700 hover:text-brand-900 border border-brand-200 hover:bg-brand-50 rounded-lg px-3 py-1.5 transition-colors dark:text-gold-300 dark:hover:text-gold-200 dark:border-slate-500 dark:hover:bg-slate-700"
-          title="Open Google Flow for AI video creation"
-        >
-          <Clapperboard className="w-4 h-4" />
-          <span className="hidden sm:inline">Flow AI Video Creation</span>
-          <span className="sm:hidden">Flow</span>
-        </button>
-
         {messages.length > 0 && (
           <button
             onClick={startNewChat}
@@ -761,7 +895,7 @@ export default function ChatInterface() {
       </div>
 
       {savedPrompt ? (
-        <div className="mx-3 sm:mx-4 mt-3 sm:mt-4 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2.5 dark:border-emerald-800/60 dark:bg-emerald-950/30">
+        <div className="mx-3 sm:mx-4 mt-2 shrink-0 rounded-lg border border-emerald-200 bg-emerald-50/80 px-3 py-2 dark:border-emerald-800/60 dark:bg-emerald-950/30">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-emerald-900 dark:text-emerald-200 flex items-center gap-1.5">
@@ -795,26 +929,21 @@ export default function ChatInterface() {
         </div>
       ) : null}
 
-      {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-4">
+      {/* Messages — min-h-0 so this flex child can shrink and scroll */}
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4">
         {messages.length === 0 && (
           <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 px-1">
-            <Bot className="w-10 h-10 sm:w-12 sm:h-12 mb-3 text-slate-300" />
-            <p className="text-xs sm:text-sm max-w-md mb-4">
-              Select a mode below — <strong>Create image</strong> generates visuals in-app,{' '}
-              <strong>Create voice</strong> writes a script you can turn into audio, and{' '}
-              <strong>Write prompt</strong> gives copy-paste text for Meta AI or Flow. Choose a{' '}
-              <strong>language</strong> in the toolbar for replies in English, Urdu, Arabic, and more.
-              This chat remembers your product details until you click <strong>New chat</strong>.
-              <strong> Save prompt</strong> stores one text prompt in your browser (not images or voice files)
-              — reuse it in <strong>Create image</strong> or <strong>Create voice</strong> anytime.
+            <Bot className="w-9 h-9 mb-2 text-slate-300" />
+            <p className="text-xs sm:text-sm max-w-sm mb-3">
+              Pick a mode below, then describe what you need. Chat history stays until you click{' '}
+              <strong>New chat</strong>.
             </p>
             {/* Quick-start suggestions */}
             <div className="flex flex-wrap justify-center gap-2 text-xs">
               {[
-                'Essence mango pickle 330g glass jar — studio packshot for Instagram',
-                'Himalayan pink salt pouch — lifestyle kitchen scene',
-                'Garlic paste 1kg PET bottle — Amazon listing white background',
+                'Essence mango pickle — studio packshot',
+                'Himalayan pink salt — kitchen lifestyle',
+                'Garlic paste bottle — white background',
               ].map((q) => (
                 <button
                   key={q}
@@ -1064,35 +1193,32 @@ export default function ChatInterface() {
         )}
       </div>
 
-      {/* Composer */}
-      <div className="border-t border-slate-200 dark:border-slate-600 p-3 sm:p-4 space-y-3">
-        <div>
-          <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">
-            What do you want to create?
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {CREATION_MODES.map((mode) => {
-              const Icon = mode.icon;
-              const selected = creationIntent === mode.id;
-              return (
-                <button
-                  key={mode.id}
-                  type="button"
-                  onClick={() => setCreationIntent(mode.id)}
-                  title={mode.description}
-                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 sm:px-3 py-2 text-xs font-medium transition-colors ${
-                    selected
-                      ? 'border-brand-600 bg-brand-50 text-brand-800 ring-2 ring-brand-500/20 dark:border-gold-400 dark:bg-brand-900/50 dark:text-gold-200'
-                      : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {mode.label}
-                </button>
-              );
-            })}
-          </div>
-          <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400 hidden sm:block">{activeMode.description}</p>
+      {/* Composer — kept fully visible so Fix spelling / Improve wording stay clickable */}
+      <div className="relative z-10 border-t border-slate-200 dark:border-slate-600 px-3 pt-2 pb-3 sm:px-4 sm:pt-2.5 sm:pb-3 space-y-2 shrink-0 bg-white dark:bg-slate-800">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mr-0.5">
+            Mode:
+          </span>
+          {CREATION_MODES.map((mode) => {
+            const Icon = mode.icon;
+            const selected = creationIntent === mode.id;
+            return (
+              <button
+                key={mode.id}
+                type="button"
+                onClick={() => setCreationIntent(mode.id)}
+                title={mode.description}
+                className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] sm:text-xs font-medium transition-colors ${
+                  selected
+                    ? 'border-brand-600 bg-brand-50 text-brand-800 ring-1 ring-brand-500/20 dark:border-gold-400 dark:bg-brand-900/50 dark:text-gold-200'
+                    : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
+                }`}
+              >
+                <Icon className="w-3 h-3" />
+                {mode.label}
+              </button>
+            );
+          })}
         </div>
 
         <div className="flex items-end gap-1.5 sm:gap-2">
@@ -1108,7 +1234,7 @@ export default function ChatInterface() {
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={sending || isListening || pendingAttachments.length >= MAX_REFERENCE_IMAGES}
-            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300 p-2.5 text-slate-600 hover:bg-slate-50 hover:text-brand-700 disabled:opacity-50 dark:border-slate-500 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="inline-flex shrink-0 items-center justify-center rounded-lg border border-slate-300 p-2 text-slate-600 hover:bg-slate-50 hover:text-brand-700 disabled:opacity-50 dark:border-slate-500 dark:text-slate-300 dark:hover:bg-slate-700"
             title={`Attach up to ${MAX_REFERENCE_IMAGES} reference images (${pendingAttachments.length}/${MAX_REFERENCE_IMAGES})`}
           >
             <Paperclip className="w-4 h-4" />
@@ -1125,7 +1251,7 @@ export default function ChatInterface() {
               toggleListening();
             }}
             disabled={sending}
-            className={`inline-flex shrink-0 items-center justify-center rounded-lg border p-2.5 transition-colors disabled:opacity-50 ${
+            className={`inline-flex shrink-0 items-center justify-center rounded-lg border p-2 transition-colors disabled:opacity-50 ${
               isListening
                 ? 'border-red-400 bg-red-50 text-red-600 animate-pulse dark:border-red-500 dark:bg-red-950/40 dark:text-red-400'
                 : 'border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-brand-700 dark:border-slate-500 dark:text-slate-300 dark:hover:bg-slate-700'
@@ -1149,33 +1275,34 @@ export default function ChatInterface() {
                   ? 'Add optional details about what to create from these references…'
                   : activeMode.placeholder
             }
-            rows={2}
-            className="flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100 dark:placeholder-slate-400"
+            rows={1}
+            className="flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm max-h-28 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100 dark:placeholder-slate-400"
             disabled={sending}
           />
           <button
             onClick={sendMessage}
             disabled={sending || (!input.trim() && !pendingAttachments.length)}
-            className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium rounded-lg px-3 sm:px-4 py-2.5 bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex shrink-0 items-center gap-1.5 text-sm font-medium rounded-lg px-3 sm:px-4 py-2 bg-brand-600 text-white hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Send className="w-4 h-4" />
             {creationIntent === 'create_image' && !pendingAttachments.length ? 'Create' : 'Send'}
           </button>
         </div>
+
         <TextSuggestionBar
           value={input}
           onApply={setInput}
           context="chat"
           language={creationLanguage}
           disabled={sending || isListening}
+          className="pointer-events-auto"
         />
+
         {pendingAttachments.length > 0 && (
           <div className="rounded-lg border border-brand-200 bg-brand-50/80 px-3 py-2 dark:border-slate-500 dark:bg-slate-700/60 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
-                Reference images ({pendingAttachments.length}/{MAX_REFERENCE_IMAGES}) — the AI
-                analyzes all of them together for your{' '}
-                {creationIntent === 'create_image' ? 'generated visual' : 'prompt'}.
+                Reference images ({pendingAttachments.length}/{MAX_REFERENCE_IMAGES})
               </p>
               <button
                 type="button"
@@ -1214,20 +1341,9 @@ export default function ChatInterface() {
         {isListening && (
           <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5">
             <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            Voice typing active — speak clearly, then click the mic again to stop. Click Send when
-            ready.
+            Voice typing active — click the mic again to stop.
           </p>
         )}
-        <p className="text-xs text-slate-400">
-          {creationIntent === 'create_image' &&
-            'Create image — describe your shot; the image appears below (no prompt text).'}
-          {creationIntent === 'create_voice' &&
-            'Create voice — AI writes the script; click Generate voice when you are ready.'}
-          {creationIntent === 'general_chat' &&
-            'General Chatbot — ask anything. If one model hits a rate limit, another is tried automatically.'}
-          {creationIntent === 'prompt' &&
-            'Write prompt — copy the reply for Meta AI or Google Flow. No in-app generation.'}
-        </p>
       </div>
     </div>
   );

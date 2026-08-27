@@ -64,6 +64,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
   const [mediaProgress, setMediaProgress] = useState(0);
   const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
   const [mediaElapsedSec, setMediaElapsedSec] = useState(0);
+  const [mediaEngine, setMediaEngine] = useState<'cloud' | 'browser' | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Generation state
@@ -294,11 +295,13 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
       setMediaProgress(1);
       setMediaProgressLabel('Preparing…');
       setMediaElapsedSec(0);
+      setMediaEngine(undefined);
       const prepared = await prepareMediaForUpload(file, {
-        onProgress: ({ percent, label, elapsedSec }) => {
+        onProgress: ({ percent, label, elapsedSec, engine }) => {
           setMediaProgress(percent);
           setMediaProgressLabel(label);
           if (typeof elapsedSec === 'number') setMediaElapsedSec(elapsedSec);
+          if (engine) setMediaEngine(engine);
         },
       });
       if (immediatePreview) URL.revokeObjectURL(immediatePreview);
@@ -333,6 +336,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
       setMediaProgress(0);
       setMediaProgressLabel('Processing…');
       setMediaElapsedSec(0);
+      setMediaEngine(undefined);
     }
   };
 
@@ -346,6 +350,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     setMediaProgress(0);
     setMediaProgressLabel('Processing…');
     setMediaElapsedSec(0);
+    setMediaEngine(undefined);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -991,6 +996,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                     percent={mediaProgress}
                     label={mediaProgressLabel}
                     elapsedSec={mediaElapsedSec}
+                    engine={mediaEngine}
                   />
                 </div>
               )}
@@ -1169,6 +1175,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                 percent={mediaProgress}
                 label={mediaProgressLabel}
                 elapsedSec={mediaElapsedSec}
+                engine={mediaEngine}
                 compact
                 onDark
               />

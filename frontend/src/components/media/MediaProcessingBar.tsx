@@ -7,6 +7,8 @@ interface MediaProcessingBarProps {
   compact?: boolean;
   /** Use on dark buttons (white text/bar). */
   onDark?: boolean;
+  /** cloud = CloudConvert; browser = ffmpeg.wasm (much slower). */
+  engine?: 'cloud' | 'browser';
 }
 
 function formatElapsed(sec: number): string {
@@ -23,8 +25,16 @@ export default function MediaProcessingBar({
   elapsedSec = 0,
   compact = false,
   onDark = false,
+  engine,
 }: MediaProcessingBarProps) {
   const safe = Math.max(0, Math.min(100, Math.round(percent)));
+
+  const helper =
+    engine === 'cloud'
+      ? 'Fast cloud processing — upload may take a minute for large files, then encode is quick.'
+      : engine === 'browser'
+        ? 'Running in your browser — large videos can take 10–20+ minutes. Cloud processing is much faster when configured.'
+        : 'Large videos are processed before upload. Cloud is much faster when configured.';
 
   return (
     <div className={compact ? 'w-full max-w-xs' : 'w-full max-w-sm px-4'}>
@@ -66,8 +76,7 @@ export default function MediaProcessingBar({
             onDark ? 'text-white/80' : 'text-slate-500'
           }`}
         >
-          Running in your browser — large videos can take several minutes. The bar
-          updates as frames are processed.
+          {helper}
         </p>
       )}
     </div>

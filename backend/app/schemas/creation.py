@@ -71,10 +71,23 @@ class CreationLanguageInfo(BaseModel):
     speech_lang: str
 
 
+class ChatProvider(str, PyEnum):
+    """UI chat-model dropdown value."""
+
+    GEMINI = "gemini"
+    CHATGPT = "chatgpt"
+    DEEPSEEK = "deepseek"
+    CLAUDE = "claude"  # wired to OpenRouter (Nemotron free) when configured
+
+
 class ChatRequest(BaseModel):
     """Request body for the chatbot."""
 
-    model: str = Field(default="", description="Ignored — chat uses GEMINI_MODEL from config.")
+    model: str = Field(default="", description="Ignored — chat uses configured provider models.")
+    provider: ChatProvider = Field(
+        default=ChatProvider.GEMINI,
+        description="UI model dropdown: gemini | chatgpt | deepseek | claude.",
+    )
     intent: CreationIntent = Field(
         default=CreationIntent.PROMPT,
         description=(
@@ -135,6 +148,12 @@ class CreationModelsResponse(BaseModel):
         "https://labs.google/fx/tools/flow/project/0b5aa7ed-bd40-490d-af9a-24208f855710"
     )
     chat_ready: bool
+    openrouter_configured: bool = False
+    openrouter_model: str = ""
+    openrouter_model_label: str = ""
+    chatgpt_configured: bool = False
+    chatgpt_model_label: str = ""
+    deepseek_configured: bool = False
     image_ready: bool = False
     image_model: str = ""
     image_provider: str = ""
@@ -144,6 +163,9 @@ class CreationModelsResponse(BaseModel):
     creation_api_keys_loaded: int = 0
     voice_ready: bool = True
     voice_moods: list[dict[str, str]] = Field(default_factory=list)
+    voice_characters: list[dict[str, str]] = Field(default_factory=list)
+    voice_providers: list[dict[str, str]] = Field(default_factory=list)
+    fish_voice_configured: bool = False
     languages: list[CreationLanguageInfo] = Field(default_factory=list)
 
 
@@ -154,6 +176,14 @@ class ImageGenerateRequest(BaseModel):
     provider: Optional[str] = Field(
         default=None,
         description="Optional override: cloudflare | gemini | modelslab. Defaults to IMAGE_PROVIDER.",
+    )
+    images: Optional[list[ChatImageAttachment]] = Field(
+        default=None,
+        max_length=5,
+        description=(
+            "Optional product/logo reference images. When present, generation uses "
+            "Gemini image-to-image so packaging, logo, and labels stay faithful."
+        ),
     )
 
 
@@ -176,22 +206,38 @@ class VoiceGenerateRequest(BaseModel):
     """Generate voice-over from script text."""
 
     text: str = Field(..., min_length=3, max_length=5000)
-    mood: str = Field(default="professional", description="professional|calm|energetic|warm|promo")
+    provider: str = Field(
+        default="edge",
+        description="Voice engine: edge (free Edge TTS) | fish (Fish Audio via OpenRouter).",
+    )
     language: str = Field(
         default="en",
         description="Language code for TTS voice selection (matches Prompt Studio language).",
     )
+    # Kept for backward compatibility; ignored — tone/character come from the prompt text.
+    mood: str = Field(default="professional", description="Ignored — detected from prompt.")
+    character: str = Field(default="auto", description="Ignored — detected from prompt.")
 
     @field_validator("language")
     @classmethod
     def validate_language(cls, value: str) -> str:
         return normalize_language_code(value)
 
+    @field_validator("provider")
+    @classmethod
+    def validate_provider(cls, value: str) -> str:
+        cleaned = (value or "edge").strip().lower()
+        if cleaned not in {"edge", "fish"}:
+            raise ValueError("Invalid provider. Choose: edge | fish")
+        return cleaned
+
 
 class VoiceGenerateResponse(BaseModel):
     media_path: str
     media_url: str
     mood: str
+    character: str = "auto"
+    provider: str = "edge"
     voice: str
     script_preview: str
 

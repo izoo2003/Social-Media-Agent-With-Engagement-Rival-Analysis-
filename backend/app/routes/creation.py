@@ -21,8 +21,10 @@ from app.config import (
     settings,
 )
 from app.llm.ollama_client import LLMClient
+from app.llm.openrouter_client import chat_openrouter
 from app.middleware.rate_limiter import limiter
 from app.schemas.creation import (
+    ChatProvider,
     ChatRequest,
     ChatResponse,
     CreationIntent,
@@ -44,7 +46,10 @@ from app.services.product_knowledge import (
     build_system_prompt,
     infer_prompt_media_type,
 )
-from app.services.voice_tts import MOOD_PRESETS, generate_voice_async, list_voice_moods
+from app.services.voice_tts import (
+    generate_voice_async,
+    list_voice_providers,
+)
 from app.utils.exceptions import ContentGenerationError, LLMConnectionError
 from app.utils.logger import logger
 
@@ -57,6 +62,16 @@ def _creation_model_label() -> str:
     """Human-readable label for the Content Creation Gemini model."""
     name = settings.CREATION_GEMINI_MODEL.replace("gemini-", "Gemini ").replace("-", " ")
     return name.title()
+
+
+def _openrouter_model_label() -> str:
+    """UI label for the Claude dropdown (backed by OpenRouter Nemotron)."""
+    return "Claude"
+
+
+def _chatgpt_model_label() -> str:
+    """UI label for the DeepSeek dropdown (backed by OpenRouter Gemma)."""
+    return "DeepSeek"
 
 
 def _resolve_media_url(media_url: str, request: Request) -> str:
@@ -81,6 +96,8 @@ def _resolve_media_url(media_url: str, request: Request) -> str:
 async def list_creation_models():
     """Return chat/image/voice capabilities and external video tool links."""
     image_ready = is_image_generation_ready()
+    openrouter_ready = bool(settings.OPENROUTER_API_KEY.strip())
+    chatgpt_ready = bool(settings.OPENROUTER_CHATGPT_API_KEY.strip())
     return CreationModelsResponse(
         models=[
             ModelInfo(id=settings.CREATION_GEMINI_MODEL, label=_creation_model_label()),
@@ -90,7 +107,13 @@ async def list_creation_models():
         elevenlabs_web_url=settings.ELEVENLABS_WEB_URL,
         google_flow_characters_url=settings.GOOGLE_FLOW_CHARACTERS_URL,
         google_flow_final_product_url=settings.GOOGLE_FLOW_FINAL_PRODUCT_URL,
-        chat_ready=bool(get_creation_gemini_api_keys()),
+        chat_ready=bool(get_creation_gemini_api_keys()) or openrouter_ready or chatgpt_ready,
+        openrouter_configured=openrouter_ready,
+        openrouter_model=settings.OPENROUTER_CHAT_MODEL.strip() if openrouter_ready else "",
+        openrouter_model_label=_openrouter_model_label() if openrouter_ready else "",
+        chatgpt_configured=chatgpt_ready,
+        chatgpt_model_label=_chatgpt_model_label() if chatgpt_ready else "",
+        deepseek_configured=False,
         image_ready=image_ready,
         image_model=get_image_generation_model_label() if image_ready else "",
         image_provider=resolve_image_provider(),
@@ -100,7 +123,12 @@ async def list_creation_models():
         gemini_image_configured=bool(settings.STUDIO_IMAGE_GEMINI_API_KEY.strip()),
         creation_api_keys_loaded=len(get_creation_gemini_api_keys()),
         voice_ready=True,
-        voice_moods=list_voice_moods(),
+        voice_moods=[],
+        voice_characters=[],
+        fish_voice_configured=bool(settings.OPENROUTER_FISH_API_KEY.strip()),
+        voice_providers=list_voice_providers(
+            fish_configured=bool(settings.OPENROUTER_FISH_API_KEY.strip())
+        ),
         languages=[CreationLanguageInfo(**lang) for lang in list_creation_languages()],
     )
 
@@ -108,8 +136,26 @@ async def list_creation_models():
 @router.post("/creation/chat", response_model=ChatResponse)
 @limiter.limit("20/minute")
 async def creation_chat(request: Request, body: ChatRequest):
-    """Chat with Gemini using CREATION_GEMINI_API_KEY (prompt engineering)."""
+    """Chat via Gemini or OpenRouter (Claude dropdown → Nemotron free)."""
     try:
+        if body.provider == ChatProvider.DEEPSEEK:
+            raise HTTPException(
+                status_code=402,
+                detail="ChatGPT requires a paid API key.",
+            )
+
+        if body.provider == ChatProvider.CHATGPT and not settings.OPENROUTER_CHATGPT_API_KEY.strip():
+            raise HTTPException(
+                status_code=402,
+                detail="You need to buy an API key for this model to work.",
+            )
+
+        if body.provider == ChatProvider.CLAUDE and not settings.OPENROUTER_API_KEY.strip():
+            raise HTTPException(
+                status_code=402,
+                detail="You need to buy an API key for this model to work.",
+            )
+
         last_user_text = ""
         has_reference_image = False
         reference_image_count = 0
@@ -127,6 +173,15 @@ async def creation_chat(request: Request, body: ChatRequest):
                 reference_image_count = 1
             has_reference_image = reference_image_count > 0
             break
+
+        if body.provider == ChatProvider.CLAUDE and has_reference_image:
+            raise HTTPException(
+                status_code=400,
+                    detail=(
+                        "Claude is text-only right now. "
+                        "Switch to Gemini or DeepSeek to analyze reference images."
+                    ),
+            )
 
         if body.intent == CreationIntent.CREATE_IMAGE:
             media_type = "image"
@@ -193,18 +248,28 @@ async def creation_chat(request: Request, body: ChatRequest):
                 entry["images"] = image_entries
             messages.append(entry)
 
-        if body.intent == CreationIntent.GENERAL_CHAT:
-            api_keys = get_general_chat_gemini_api_keys()
-            models = get_general_chat_gemini_models()
+        if body.provider == ChatProvider.CLAUDE:
+            reply, model = chat_openrouter(messages)
+        elif body.provider == ChatProvider.CHATGPT:
+            reply, model = chat_openrouter(
+                messages,
+                api_key=settings.OPENROUTER_CHATGPT_API_KEY,
+                model=settings.OPENROUTER_CHATGPT_MODEL,
+                include_images=True,
+            )
         else:
-            api_keys = get_creation_gemini_api_keys()
-            models = get_creation_gemini_models()
+            if body.intent == CreationIntent.GENERAL_CHAT:
+                api_keys = get_general_chat_gemini_api_keys()
+                models = get_general_chat_gemini_models()
+            else:
+                api_keys = get_creation_gemini_api_keys()
+                models = get_creation_gemini_models()
 
-        reply, model = chat_client.chat(
-            messages,
-            api_keys=api_keys,
-            models=models,
-        )
+            reply, model = chat_client.chat(
+                messages,
+                api_keys=api_keys,
+                models=models,
+            )
 
         return ChatResponse(
             model=model,
@@ -213,6 +278,8 @@ async def creation_chat(request: Request, body: ChatRequest):
             intent=body.intent,
         )
 
+    except HTTPException:
+        raise
     except LLMConnectionError as e:
         logger.error(f"Creation chat error: {str(e)}")
         raise HTTPException(status_code=502, detail=str(e))
@@ -320,7 +387,21 @@ async def creation_generate_image(request: Request, body: ImageGenerateRequest):
     try:
         prompt = extract_image_prompt(body.prompt)
         preferred = (body.provider or "").strip().lower() or None
-        result = generate_image(prompt, preferred_provider=preferred)
+        reference_images = None
+        if body.images:
+            reference_images = [
+                {
+                    "image_base64": img.image_base64,
+                    "image_mime_type": img.image_mime_type or "image/jpeg",
+                }
+                for img in body.images
+                if (img.image_base64 or "").strip()
+            ] or None
+        result = generate_image(
+            prompt,
+            preferred_provider=preferred,
+            reference_images=reference_images,
+        )
         return ImageGenerateResponse(
             media_path=result["media_path"],
             media_url=_resolve_media_url(result["media_url"], request),
@@ -376,24 +457,26 @@ async def creation_image_diagnostics():
 @router.post("/creation/generate-voice", response_model=VoiceGenerateResponse)
 @limiter.limit("15/minute")
 async def creation_generate_voice(request: Request, body: VoiceGenerateRequest):
-    """Generate voice-over MP3 via edge-tts (free)."""
-    mood = body.mood.strip().lower()
-    if mood not in MOOD_PRESETS:
+    """Generate voice-over MP3 via Edge TTS or Fish Audio."""
+    provider = body.provider.strip().lower()
+    if provider == "fish" and not settings.OPENROUTER_FISH_API_KEY.strip():
         raise HTTPException(
-            status_code=400,
-            detail=f"Invalid mood '{body.mood}'. Choose: {', '.join(MOOD_PRESETS.keys())}",
+            status_code=402,
+            detail="Fish Audio is not configured. Add OPENROUTER_FISH_API_KEY in backend .env.",
         )
 
     try:
         result = await generate_voice_async(
             body.text,
-            mood=mood,  # type: ignore[arg-type]
             language=body.language,
+            provider=provider,  # type: ignore[arg-type]
         )
         return VoiceGenerateResponse(
             media_path=result["media_path"],
             media_url=_resolve_media_url(result["media_url"], request),
             mood=result["mood"],
+            character=result.get("character", "auto"),
+            provider=result.get("provider", provider),
             voice=result["voice"],
             script_preview=result["script_preview"],
         )
