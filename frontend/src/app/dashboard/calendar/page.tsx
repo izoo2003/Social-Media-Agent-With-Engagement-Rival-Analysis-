@@ -92,7 +92,7 @@ export default function CalendarPage() {
   const upcomingHolidays = useMemo(() => {
     const today = new Date();
     const end = new Date(today);
-    end.setDate(end.getDate() + 45);
+    end.setDate(end.getDate() + 20);
     return getPakistanHolidaysInRange(today, end).slice(0, 5);
   }, [cursor]);
 
@@ -346,7 +346,7 @@ export default function CalendarPage() {
           <div className="bg-white rounded-lg shadow p-4">
             <h3 className="text-sm font-bold text-slate-900 mb-3">Upcoming holidays</h3>
             {upcomingHolidays.length === 0 ? (
-              <p className="text-sm text-gray-400">No holidays in the next 45 days.</p>
+              <p className="text-sm text-gray-400">No holidays in the next 20 days.</p>
             ) : (
               <div className="space-y-2">
                 {upcomingHolidays.map((h) => (
