@@ -5,6 +5,7 @@ import {
   BarChart3,
   CalendarDays,
   Clapperboard,
+  ClipboardCheck,
   ImageIcon,
   Lightbulb,
   Link2,
@@ -176,9 +177,9 @@ const INDEX_SECTIONS: IndexSection[] = [
   },
   {
     number: '7',
-    title: 'KPI Creation',
+    title: 'KPIs',
     href: '/dashboard/kpis',
-    summary: 'Track designer work automatically from this agent, plus manual counts for third-party tools.',
+    summary: 'Track designer work from this agent plus third-party tools, then ask Gemini if a 9-hour shift looks complete.',
     features: [
       {
         number: '7.1',
@@ -191,6 +192,12 @@ const INDEX_SECTIONS: IndexSection[] = [
         title: 'Manual + custom KPIs',
         description: 'Add extra counts for Canva/Photoshop work, or create named KPI cards.',
         icon: PenLine,
+      },
+      {
+        number: '7.3',
+        title: 'KPI Guidelines',
+        description: 'Gemini judges logged KPIs and recent published posts against a 9-hour shift, with leftover work and improvements.',
+        icon: ClipboardCheck,
       },
     ],
   },

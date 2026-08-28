@@ -133,6 +133,50 @@ class KpiCustomCreate(BaseModel):
         return self
 
 
+class KpiGuidelinesImprovement(BaseModel):
+    area: str
+    finding: str
+    action: str
+    priority: str = "medium"
+
+
+class KpiGuidelinesPostNote(BaseModel):
+    content_id: Optional[int] = None
+    title: str = ""
+    comment: str
+
+
+class KpiReviewedPost(BaseModel):
+    id: int
+    title: str
+    body_preview: str = ""
+    platform: Optional[str] = None
+    media_type: Optional[str] = None
+    occurred_on: Optional[str] = None
+    image_reviewed: bool = False
+
+
+class KpiGuidelinesResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, ser_json_by_alias=True)
+
+    from_date: date = Field(alias="from")
+    to_date: date = Field(alias="to")
+    timezone: str = "Asia/Karachi"
+    shift_hours: int = 9
+    shift_days: int = 1
+    verdict: str
+    verdict_label: str
+    summary: str
+    more_needed: list[str] = Field(default_factory=list)
+    improvements: list[KpiGuidelinesImprovement] = Field(default_factory=list)
+    post_notes: list[KpiGuidelinesPostNote] = Field(default_factory=list)
+    reviewed_posts: list[KpiReviewedPost] = Field(default_factory=list)
+    images_reviewed: int = 0
+    generated_at: datetime
+    model: Optional[str] = None
+    message: Optional[str] = None
+
+
 class KpiCustomUpdate(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=150)
     is_active: Optional[bool] = None

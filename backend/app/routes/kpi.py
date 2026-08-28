@@ -1,5 +1,5 @@
 """
-API Routes - Designer KPI Creation
+API Routes - Designer KPIs (Creation + Guidelines)
 
 GET    /kpis/catalog
 GET    /kpis/summary?from=&to=
@@ -9,6 +9,7 @@ DELETE /kpis/manual/{id}
 POST   /kpis/custom
 PATCH  /kpis/custom/{id}
 DELETE /kpis/custom/{id}
+POST   /kpis/guidelines?from=&to=
 """
 
 from datetime import date
@@ -24,6 +25,7 @@ from app.schemas.kpi import (
     KpiCustomCreate,
     KpiCustomDefinitionResponse,
     KpiCustomUpdate,
+    KpiGuidelinesResponse,
     KpiManualCreate,
     KpiManualEntryResponse,
     KpiManualUpdate,
@@ -31,6 +33,7 @@ from app.schemas.kpi import (
 )
 from app.services import auth_service
 from app.services.kpi import CATALOG, KpiService, pkt_today
+from app.services.kpi_guidelines import generate_guidelines
 from app.utils.logger import logger
 
 router = APIRouter()
@@ -40,7 +43,7 @@ def _require_senior(role: str) -> None:
     if role == "junior":
         raise HTTPException(
             status_code=403,
-            detail="Senior access only — KPI Creation is for the designer.",
+            detail="Senior access only — KPIs are for the designer.",
         )
 
 
@@ -206,3 +209,27 @@ def archive_custom_kpi(
     except Exception as e:
         logger.error(f"KPI custom archive error: {e}")
         raise HTTPException(status_code=500, detail="Failed to archive custom KPI")
+
+
+@router.post("/kpis/guidelines", response_model=KpiGuidelinesResponse)
+@limiter.limit("8/minute")
+def create_kpi_guidelines(
+    request: Request,
+    from_date: Optional[date] = Query(default=None, alias="from"),
+    to_date: Optional[date] = Query(default=None, alias="to"),
+    db: Session = Depends(get_db),
+    role: str = Depends(get_current_user_role),
+):
+    """Gemini review of designer KPIs vs a 9-hour shift, plus recent published posts."""
+    _ = request
+    _require_senior(role)
+    today = pkt_today()
+    start = from_date or today
+    end = to_date or start
+    try:
+        return generate_guidelines(db, start, end)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"KPI guidelines error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate KPI guidelines")

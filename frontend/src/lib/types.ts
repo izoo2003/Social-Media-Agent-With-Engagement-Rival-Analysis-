@@ -641,3 +641,45 @@ export interface KpiSummaryResponse {
   daily: KpiDailyRow[];
   manual_entries: KpiManualEntry[];
 }
+
+export interface KpiGuidelinesImprovement {
+  area: string;
+  finding: string;
+  action: string;
+  priority: string;
+}
+
+export interface KpiGuidelinesPostNote {
+  content_id?: number | null;
+  title: string;
+  comment: string;
+}
+
+export interface KpiReviewedPost {
+  id: number;
+  title: string;
+  body_preview?: string;
+  platform?: string | null;
+  media_type?: string | null;
+  occurred_on?: string | null;
+  image_reviewed?: boolean;
+}
+
+export interface KpiGuidelinesResponse {
+  from: string;
+  to: string;
+  timezone: string;
+  shift_hours: number;
+  shift_days: number;
+  verdict: 'enough' | 'partial' | 'not_enough' | string;
+  verdict_label: string;
+  summary: string;
+  more_needed: string[];
+  improvements: KpiGuidelinesImprovement[];
+  post_notes: KpiGuidelinesPostNote[];
+  reviewed_posts: KpiReviewedPost[];
+  images_reviewed: number;
+  generated_at: string;
+  model?: string | null;
+  message?: string | null;
+}

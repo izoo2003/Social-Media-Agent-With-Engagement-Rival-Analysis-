@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   CalendarDays,
+  ClipboardCheck,
   ImageIcon,
   Loader2,
   Megaphone,
@@ -11,18 +12,22 @@ import {
   PenLine,
   Plus,
   Send,
+  Sparkles,
   Target,
   Trash2,
   Users,
   type LucideIcon,
 } from 'lucide-react';
 
-import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
+import { API_CONFIG, API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
 import type {
   KpiCatalogMetric,
+  KpiGuidelinesResponse,
   KpiManualEntry,
   KpiSummaryResponse,
 } from '@/lib/types';
+
+type KpiTab = 'creation' | 'guidelines';
 
 const CATALOG_ICONS: Record<string, LucideIcon> = {
   posts_published: Send,
@@ -106,6 +111,7 @@ export default function KpisPage() {
 
   const [customName, setCustomName] = useState('');
   const [savingCustom, setSavingCustom] = useState(false);
+  const [tab, setTab] = useState<KpiTab>('creation');
 
   const loadSummary = useCallback(async (from: string, to: string) => {
     setLoading(true);
@@ -285,11 +291,12 @@ export default function KpisPage() {
           </p>
           <h1 className="mt-1 flex items-center gap-2 text-2xl font-bold text-slate-900 sm:text-3xl dark:text-slate-100">
             <Target className="h-7 w-7 text-brand-700 dark:text-gold-400" />
-            KPI Creation
+            KPIs
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-            Auto counts work done in this agent. Add manual numbers for work done in
-            other tools. Totals are Auto + Manual. Days use Asia/Karachi.
+            {tab === 'guidelines'
+              ? 'Gemini reviews the KPIs you logged and recent published posts, then says if a 9-hour shift looks filled and what to improve.'
+              : 'Auto counts work done in this agent. Add manual numbers for work done in other tools. Totals are Auto + Manual. Days use Asia/Karachi.'}
           </p>
         </div>
 
@@ -338,6 +345,33 @@ export default function KpisPage() {
         </div>
       </header>
 
+      <div className="flex overflow-x-auto rounded-lg border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+        {(
+          [
+            ['creation', 'KPI Creation', Target],
+            ['guidelines', 'KPI Guidelines', ClipboardCheck],
+          ] as const
+        ).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`inline-flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium ${
+              tab === id
+                ? 'bg-brand-800 text-white dark:bg-brand-700'
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700'
+            }`}
+          >
+            <Icon className="h-4 w-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'guidelines' ? (
+        <GuidelinesPanel fromDate={fromDate} toDate={toDate} />
+      ) : (
+      <>
       {loading && !summary ? (
         <div className="flex items-center gap-2 text-sm text-slate-500">
           <Loader2 className="h-4 w-4 animate-spin" />
@@ -602,6 +636,8 @@ export default function KpisPage() {
           </table>
         </div>
       </section>
+      </>
+      )}
     </div>
   );
 }
@@ -624,6 +660,224 @@ function MetricCard({ metric }: { metric: KpiCatalogMetric }) {
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
           Images {imageCount ?? 0} · Reels/video {videoCount ?? 0}
         </p>
+      ) : null}
+    </div>
+  );
+}
+
+function verdictClasses(verdict: string): string {
+  if (verdict === 'enough') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-200';
+  }
+  if (verdict === 'not_enough') {
+    return 'border-red-200 bg-red-50 text-red-800 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200';
+  }
+  return 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100';
+}
+
+function priorityBadge(priority: string): string {
+  const p = priority.toLowerCase();
+  if (p === 'high') {
+    return 'border-red-200 bg-red-50 text-red-700 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200';
+  }
+  if (p === 'low') {
+    return 'border-slate-200 bg-slate-50 text-slate-600 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300';
+  }
+  return 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100';
+}
+
+function GuidelinesPanel({ fromDate, toDate }: { fromDate: string; toDate: string }) {
+  const [review, setReview] = useState<KpiGuidelinesResponse | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const generate = async () => {
+    setLoading(true);
+    const pending = toast.loading('Reviewing KPIs and recent posts with Gemini…');
+    try {
+      const res = await fetchWithTimeout(API_ENDPOINTS.KPI_GUIDELINES(fromDate, toDate), {
+        method: 'POST',
+        timeoutMs: API_CONFIG.timeout,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(
+          typeof err.detail === 'string' ? err.detail : `Guidelines failed (${res.status})`,
+        );
+      }
+      const data = (await res.json()) as KpiGuidelinesResponse;
+      setReview(data);
+      if (data.message && !data.improvements.length) {
+        toast(data.message, { id: pending });
+      } else {
+        toast.success(data.verdict_label || 'Guidelines ready', { id: pending });
+      }
+    } catch (e) {
+      toast.error(errorDetail(e, 'Could not generate KPI guidelines'), { id: pending });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+              <ClipboardCheck className="h-4 w-4 text-brand-700 dark:text-gold-400" />
+              Shift review
+            </h2>
+            <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
+              Gemini judges Auto + Manual KPIs for this date range against a{' '}
+              <span className="font-semibold">9-hour designer shift</span> per day. It also looks at
+              recent published images, posts, and videos (up to 3 images are sent for visual review;
+              videos are judged from captions and type).
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void generate()}
+            disabled={loading}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-brand-800 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+          >
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            {review ? 'Review again' : 'Review KPIs'}
+          </button>
+        </div>
+      </div>
+
+      {!review && !loading ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Pick a date range above, then Review KPIs. Use Today for one 9-hour shift, or a longer
+          range to judge several days of work.
+        </p>
+      ) : null}
+
+      {loading && !review ? (
+        <div className="flex items-center gap-2 text-sm text-slate-500">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Generating guidelines…
+        </div>
+      ) : null}
+
+      {review ? (
+        <>
+          <div
+            className={`rounded-xl border p-5 shadow-sm ${verdictClasses(review.verdict)}`}
+          >
+            <p className="text-xs font-semibold uppercase tracking-wide">Verdict</p>
+            <p className="mt-1 text-xl font-bold">{review.verdict_label}</p>
+            <p className="mt-2 text-sm opacity-90">
+              {`${review.shift_days} day${review.shift_days === 1 ? '' : 's'} × ${review.shift_hours}-hour shift${review.shift_days === 1 ? '' : 's'}`}
+              {review.images_reviewed
+                ? ` · ${review.images_reviewed} image${review.images_reviewed === 1 ? '' : 's'} reviewed`
+                : ''}
+            </p>
+            {review.summary ? <p className="mt-3 text-sm leading-relaxed">{review.summary}</p> : null}
+            {review.message ? (
+              <p className="mt-3 whitespace-pre-wrap rounded-lg bg-white/50 p-3 text-xs dark:bg-slate-900/40">
+                {review.message}
+              </p>
+            ) : null}
+          </div>
+
+          {review.more_needed.length > 0 ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+                Still needed
+              </h2>
+              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700 dark:text-slate-300">
+                {review.more_needed.map((item, idx) => (
+                  <li key={`${idx}-${item.slice(0, 40)}`}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {review.improvements.length > 0 ? (
+            <section>
+              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+                Improvements
+              </h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                {review.improvements.map((item, idx) => (
+                  <div
+                    key={`${item.area}-${idx}`}
+                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-800"
+                  >
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold capitalize text-slate-900 dark:text-slate-100">
+                        {item.area}
+                      </span>
+                      <span
+                        className={`rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${priorityBadge(item.priority)}`}
+                      >
+                        {item.priority}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-700 dark:text-slate-300">{item.finding}</p>
+                    <p className="mt-2 rounded-md bg-brand-50 px-3 py-2 text-sm text-brand-900 dark:bg-brand-950/40 dark:text-gold-200">
+                      <span className="font-semibold">Do this:</span> {item.action}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {review.post_notes.length > 0 ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+                Notes on published posts
+              </h2>
+              <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-700">
+                {review.post_notes.map((note, idx) => (
+                  <li key={`${note.content_id ?? 'n'}-${idx}`} className="py-3">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {note.title || 'Post'}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">{note.comment}</p>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          {review.reviewed_posts.length > 0 ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+                Posts included in this review
+              </h2>
+              <ul className="mt-3 divide-y divide-slate-100 dark:divide-slate-700">
+                {review.reviewed_posts.map((post) => (
+                  <li key={post.id} className="py-3">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {post.title || `Post #${post.id}`}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      {post.occurred_on ? formatDay(post.occurred_on) : ''}
+                      {post.platform ? ` · ${post.platform}` : ''}
+                      {post.media_type ? ` · ${post.media_type}` : ''}
+                      {post.image_reviewed ? ' · image sent to Gemini' : ''}
+                    </p>
+                    {post.body_preview ? (
+                      <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-400">
+                        {post.body_preview}
+                      </p>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : (
+            review && !loading ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                No published posts in this range — the review is based on generation and scheduling
+                KPIs only.
+              </p>
+            ) : null
+          )}
+        </>
       ) : null}
     </div>
   );

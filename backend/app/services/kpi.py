@@ -355,6 +355,52 @@ class KpiService:
             "manual_entries": [self._entry_dict(e) for e in entries],
         }
 
+    def list_published_posts(
+        self,
+        from_date: date,
+        to_date: date,
+        *,
+        limit: int = 12,
+    ) -> list[dict[str, Any]]:
+        """Recent published posts in the PKT date range, newest first."""
+        rows = (
+            self.db.query(Content)
+            .options(joinedload(Content.calendar_events))
+            .filter(
+                or_(
+                    Content.status == ContentStatus.PUBLISHED,
+                    Content.linkedin_post_status.in_(_PUBLISHED_POST_STATUS_VALUES),
+                    Content.facebook_post_status.in_(_PUBLISHED_POST_STATUS_VALUES),
+                    Content.instagram_post_status.in_(_PUBLISHED_POST_STATUS_VALUES),
+                    Content.youtube_post_status.in_(_PUBLISHED_POST_STATUS_VALUES),
+                    Content.tiktok_post_status.in_(_PUBLISHED_POST_STATUS_VALUES),
+                )
+            )
+            .all()
+        )
+        items: list[dict[str, Any]] = []
+        for row in rows:
+            if not _content_is_published(row):
+                continue
+            occurred = utc_to_pkt_date(_published_at(row))
+            if occurred is None or occurred < from_date or occurred > to_date:
+                continue
+            media = row.media_type.value if row.media_type else None
+            body = (row.body or "").strip()
+            items.append(
+                {
+                    "id": row.id,
+                    "title": row.title or "",
+                    "body_preview": body[:280],
+                    "platform": row.platform.value if row.platform else None,
+                    "media_type": media,
+                    "media_path": row.media_path,
+                    "occurred_on": occurred.isoformat(),
+                }
+            )
+        items.sort(key=lambda p: p["occurred_on"], reverse=True)
+        return items[:limit]
+
     def _accumulate_published(
         self,
         from_date: date,

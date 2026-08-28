@@ -131,6 +131,8 @@ export const API_ENDPOINTS = {
   KPI_CUSTOM: `${API_BASE_URL}/api/${API_VERSION}/kpis/custom`,
   KPI_CUSTOM_DETAIL: (id: number) =>
     `${API_BASE_URL}/api/${API_VERSION}/kpis/custom/${id}`,
+  KPI_GUIDELINES: (from: string, to: string) =>
+    `${API_BASE_URL}/api/${API_VERSION}/kpis/guidelines?from=${from}&to=${to}`,
 
   // Uploads
   UPLOADS: `${API_BASE_URL}/uploads`,

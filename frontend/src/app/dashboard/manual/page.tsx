@@ -309,10 +309,10 @@ const MANUAL_SECTIONS: ManualSection[] = [
   {
     id: 'kpis',
     number: '7',
-    title: 'KPI Creation',
+    title: 'KPIs',
     href: '/dashboard/kpis',
     intro:
-      'Designer work report. Auto cards count activity in this agent. Manual entries cover work done in other tools. Senior accounts only. Days use Asia/Karachi.',
+      'Designer work report. Auto cards count activity in this agent. Manual entries cover work done in other tools. Guidelines uses Gemini to judge whether a 9-hour shift looks filled. Senior accounts only. Days use Asia/Karachi.',
     steps: [],
     subsections: [
       {
@@ -339,6 +339,21 @@ const MANUAL_SECTIONS: ManualSection[] = [
           'Create a Custom KPI with a name (for example “Canva graphics”) when the catalog does not cover it. Fill that card with manual entries.',
           'Edit or delete a manual row from the Manual log. Archive a custom card if you no longer need it — old entries stay in history.',
           'The daily report table shows Auto + Manual totals for every day in the selected range.',
+        ],
+      },
+      {
+        number: '7.3',
+        title: 'KPI Guidelines',
+        steps: [
+          'Open KPIs and switch to the KPI Guidelines tab. Keep or change the same date range (Today, This week, This month, or From–To).',
+          'Click Review KPIs. Gemini reads Auto + Manual totals and recent published posts in that range.',
+          'Up to three published images are sent for visual review. Reels and videos are judged from captions and media type, not the video file.',
+          'Read the verdict: enough, partial, or not enough for that many 9-hour shifts. Use Still needed for leftover tasks and Improvements for what to change.',
+          'Notes on published posts call out specific captions or images. Posts included in this review lists what Gemini actually saw.',
+        ],
+        tips: [
+          'Add manual Canva/Photoshop counts in KPI Creation first so Guidelines can count that work.',
+          'Guidelines uses the same Gemini posting API keys as Content Posting. If keys are missing, the page will say AI is unavailable.',
         ],
       },
     ],
