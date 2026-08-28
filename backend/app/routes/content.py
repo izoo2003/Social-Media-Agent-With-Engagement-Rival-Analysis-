@@ -26,6 +26,7 @@ from app.schemas.content import (
     ContentHistoryResponse,
     ContentDetailResponse,
     ContentRegenerateRequest,
+    ContentAttachMediaRequest,
     MediaUploadResponse,
     ManualContentCreate,
     MediaProcessConfigResponse,
@@ -639,6 +640,79 @@ async def get_content_detail(
     except Exception as e:
         logger.error(f"Content detail endpoint error: {str(e)}")
         raise HTTPException(status_code=500, detail=safe_error_detail(e, "Failed to fetch content"))
+
+
+@router.post("/content/{content_id}/media", response_model=ContentDetailResponse)
+@limiter.limit("30/minute")
+async def attach_content_media(
+    request: Request,
+    content_id: int,
+    body: ContentAttachMediaRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Attach uploaded media to an existing content record.
+
+    Used by the calendar Scheduled Post modal so campaign drafts stay scheduled
+    and auto-publish once media is linked.
+    """
+    try:
+        media_path = validate_media_path(body.media_path)
+        thumbnail_path = None
+        if body.thumbnail_path:
+            thumbnail_path = validate_media_path(body.thumbnail_path)
+
+        service = ContentService(db)
+        content = service.attach_media(
+            content_id,
+            media_path=media_path,
+            media_type=body.media_type,
+            media_original_name=body.media_original_name,
+            thumbnail_path=thumbnail_path,
+            thumbnail_original_name=body.thumbnail_original_name,
+        )
+        if not content:
+            raise HTTPException(status_code=404, detail=f"Content {content_id} not found")
+
+        return ContentDetailResponse(
+            id=content["id"],
+            platform=content["platform"],
+            title=content["title"],
+            body=content["body"],
+            metadata=content["meta_data"] or {},
+            status=content["status"],
+            generated_at=content["generated_at"],
+            created_at=content["created_at"],
+            updated_at=content.get("updated_at") or content["created_at"],
+            media_path=content.get("media_path"),
+            media_type=content.get("media_type"),
+            media_original_name=content.get("media_original_name"),
+            thumbnail_path=(content.get("meta_data") or {}).get("thumbnail_path"),
+            thumbnail_original_name=(content.get("meta_data") or {}).get(
+                "thumbnail_original_name"
+            ),
+            linkedin_post_status=content.get("linkedin_post_status", "pending"),
+            facebook_post_status=content.get("facebook_post_status", "pending"),
+            instagram_post_status=content.get("instagram_post_status", "pending"),
+            youtube_post_status=content.get("youtube_post_status", "pending"),
+            tiktok_post_status=content.get("tiktok_post_status", "pending"),
+            linkedin_post_id=content.get("linkedin_post_id"),
+            facebook_post_id=content.get("facebook_post_id"),
+            instagram_post_id=content.get("instagram_post_id"),
+            youtube_post_id=content.get("youtube_post_id"),
+            tiktok_post_id=content.get("tiktok_post_id"),
+            linkedin_accounts_results=content.get("linkedin_accounts_results"),
+        )
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Attach media error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=safe_error_detail(e, "Failed to attach media"),
+        )
 
 
 @router.patch("/content/{content_id}/status")

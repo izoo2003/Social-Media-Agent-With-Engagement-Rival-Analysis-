@@ -44,6 +44,8 @@ export const API_ENDPOINTS = {
   CONTENT_MANUAL: `${API_BASE_URL}/api/${API_VERSION}/content/manual`,
   CONTENT_HISTORY: `${API_BASE_URL}/api/${API_VERSION}/content/history`,
   CONTENT_DETAIL: (id: number) => `${API_BASE_URL}/api/${API_VERSION}/content/${id}`,
+  CONTENT_ATTACH_MEDIA: (id: number) =>
+    `${API_BASE_URL}/api/${API_VERSION}/content/${id}/media`,
   CONTENT_REGENERATE: (id: number) =>
     `${API_BASE_URL}/api/${API_VERSION}/content/${id}/regenerate`,
 

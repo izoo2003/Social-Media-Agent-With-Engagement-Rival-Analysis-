@@ -715,6 +715,48 @@ BODY: [Your new short, punchy caption with hashtags here]"""
         logger.info(f"Updated content {content_id} status to {status}")
         return True
 
+    def attach_media(
+        self,
+        content_id: int,
+        *,
+        media_path: str,
+        media_type: str,
+        media_original_name: Optional[str] = None,
+        thumbnail_path: Optional[str] = None,
+        thumbnail_original_name: Optional[str] = None,
+    ) -> Optional[dict]:
+        """
+        Attach uploaded media to existing content (e.g. campaign calendar drafts).
+
+        Clears meta_data.needs_media so the scheduler will publish at the
+        scheduled time once media is present.
+        """
+        content = self.db.query(Content).filter(Content.id == content_id).first()
+        if not content:
+            return None
+
+        try:
+            media_enum = MediaType(media_type)
+        except ValueError as exc:
+            raise ValueError(f"Invalid media_type: {media_type}") from exc
+
+        content.media_path = media_path
+        content.media_type = media_enum
+        content.media_original_name = media_original_name
+        content.updated_at = datetime.utcnow()
+
+        meta = dict(content.meta_data or {})
+        meta["needs_media"] = False
+        if thumbnail_path:
+            meta["thumbnail_path"] = thumbnail_path
+            meta["thumbnail_original_name"] = thumbnail_original_name
+        content.meta_data = meta
+
+        self.db.commit()
+        self.db.refresh(content)
+        logger.info(f"Attached media to content {content_id}: {media_path}")
+        return self.get_content(content_id)
+
     def delete_content(self, content_id: int) -> bool:
         """
         Delete a content record.

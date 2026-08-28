@@ -174,6 +174,16 @@ class MediaUploadResponse(BaseModel):
     media_url: str
 
 
+class ContentAttachMediaRequest(BaseModel):
+    """Attach previously uploaded media to an existing content record."""
+
+    media_path: str = Field(..., description="Storage path from /content/media/upload")
+    media_type: str = Field(..., description="image | video | document")
+    media_original_name: Optional[str] = None
+    thumbnail_path: Optional[str] = None
+    thumbnail_original_name: Optional[str] = None
+
+
 class ManualContentCreate(BaseModel):
     """Create a ready-to-schedule content record without AI generation."""
 

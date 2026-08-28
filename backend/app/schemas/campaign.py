@@ -14,7 +14,6 @@ from app.schemas.content import ContentPlatform
 class CampaignAssetType(str, PyEnum):
     REEL = "reel"
     POST_IMAGE = "post_image"
-    CAROUSEL = "carousel"
     STORY = "story"
     GRAPHIC = "graphic"
     ANIMATION = "animation"

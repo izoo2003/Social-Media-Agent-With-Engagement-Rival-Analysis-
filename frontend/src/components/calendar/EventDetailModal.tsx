@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
-import { API_ENDPOINTS, apiFetch } from '@/lib/api-client';
+import { useEffect, useRef, useState } from 'react';
+import toast from 'react-hot-toast';
+import { API_ENDPOINTS, API_BASE_URL, apiFetch } from '@/lib/api-client';
+import { uploadMediaFile } from '@/lib/media-upload';
 import { CalendarEvent } from '@/lib/types';
 
 interface EventDetailModalProps {
@@ -29,6 +31,17 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: 'bg-gray-200 text-gray-600',
 };
 
+const MAX_MEDIA_UPLOAD_MB = 200;
+
+function resolveMediaUrl(pathOrUrl?: string | null): string | null {
+  if (!pathOrUrl) return null;
+  if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+    return pathOrUrl;
+  }
+  const cleaned = pathOrUrl.replace(/^\/?uploads\//, '');
+  return `${API_BASE_URL}/uploads/${cleaned}`;
+}
+
 export default function EventDetailModal({
   event,
   onClose,
@@ -37,12 +50,38 @@ export default function EventDetailModal({
 }: EventDetailModalProps) {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const [localMediaType, setLocalMediaType] = useState<string | null>(null);
+  const [attachSuccess, setAttachSuccess] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setError(null);
+    setBusy(null);
+    setAttachSuccess(false);
+    setLocalPreview(null);
+    setLocalMediaType(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [event?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (localPreview?.startsWith('blob:')) URL.revokeObjectURL(localPreview);
+    };
+  }, [localPreview]);
 
   if (!event) return null;
 
   const isFinal = ['published'].includes(event.status);
   const canPublishNow = ['pending', 'failed', 'partial'].includes(event.status);
   const canCancel = ['pending', 'failed'].includes(event.status);
+  const canAttachMedia =
+    !isFinal && event.status !== 'cancelled' && Boolean(event.content_id);
+
+  const existingMediaUrl = resolveMediaUrl(event.media_url || event.media_path);
+  const previewUrl = localPreview || existingMediaUrl;
+  const previewType = localMediaType || event.media_type;
+  const showNeedsMedia = Boolean(event.needs_media) && !attachSuccess && !localPreview;
 
   const run = async (
     key: string,
@@ -55,7 +94,10 @@ export default function EventDetailModal({
       const res = await fn();
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || 'Request failed');
+        const detail = err.detail;
+        throw new Error(
+          typeof detail === 'string' ? detail : 'Request failed'
+        );
       }
       onChanged();
       if (closeAfter) onClose();
@@ -66,10 +108,15 @@ export default function EventDetailModal({
     }
   };
 
-  const publishNow = () =>
-    run('publish', () =>
+  const publishNow = () => {
+    if (event.needs_media && !event.media_path && !attachSuccess) {
+      setError('Attach media before publishing this campaign post.');
+      return;
+    }
+    return run('publish', () =>
       apiFetch(API_ENDPOINTS.CALENDAR_PUBLISH_NOW(event.id), { method: 'POST' })
     );
+  };
 
   const cancelEvent = () =>
     run('cancel', () =>
@@ -87,12 +134,106 @@ export default function EventDetailModal({
       true
     );
 
+  const handleMediaSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !event.content_id) return;
+
+    const isImage = file.type.startsWith('image/');
+    const isVideo = file.type.startsWith('video/');
+    if (!isImage && !isVideo) {
+      setError('Please select an image or video file (JPG, PNG, GIF, MP4, MOV, etc.)');
+      e.target.value = '';
+      return;
+    }
+    if (file.size > MAX_MEDIA_UPLOAD_MB * 1024 * 1024) {
+      setError(
+        `File is too large (${(file.size / (1024 * 1024)).toFixed(0)} MB). Max is ${MAX_MEDIA_UPLOAD_MB} MB.`
+      );
+      e.target.value = '';
+      return;
+    }
+
+    setError(null);
+    setAttachSuccess(false);
+    setBusy('media');
+
+    if (localPreview?.startsWith('blob:')) URL.revokeObjectURL(localPreview);
+    const immediatePreview = URL.createObjectURL(file);
+    setLocalPreview(immediatePreview);
+    setLocalMediaType(isImage ? 'image' : 'video');
+
+    try {
+      let mediaMeta: {
+        media_path: string;
+        media_type: string;
+        media_original_name: string;
+        media_url?: string;
+      };
+
+      const { needsVideoProcessing, prepareMediaForUpload } = await import(
+        '@/lib/process-media'
+      );
+      if (needsVideoProcessing(file)) {
+        const prepared = await prepareMediaForUpload(file);
+        if (prepared.mode === 'stored') {
+          mediaMeta = {
+            media_path: prepared.media_path,
+            media_type: prepared.media_type,
+            media_original_name: prepared.media_original_name,
+            media_url: prepared.media_url,
+          };
+        } else {
+          mediaMeta = await uploadMediaFile(prepared.file);
+        }
+      } else {
+        mediaMeta = await uploadMediaFile(file);
+      }
+
+      const attachRes = await apiFetch(
+        API_ENDPOINTS.CONTENT_ATTACH_MEDIA(event.content_id),
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            media_path: mediaMeta.media_path,
+            media_type: mediaMeta.media_type,
+            media_original_name: mediaMeta.media_original_name,
+          }),
+        }
+      );
+      if (!attachRes.ok) {
+        const err = await attachRes.json().catch(() => ({}));
+        throw new Error(
+          typeof err.detail === 'string' ? err.detail : 'Failed to attach media'
+        );
+      }
+
+      if (mediaMeta.media_url) {
+        if (localPreview?.startsWith('blob:')) URL.revokeObjectURL(localPreview);
+        setLocalPreview(resolveMediaUrl(mediaMeta.media_url));
+      }
+      setAttachSuccess(true);
+      toast.success(
+        'Media attached — this post stays scheduled and will auto-publish at the set time.'
+      );
+      onChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to attach media');
+      if (localPreview?.startsWith('blob:')) URL.revokeObjectURL(localPreview);
+      setLocalPreview(null);
+      setLocalMediaType(null);
+    } finally {
+      setBusy(null);
+      e.target.value = '';
+    }
+  };
+
   const scheduledLocal = new Date(event.scheduled_date).toLocaleString();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 sticky top-0 bg-white rounded-t-xl">
+        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4 sticky top-0 bg-white rounded-t-xl z-10">
           <h2 className="text-lg font-bold text-slate-900">Scheduled Post</h2>
           <button
             onClick={onClose}
@@ -103,7 +244,7 @@ export default function EventDetailModal({
         </div>
 
         <div className="p-6 space-y-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span
               className={`px-2.5 py-0.5 rounded-full text-xs font-semibold capitalize ${
                 STATUS_STYLES[event.status] || 'bg-gray-100 text-gray-700'
@@ -116,9 +257,14 @@ export default function EventDetailModal({
                 Draft mode
               </span>
             )}
-            {event.needs_media && (
+            {showNeedsMedia && (
               <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800">
                 Needs media
+              </span>
+            )}
+            {(attachSuccess || (event.media_path && !event.needs_media)) && (
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                Media ready
               </span>
             )}
             {event.asset_type && (
@@ -163,6 +309,61 @@ export default function EventDetailModal({
               </div>
             </div>
           )}
+
+          {/* Media attach */}
+          <div>
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Media</p>
+            {previewUrl && (
+              <div className="mb-3 rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+                {previewType === 'video' ? (
+                  <video
+                    src={previewUrl}
+                    controls
+                    className="w-full max-h-48 object-contain bg-black"
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={previewUrl}
+                    alt="Attached media"
+                    className="w-full max-h-48 object-contain"
+                  />
+                )}
+              </div>
+            )}
+
+            {canAttachMedia && (
+              <div className="space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,video/*"
+                  className="hidden"
+                  onChange={(ev) => void handleMediaSelect(ev)}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={!!busy}
+                  className="w-full py-2.5 px-3 rounded-lg text-sm font-semibold border-2 border-dashed border-brand-300 text-brand-800 bg-brand-50 hover:bg-brand-100 disabled:opacity-50"
+                >
+                  {busy === 'media'
+                    ? 'Uploading & linking…'
+                    : previewUrl
+                      ? 'Replace media'
+                      : 'Attach image or video'}
+                </button>
+                <p className="text-[11px] text-gray-500">
+                  After attach, this post stays on the calendar and auto-publishes at the
+                  scheduled time (max {MAX_MEDIA_UPLOAD_MB} MB).
+                </p>
+              </div>
+            )}
+
+            {!canAttachMedia && !previewUrl && (
+              <p className="text-sm text-gray-400">No media attached.</p>
+            )}
+          </div>
 
           {event.notes && (
             <div>
@@ -212,7 +413,6 @@ export default function EventDetailModal({
           )}
         </div>
 
-        {/* Actions */}
         <div className="border-t border-gray-200 px-6 py-4 space-y-2 sticky bottom-0 bg-white rounded-b-xl">
           {!isFinal && (
             <div className="flex gap-2">

@@ -270,7 +270,7 @@ Rationale: 13:00 Gulf midday / early EU; 16:00 EU afternoon; 20:00–22:00 US mo
 
 REQUIREMENTS
 1. Return ~{target_posts} items spread across the date range (not all on one day).
-2. Mix asset types: reel, post_image, carousel, story, graphic, animation, video.
+2. Mix asset types: reel, post_image, story, graphic, animation, video.
 3. Cover every provided category/product at least once when possible.
 4. Each item needs a short topic/hook, draft title, and draft caption body suitable for the platforms.
 5. Prefer Instagram Reels / TikTok for short video; LinkedIn more professional tone; Facebook broader.
@@ -316,6 +316,8 @@ Respond with JSON ONLY in this shape:
                 continue
 
             asset_type = str(raw.get("asset_type") or "post_image").strip().lower()
+            if asset_type in ("carousel", "multi_image"):
+                asset_type = CampaignAssetType.POST_IMAGE.value
             if asset_type not in VALID_ASSET_TYPES:
                 asset_type = CampaignAssetType.POST_IMAGE.value
 

@@ -506,7 +506,6 @@ export type CampaignStatus = 'draft' | 'planned' | 'committed';
 export type CampaignAssetType =
   | 'reel'
   | 'post_image'
-  | 'carousel'
   | 'story'
   | 'graphic'
   | 'animation'

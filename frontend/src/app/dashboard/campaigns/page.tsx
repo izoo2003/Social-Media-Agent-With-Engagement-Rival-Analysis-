@@ -33,7 +33,6 @@ const PLATFORM_OPTIONS = [
 const ASSET_LABELS: Record<string, string> = {
   reel: 'Reel',
   post_image: 'Image post',
-  carousel: 'Carousel',
   story: 'Story',
   graphic: 'Graphic',
   animation: 'Animation',

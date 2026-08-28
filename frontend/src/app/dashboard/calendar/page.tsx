@@ -80,6 +80,10 @@ export default function CalendarPage() {
       if (res.ok) {
         const data: CalendarEvent[] = await res.json();
         setEvents(data);
+        setDetailEvent((current) => {
+          if (!current) return current;
+          return data.find((ev) => ev.id === current.id) || current;
+        });
       } else if (!options?.background) {
         setEvents([]);
       }
