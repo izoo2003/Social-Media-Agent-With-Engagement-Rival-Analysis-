@@ -68,6 +68,8 @@ async def generate_content(
         media_path = None
         media_type = None
         media_original_name = None
+        thumbnail_path = None
+        thumbnail_original_name = None
         if body.media_path:
             try:
                 media_path = validate_media_path(body.media_path)
@@ -75,6 +77,12 @@ async def generate_content(
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             media_type = body.media_type
             media_original_name = body.media_original_name
+        if body.thumbnail_path:
+            try:
+                thumbnail_path = validate_media_path(body.thumbnail_path)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            thumbnail_original_name = body.thumbnail_original_name
 
         service = ContentService(db)
         generated_contents = service.generate_content(
@@ -82,6 +90,8 @@ async def generate_content(
             media_path=media_path,
             media_type=media_type,
             media_original_name=media_original_name,
+            thumbnail_path=thumbnail_path,
+            thumbnail_original_name=thumbnail_original_name,
         )
 
         responses = []
@@ -104,6 +114,10 @@ async def generate_content(
                     media_path=content.get("media_path"),
                     media_type=content.get("media_type"),
                     media_original_name=content.get("media_original_name"),
+                    thumbnail_path=(content.get("meta_data") or {}).get("thumbnail_path"),
+                    thumbnail_original_name=(content.get("meta_data") or {}).get(
+                        "thumbnail_original_name"
+                    ),
                 )
             )
 
@@ -133,9 +147,15 @@ async def create_manual_content(
     """
     try:
         media_path = None
+        thumbnail_path = None
         if body.media_path:
             try:
                 media_path = validate_media_path(body.media_path)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        if body.thumbnail_path:
+            try:
+                thumbnail_path = validate_media_path(body.thumbnail_path)
             except ValueError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
 
@@ -147,6 +167,8 @@ async def create_manual_content(
             media_path=media_path,
             media_type=body.media_type,
             media_original_name=body.media_original_name,
+            thumbnail_path=thumbnail_path,
+            thumbnail_original_name=body.thumbnail_original_name,
         )
         return ContentGenerationResponse(
             content_id=content["id"],
@@ -165,6 +187,10 @@ async def create_manual_content(
             media_path=content.get("media_path"),
             media_type=content.get("media_type"),
             media_original_name=content.get("media_original_name"),
+            thumbnail_path=(content.get("meta_data") or {}).get("thumbnail_path"),
+            thumbnail_original_name=(content.get("meta_data") or {}).get(
+                "thumbnail_original_name"
+            ),
         )
     except HTTPException:
         raise
@@ -591,6 +617,10 @@ async def get_content_detail(
             media_path=content.get("media_path"),
             media_type=content.get("media_type"),
             media_original_name=content.get("media_original_name"),
+            thumbnail_path=(content.get("meta_data") or {}).get("thumbnail_path"),
+            thumbnail_original_name=(content.get("meta_data") or {}).get(
+                "thumbnail_original_name"
+            ),
             linkedin_post_status=content.get("linkedin_post_status", "pending"),
             facebook_post_status=content.get("facebook_post_status", "pending"),
             instagram_post_status=content.get("instagram_post_status", "pending"),

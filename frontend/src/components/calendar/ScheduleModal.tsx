@@ -110,6 +110,15 @@ export default function ScheduleModal({
   const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
   const [mediaElapsedSec, setMediaElapsedSec] = useState(0);
   const [mediaEngine, setMediaEngine] = useState<'cloud' | 'browser' | undefined>();
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [storedThumbnail, setStoredThumbnail] = useState<{
+    media_path: string;
+    media_original_name: string;
+  } | null>(null);
+
+  const showThumbnailOption = mediaType === 'video';
 
   // LinkedIn multi-account selection
   const [linkedinAccounts, setLinkedinAccounts] = useState<LinkedInAccountInfo[]>([]);
@@ -131,6 +140,38 @@ export default function ScheduleModal({
     setMediaElapsedSec(0);
     setMediaEngine(undefined);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    clearThumbnail();
+  };
+
+  const clearThumbnail = () => {
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
+    setStoredThumbnail(null);
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+  };
+
+  const handleThumbnailSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Thumbnail must be an image (JPG or PNG).');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Thumbnail is too large. Max size is 10 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    setError(null);
+    setStoredThumbnail(null);
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    setThumbnailPreview(URL.createObjectURL(file));
+    setThumbnailFile(file);
   };
 
   // Reset / hydrate form whenever the modal opens
@@ -165,8 +206,9 @@ export default function ScheduleModal({
   useEffect(() => {
     return () => {
       if (mediaPreview) URL.revokeObjectURL(mediaPreview);
+      if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
     };
-  }, [mediaPreview]);
+  }, [mediaPreview, thumbnailPreview]);
 
   // Load configured LinkedIn accounts when LinkedIn is a chosen platform
   useEffect(() => {
@@ -343,6 +385,38 @@ export default function ScheduleModal({
       mediaMeta = await uploadMediaFile(mediaFile);
     }
 
+    let thumbnailMeta: {
+      thumbnail_path: string;
+      thumbnail_original_name: string;
+    } | null = storedThumbnail
+      ? {
+          thumbnail_path: storedThumbnail.media_path,
+          thumbnail_original_name: storedThumbnail.media_original_name,
+        }
+      : null;
+
+    if (
+      !thumbnailMeta &&
+      thumbnailFile &&
+      (mediaMeta?.media_type === 'video' || mediaType === 'video')
+    ) {
+      const uploaded = await uploadMediaFile(thumbnailFile);
+      thumbnailMeta = {
+        thumbnail_path: uploaded.media_path,
+        thumbnail_original_name: uploaded.media_original_name,
+      };
+      setStoredThumbnail({
+        media_path: uploaded.media_path,
+        media_original_name: uploaded.media_original_name,
+      });
+    }
+
+    if (thumbnailFile && !thumbnailMeta) {
+      throw new Error(
+        'Thumbnail was selected but could not be attached. Make sure the main media is a video, then try again.'
+      );
+    }
+
     setBusyPhase('saving');
     const primaryPlatform = platforms[0];
     const res = await apiFetch(API_ENDPOINTS.CONTENT_MANUAL, {
@@ -358,6 +432,7 @@ export default function ScheduleModal({
               media_original_name: mediaMeta.media_original_name,
             }
           : {}),
+        ...(thumbnailMeta ? thumbnailMeta : {}),
       }),
     });
     if (!res.ok) {
@@ -686,6 +761,57 @@ export default function ScheduleModal({
                   </div>
                 )}
               </div>
+
+              {showThumbnailOption && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Video thumbnail (optional)
+                  </label>
+                  <p className="text-xs text-gray-500 mb-2">
+                    Cover image for Facebook and Instagram.
+                    {platforms.includes('youtube') && (
+                      <span className="block mt-1 text-amber-700">
+                        YouTube Shorts cannot get custom thumbnails via API — set them in
+                        YouTube Studio (desktop) after upload.
+                      </span>
+                    )}
+                  </p>
+                  <input
+                    ref={thumbnailInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    className="hidden"
+                    onChange={handleThumbnailSelect}
+                  />
+                  {!thumbnailPreview ? (
+                    <button
+                      type="button"
+                      onClick={() => thumbnailInputRef.current?.click()}
+                      className="w-full border border-dashed border-gray-300 rounded-lg p-4 text-center hover:bg-gray-50 transition-colors"
+                    >
+                      <p className="text-sm text-gray-600">Upload thumbnail image</p>
+                    </button>
+                  ) : (
+                    <div className="flex items-start gap-3 border border-gray-200 rounded-lg p-3">
+                      <img
+                        src={thumbnailPreview}
+                        alt="Thumbnail preview"
+                        className="h-20 w-32 rounded object-cover"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700 truncate">{thumbnailFile?.name}</p>
+                        <button
+                          type="button"
+                          onClick={clearThumbnail}
+                          className="text-sm text-red-600 hover:underline mt-1"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

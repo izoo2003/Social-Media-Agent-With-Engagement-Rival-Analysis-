@@ -7,6 +7,9 @@ POST /creation/generate-image  - Image gen (provider per IMAGE_PROVIDER)
 POST /creation/generate-voice  - edge-tts voice-over (free)
 """
 
+import base64
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException, Request
 
 from app.config import (
@@ -42,6 +45,7 @@ from app.schemas.creation import (
     VoiceGenerateResponse,
 )
 from app.services.image_generation import extract_image_prompt, generate_image
+from app.services.media import MediaService
 from app.data.creation_languages import list_creation_languages
 from app.services.product_knowledge import (
     build_system_prompt,
@@ -73,6 +77,40 @@ def _openrouter_model_label() -> str:
 def _chatgpt_model_label() -> str:
     """UI label for the DeepSeek dropdown (backed by OpenRouter Gemma)."""
     return "DeepSeek"
+
+
+def _normalize_source_media_path(raw: str) -> str:
+    """Normalize client storage path to MediaService relative path (e.g. images/abc.jpg)."""
+    path = (raw or "").strip()
+    if not path:
+        raise ContentGenerationError("source_media_path is empty")
+    if path.startswith("http://") or path.startswith("https://"):
+        raise ContentGenerationError("source_media_path must be a storage path, not a URL")
+    path = path.lstrip("/")
+    if path.startswith("uploads/"):
+        path = path[len("uploads/") :]
+    if not path or ".." in Path(path).parts:
+        raise ContentGenerationError("Invalid source_media_path")
+    return path
+
+
+def _load_source_image_ref(media_path: str) -> dict[str, str]:
+    """Load a prior generated upload as a Flux.2 reference image dict."""
+    storage_path = _normalize_source_media_path(media_path)
+    data = MediaService().download_file(storage_path)
+    ext = Path(storage_path).suffix.lower()
+    mime_by_ext = {
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+    }
+    mime = mime_by_ext.get(ext, "image/jpeg")
+    return {
+        "image_base64": base64.b64encode(data).decode("ascii"),
+        "image_mime_type": mime,
+    }
 
 
 def _resolve_media_url(media_url: str, request: Request) -> str:
@@ -389,24 +427,30 @@ async def creation_generate_image(request: Request, body: ImageGenerateRequest):
     try:
         prompt = extract_image_prompt(body.prompt)
         preferred = (body.provider or "").strip().lower() or None
-        reference_images = None
+        edit_mode = bool(body.edit_mode)
+        reference_images: list[dict[str, str]] = []
+        if body.source_media_path:
+            reference_images.append(_load_source_image_ref(body.source_media_path))
+            edit_mode = True
         if body.images:
-            reference_images = [
+            reference_images.extend(
                 {
                     "image_base64": img.image_base64,
                     "image_mime_type": img.image_mime_type or "image/jpeg",
                 }
                 for img in body.images
                 if (img.image_base64 or "").strip()
-            ] or None
+            )
+        refs_for_gen = reference_images or None
         logger.info(
             f"/creation/generate-image requested provider={preferred!r} "
-            f"refs={len(reference_images or [])} prompt_len={len(prompt)}"
+            f"refs={len(reference_images)} edit_mode={edit_mode} prompt_len={len(prompt)}"
         )
         result = generate_image(
             prompt,
             preferred_provider=preferred,
-            reference_images=reference_images,
+            reference_images=refs_for_gen,
+            edit_mode=edit_mode,
         )
         return ImageGenerateResponse(
             media_path=result["media_path"],

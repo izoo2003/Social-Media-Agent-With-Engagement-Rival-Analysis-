@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from app.database.models import Content, ContentStatus, PostStatus as DBPostStatus
 from app.services.content import ContentService
 from app.services.media import MediaService
-from app.config import settings
+from app.config import public_api_url, settings
 from app.services.social_publisher import SocialPublisher
 from app.utils.logger import logger
 
@@ -83,6 +83,9 @@ def publish_content(
     media_type_val = None
     media_supabase_url = None
     temp_file_path = None
+    thumbnail_file_path = None
+    thumbnail_supabase_url = None
+    temp_thumbnail_path = None
 
     if content.get("media_path"):
         media_type_val = content.get("media_type")
@@ -103,9 +106,80 @@ def publish_content(
             if full_path.exists():
                 media_file_path = str(full_path.absolute())
 
+    meta_data = content.get("meta_data") or {}
+    if isinstance(meta_data, str):
+        import json
+
+        try:
+            meta_data = json.loads(meta_data)
+        except Exception:
+            meta_data = {}
+
+    thumbnail_relative_path = meta_data.get("thumbnail_path")
+    logger.info(
+        f"Publish content {content_id}: media_type={media_type_val}, "
+        f"media_path={content.get('media_path')}, "
+        f"thumbnail_path={thumbnail_relative_path or '(none)'}"
+    )
+
+    if thumbnail_relative_path and media_type_val == "video":
+        if media_service.is_supabase_configured:
+            try:
+                temp_thumbnail_path = media_service.download_to_temp(thumbnail_relative_path)
+                thumbnail_file_path = temp_thumbnail_path
+                thumbnail_supabase_url = media_service.get_public_url(thumbnail_relative_path)
+                if not (thumbnail_supabase_url or "").startswith("https://"):
+                    # File may have been saved locally due to Supabase fallback
+                    local_thumb = (
+                        Path(__file__).parent.parent.parent / "uploads" / thumbnail_relative_path
+                    )
+                    if local_thumb.exists():
+                        thumbnail_file_path = str(local_thumb.absolute())
+                        thumbnail_supabase_url = public_api_url(
+                            f"/uploads/{thumbnail_relative_path}"
+                        )
+                logger.info(
+                    f"Using thumbnail: file={thumbnail_file_path}, "
+                    f"url={thumbnail_supabase_url}"
+                )
+            except Exception as e:
+                logger.error(f"Failed to download thumbnail from Supabase: {e}")
+                # Fall back to local uploads if present
+                local_thumb = (
+                    Path(__file__).parent.parent.parent / "uploads" / thumbnail_relative_path
+                )
+                if local_thumb.exists():
+                    thumbnail_file_path = str(local_thumb.absolute())
+                    thumbnail_supabase_url = public_api_url(
+                        f"/uploads/{thumbnail_relative_path}"
+                    )
+                    logger.info(
+                        f"Using local thumbnail fallback: {thumbnail_file_path} "
+                        f"url={thumbnail_supabase_url}"
+                    )
+        else:
+            upload_dir = Path(__file__).parent.parent.parent / "uploads"
+            thumb_full_path = upload_dir / thumbnail_relative_path
+            if thumb_full_path.exists():
+                thumbnail_file_path = str(thumb_full_path.absolute())
+                thumbnail_supabase_url = public_api_url(
+                    f"/uploads/{thumbnail_relative_path}"
+                )
+                logger.info(
+                    f"Using local thumbnail: {thumbnail_file_path} "
+                    f"url={thumbnail_supabase_url}"
+                )
+            else:
+                logger.error(f"Thumbnail file missing on disk: {thumb_full_path}")
+    elif thumbnail_relative_path and media_type_val != "video":
+        logger.warning(
+            f"Ignoring thumbnail_path={thumbnail_relative_path} because media_type="
+            f"{media_type_val} (thumbnails only apply to videos)"
+        )
+
     publisher = SocialPublisher(draft_mode=draft_mode)
 
-    youtube_tags = content.get("meta_data", {}).get("hashtags", []) if content else []
+    youtube_tags = meta_data.get("hashtags", []) if content else []
 
     platform_results = publisher.post_to_multiple(
         platforms=platforms,
@@ -115,6 +189,9 @@ def publish_content(
         media_type=media_type_val,
         media_relative_path=content.get("media_path"),
         media_url=media_supabase_url,
+        thumbnail_file_path=thumbnail_file_path,
+        thumbnail_relative_path=thumbnail_relative_path,
+        thumbnail_url=thumbnail_supabase_url,
         tags=youtube_tags,
         privacy_status=settings.YOUTUBE_DEFAULT_PRIVACY_STATUS,
         linkedin_account_labels=linkedin_account_labels,
@@ -122,6 +199,8 @@ def publish_content(
 
     if temp_file_path:
         media_service.cleanup_temp_file(temp_file_path)
+    if temp_thumbnail_path:
+        media_service.cleanup_temp_file(temp_thumbnail_path)
 
     # Persist per-platform status onto the Content row
     responses: list[dict] = []

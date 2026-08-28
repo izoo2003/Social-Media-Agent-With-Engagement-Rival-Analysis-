@@ -13,6 +13,8 @@ export interface ContentGenerationRequest {
   media_path?: string | null;
   media_type?: string | null;
   media_original_name?: string | null;
+  thumbnail_path?: string | null;
+  thumbnail_original_name?: string | null;
 }
 
 export interface ContentRegenerateRequest {
@@ -42,6 +44,8 @@ export interface ContentGenerationResponse {
   media_path?: string | null;
   media_type?: string | null;
   media_original_name?: string | null;
+  thumbnail_path?: string | null;
+  thumbnail_original_name?: string | null;
 }
 
 export interface ContentDetailResponse extends ContentGenerationResponse {
@@ -464,6 +468,14 @@ export interface CreationModelsResponse {
   voice_providers?: { id: string; label: string }[];
   fish_voice_configured?: boolean;
   languages?: { code: string; label: string; speech_lang: string }[];
+}
+
+export interface ImageGenerateRequest {
+  prompt: string;
+  provider?: string;
+  images?: { image_base64: string; image_mime_type?: string }[];
+  edit_mode?: boolean;
+  source_media_path?: string;
 }
 
 export interface ImageGenerateResponse {

@@ -65,6 +65,13 @@ class ContentGenerationRequest(BaseModel):
     media_original_name: Optional[str] = Field(
         default=None, description="Original filename of the attached media"
     )
+    thumbnail_path: Optional[str] = Field(
+        default=None,
+        description="Storage path for a custom video thumbnail (image upload via /content/media/upload)",
+    )
+    thumbnail_original_name: Optional[str] = Field(
+        default=None, description="Original filename of the video thumbnail image"
+    )
 
 
 class ContentRegenerateRequest(BaseModel):
@@ -95,6 +102,8 @@ class ContentGenerationResponse(BaseModel):
     media_path: Optional[str] = None
     media_type: Optional[str] = None
     media_original_name: Optional[str] = None
+    thumbnail_path: Optional[str] = None
+    thumbnail_original_name: Optional[str] = None
 
 
 class ContentHistoryResponse(BaseModel):
@@ -178,6 +187,11 @@ class ManualContentCreate(BaseModel):
     )
     media_type: Optional[str] = Field(default=None, description="image | video | document")
     media_original_name: Optional[str] = None
+    thumbnail_path: Optional[str] = Field(
+        default=None,
+        description="Storage path for a custom video thumbnail (image upload via /content/media/upload)",
+    )
+    thumbnail_original_name: Optional[str] = None
 
 
 class MediaProcessConfigResponse(BaseModel):

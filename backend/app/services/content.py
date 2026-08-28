@@ -33,6 +33,8 @@ class ContentService:
         media_path: Optional[str] = None,
         media_type: Optional[str] = None,
         media_original_name: Optional[str] = None,
+        thumbnail_path: Optional[str] = None,
+        thumbnail_original_name: Optional[str] = None,
     ) -> list[dict]:
         """
         Generate content for multiple platforms based on request.
@@ -73,6 +75,10 @@ class ContentService:
 
                 # Prepare metadata
                 metadata = self._prepare_metadata(request, platform)
+                if thumbnail_path:
+                    metadata["thumbnail_path"] = thumbnail_path
+                    if thumbnail_original_name:
+                        metadata["thumbnail_original_name"] = thumbnail_original_name
 
                 # Save to database with media info
                 content_record = self._save_content(
@@ -450,6 +456,8 @@ Do NOT include any introductory text, explanations, greetings, or concluding rem
         media_path: Optional[str] = None,
         media_type: Optional[str] = None,
         media_original_name: Optional[str] = None,
+        thumbnail_path: Optional[str] = None,
+        thumbnail_original_name: Optional[str] = None,
     ) -> dict:
         """
         Create a content row from a user-supplied caption + optional media
@@ -462,16 +470,22 @@ Do NOT include any introductory text, explanations, greetings, or concluding rem
             except ValueError:
                 logger.warning(f"Unknown media type: {media_type}, ignoring")
 
+        metadata = {
+            "source": "manual_schedule",
+            "tone": "professional",
+            "hashtags": [],
+            "keywords": [],
+        }
+        if thumbnail_path:
+            metadata["thumbnail_path"] = thumbnail_path
+            if thumbnail_original_name:
+                metadata["thumbnail_original_name"] = thumbnail_original_name
+
         record = self._save_content(
             platform=platform,
             title=title.strip(),
             body=body.strip(),
-            metadata={
-                "source": "manual_schedule",
-                "tone": "professional",
-                "hashtags": [],
-                "keywords": [],
-            },
+            metadata=metadata,
             media_path=media_path,
             media_type=media_type_enum,
             media_original_name=media_original_name,

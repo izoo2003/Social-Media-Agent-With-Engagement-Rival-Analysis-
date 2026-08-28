@@ -69,7 +69,7 @@ def _normalize_refs(reference_images: list[dict] | None) -> list[dict[str, str]]
             mime = "image/jpeg"
         if mime not in allowed:
             continue
-        # Flux.2 requires each input image ≤ 512×512.
+        # Any upload size is allowed; Cloudflare Flux.2 still needs <512×512 pixels.
         data, mime = _resize_ref_for_flux2(data, mime)
         cleaned.append({"mime": mime, "data": data})
     return cleaned
@@ -113,6 +113,17 @@ def _resize_ref_for_flux2(b64_data: str, mime: str) -> tuple[str, str]:
     except Exception as exc:
         logger.warning(f"Could not prepare reference image for Flux.2: {exc}")
         return b64_data, mime
+
+
+def build_edit_prompt(prompt: str) -> str:
+    """Prompt framing when input_image_0 is a prior generated output to modify."""
+    user_brief = (prompt or "").strip() or "Apply a subtle improvement to the image."
+    return (
+        "input_image_0 is the previous generated image. Apply only the requested changes. "
+        "Preserve the same product, logo, packaging, colors, and layout unless explicitly "
+        "told otherwise.\n\n"
+        f"Requested change: {user_brief}"
+    )[:4000]
 
 
 def build_reference_prompt(prompt: str, ref_count: int) -> str:
@@ -189,11 +200,17 @@ def _run_flux2(
     account_id: str,
     api_token: str,
     model: str,
+    edit_mode: bool = False,
 ) -> dict:
     refs = refs or []
     model_path = _model_path(model)
     url = f"https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/run/{model_path}"
-    full_prompt = build_reference_prompt(prompt, len(refs)) if refs else (prompt or "")[:4000]
+    if refs:
+        full_prompt = (
+            build_edit_prompt(prompt) if edit_mode else build_reference_prompt(prompt, len(refs))
+        )
+    else:
+        full_prompt = (prompt or "")[:4000]
 
     files: list[tuple[str, Any]] = [
         ("prompt", (None, full_prompt)),
@@ -254,6 +271,8 @@ def _parse_cloudflare_response(response: requests.Response, *, model: str) -> di
 def generate_cloudflare_image(
     prompt: str,
     reference_images: list[dict] | None = None,
+    *,
+    edit_mode: bool = False,
 ) -> dict:
     """
     Generate via Cloudflare only.
@@ -297,6 +316,7 @@ def generate_cloudflare_image(
                     account_id=account_id,
                     api_token=api_token,
                     model=primary,
+                    edit_mode=edit_mode,
                 )
                 result["used_reference_images"] = bool(refs)
                 result["prompt_enriched"] = bool(refs)
@@ -307,7 +327,14 @@ def generate_cloudflare_image(
                     f"falling back to {schnell_fallback}."
                 )
                 # Schnell cannot take image bytes — keep fidelity instructions in text.
-                text_prompt = build_reference_prompt(working_prompt, len(refs)) if refs else working_prompt
+                if refs:
+                    text_prompt = (
+                        build_edit_prompt(working_prompt)
+                        if edit_mode
+                        else build_reference_prompt(working_prompt, len(refs))
+                    )
+                else:
+                    text_prompt = working_prompt
                 result = _run_flux_schnell(
                     text_prompt,
                     account_id=account_id,

@@ -121,6 +121,8 @@ def generate_image(
     prompt: str,
     preferred_provider: str | None = None,
     reference_images: list[dict] | None = None,
+    *,
+    edit_mode: bool = False,
 ) -> dict:
     """Generate an image via Cloudflare (Prompt Studio).
 
@@ -144,11 +146,21 @@ def generate_image(
         )
 
     logger.info(
-        f"Image gen via Cloudflare only (requested={provider or 'default'}, refs={len(refs)})"
+        f"Image gen via Cloudflare only (requested={provider or 'default'}, "
+        f"refs={len(refs)}, edit_mode={edit_mode})"
     )
-    result = generate_cloudflare_image(prompt, reference_images=refs or None)
+    result = generate_cloudflare_image(
+        prompt,
+        reference_images=refs or None,
+        edit_mode=edit_mode,
+    )
     result["provider"] = "cloudflare"
-    if refs and result.get("used_reference_images"):
+    if edit_mode and refs and result.get("used_reference_images"):
+        result["fallback_reason"] = (
+            result.get("fallback_reason")
+            or "Edited the previous generated image with Cloudflare Flux.2."
+        )
+    elif refs and result.get("used_reference_images"):
         result["fallback_reason"] = (
             result.get("fallback_reason")
             or "Cloudflare Flux.2 used your prompt and attached reference image(s)."

@@ -67,6 +67,20 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
   const [mediaEngine, setMediaEngine] = useState<'cloud' | 'browser' | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Video thumbnail (Facebook, Instagram, YouTube)
+  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState<string | null>(null);
+  const [storedThumbnail, setStoredThumbnail] = useState<{
+    media_path: string;
+    media_original_name: string;
+  } | null>(null);
+  const thumbnailInputRef = useRef<HTMLInputElement>(null);
+
+  const videoThumbnailPlatforms = ['facebook', 'instagram', 'youtube'];
+  const showThumbnailOption =
+    mediaType === 'video' &&
+    selectedPlatforms.some((p) => videoThumbnailPlatforms.includes(p));
+
   // Generation state
   const [generatedContents, setGeneratedContents] = useState<ContentGenerationResponse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -352,6 +366,38 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
     setMediaElapsedSec(0);
     setMediaEngine(undefined);
     if (fileInputRef.current) fileInputRef.current.value = '';
+    handleRemoveThumbnail();
+  };
+
+  const handleThumbnailSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setError('Thumbnail must be an image (JPG or PNG).');
+      e.target.value = '';
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      setError('Thumbnail is too large. Max size is 10 MB.');
+      e.target.value = '';
+      return;
+    }
+
+    setError(null);
+    setStoredThumbnail(null);
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    setThumbnailPreview(URL.createObjectURL(file));
+    setThumbnailFile(file);
+  };
+
+  const handleRemoveThumbnail = () => {
+    if (thumbnailPreview) URL.revokeObjectURL(thumbnailPreview);
+    setThumbnailFile(null);
+    setThumbnailPreview(null);
+    setStoredThumbnail(null);
+    if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
   };
 
   const handleGenerate = async (e: React.FormEvent) => {
@@ -390,6 +436,39 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
         setBusyPhase('generating');
       }
 
+      let thumbnailMeta: {
+        thumbnail_path: string;
+        thumbnail_original_name: string;
+      } | null = storedThumbnail
+        ? {
+            thumbnail_path: storedThumbnail.media_path,
+            thumbnail_original_name: storedThumbnail.media_original_name,
+          }
+        : null;
+
+      if (
+        !thumbnailMeta &&
+        thumbnailFile &&
+        (mediaMeta?.media_type === 'video' || mediaType === 'video')
+      ) {
+        const uploaded = await uploadMediaForGeneration(thumbnailFile);
+        thumbnailMeta = {
+          thumbnail_path: uploaded.media_path,
+          thumbnail_original_name: uploaded.media_original_name,
+        };
+        setStoredThumbnail({
+          media_path: uploaded.media_path,
+          media_original_name: uploaded.media_original_name,
+        });
+        setBusyPhase('generating');
+      }
+
+      if (thumbnailFile && !thumbnailMeta) {
+        throw new Error(
+          'Thumbnail was selected but could not be attached. Make sure the main media is a video, then try again.'
+        );
+      }
+
       const response = await apiFetch(API_ENDPOINTS.CONTENT_GENERATE, {
         method: 'POST',
         body: JSON.stringify({
@@ -407,6 +486,7 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                 media_original_name: mediaMeta.media_original_name,
               }
             : {}),
+          ...(thumbnailMeta ? thumbnailMeta : {}),
         }),
       });
 
@@ -640,6 +720,28 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
           onRegenerate={handleRegenerate}
         />
 
+        {(thumbnailPreview || storedThumbnail) && mediaType === 'video' && (
+          <div className="bg-white rounded-lg shadow-md p-4 flex items-center gap-4">
+            {thumbnailPreview && (
+              <img
+                src={thumbnailPreview}
+                alt="Video thumbnail"
+                className="h-20 w-32 rounded-lg object-cover border border-gray-200"
+              />
+            )}
+            <div>
+              <p className="text-sm font-semibold text-slate-900">Video thumbnail attached</p>
+              <p className="text-xs text-gray-500">
+                {thumbnailFile?.name || storedThumbnail?.media_original_name || 'Custom cover'}
+                {' · '}applied on Facebook & Instagram
+                {selectedPlatforms.includes('youtube')
+                  ? ' · YouTube Shorts: set thumbnail manually in Studio (API cannot apply it)'
+                  : ''}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Post to Socials Section */}
         <div className="bg-white rounded-lg shadow-md p-8">
           <h2 className="text-xl font-semibold text-slate-900 mb-2">📤 Post to Social Media</h2>
@@ -678,21 +780,31 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
               Post to these platforms:
             </label>
             <div className="flex flex-wrap gap-3">
-              {['linkedin', 'facebook', 'instagram', 'youtube', 'tiktok'].map((pid) => {
+              {generatedContents
+                .map((c) => c.platform)
+                .filter((pid) =>
+                  ['linkedin', 'facebook', 'instagram', 'youtube', 'tiktok'].includes(pid)
+                )
+                .map((pid) => {
                 const platform = PLATFORMS.find(p => p.id === pid);
                 if (!platform) return null;
                 const state = postingStates[pid] || 'idle';
+                const isPosting = Object.values(postingStates).some((s) => s === 'posting');
+                const isSelected = selectedPlatforms.includes(pid);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={pid}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 ${
-                      selectedPlatforms.includes(pid)
-                        ? 'border-green-400 bg-green-50'
-                        : 'border-gray-200 bg-gray-50'
-                    }`}
+                    onClick={() => handlePlatformToggle(pid)}
+                    disabled={isPosting}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all ${
+                      isSelected
+                        ? 'border-green-400 bg-green-50 dark:border-green-500 dark:bg-green-950/40'
+                        : 'border-gray-200 bg-gray-50 hover:border-gray-300 dark:border-slate-600 dark:bg-slate-800 dark:hover:border-slate-500'
+                    } ${isPosting ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
                   >
                     <SocialPlatformIcon platform={pid} size={20} />
-                    <span className="text-sm font-medium text-gray-700">{platform.name}</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-slate-200">{platform.name}</span>
                     {pid === 'linkedin' && linkedinAccounts.length > 0 && (
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-semibold">
                         {selectedLinkedinAccounts.length}/{linkedinAccounts.length} accounts
@@ -704,10 +816,13 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
                     {state === 'done' && <span className="text-green-600 text-sm font-bold">✓</span>}
                     {state === 'partial' && <span className="text-amber-600 text-sm font-bold">~</span>}
                     {state === 'error' && <span className="text-red-600 text-sm font-bold">✗</span>}
-                  </div>
+                  </button>
                 );
               })}
             </div>
+            <p className="text-xs text-gray-500 mt-2 dark:text-slate-400">
+              Click a platform to include or exclude it before posting.
+            </p>
           </div>
 
           {/* LinkedIn account picker */}
@@ -1143,6 +1258,63 @@ export default function ContentGenerationForm({ onGenerate }: ContentGenerationF
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
+          {/* Video thumbnail — shown when a video is attached and video platforms are selected */}
+          {showThumbnailOption && (
+            <div className="mb-4">
+              <label className="block text-sm font-semibold text-gray-700 mb-2 dark:text-slate-200">
+                Video Thumbnail (Optional)
+              </label>
+              <p className="text-xs text-gray-500 mb-3 dark:text-slate-400">
+                Custom cover for Facebook and Instagram Reels. JPG or PNG recommended.
+                {selectedPlatforms.includes('youtube') && (
+                  <span className="block mt-1 text-amber-700 dark:text-amber-400">
+                    YouTube Shorts: the API cannot set custom thumbnails on Shorts (YouTube
+                    ignores them). Use YouTube Studio on desktop after upload, or post a
+                    longer landscape video for API thumbnails.
+                  </span>
+                )}
+              </p>
+
+              {!thumbnailPreview ? (
+                <div
+                  onClick={() => thumbnailInputRef.current?.click()}
+                  className="border border-dashed border-gray-300 rounded-lg p-4 text-center cursor-pointer hover:border-purple-400 hover:bg-purple-50/50 transition-all dark:border-slate-500 dark:hover:border-gold-500/60 dark:hover:bg-slate-700/80"
+                >
+                  <p className="text-sm text-gray-600 dark:text-slate-300">
+                    Click to upload thumbnail image
+                  </p>
+                  <input
+                    ref={thumbnailInputRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleThumbnailSelect}
+                    className="hidden"
+                  />
+                </div>
+              ) : (
+                <div className="flex items-start gap-4">
+                  <img
+                    src={thumbnailPreview}
+                    alt="Video thumbnail preview"
+                    className="h-24 w-40 rounded-lg object-cover border border-gray-200 dark:border-slate-600"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-gray-600 truncate dark:text-slate-300">
+                      {thumbnailFile?.name}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleRemoveThumbnail}
+                      className="text-red-500 hover:text-red-700 text-sm font-medium mt-2"
+                    >
+                      Remove thumbnail
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Additional Instructions */}
           <div className="mb-4">

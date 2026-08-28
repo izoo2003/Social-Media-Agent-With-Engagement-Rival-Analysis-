@@ -32,6 +32,7 @@ An end-to-end, in-house social media operations platform built for Kafi Commodit
 * **Multi-Platform:** Post directly to LinkedIn (up to 3 accounts), Facebook Pages, Instagram Business, and YouTube.
 * **AI Captions:** Google Gemini integration crafts platform-optimized text based on topic, tone, and audience.
 * **Media Uploads:** Magic-byte validated media uploads (images, videos, PDFs) stored securely in Supabase (production) or local disk. SVGs are blocked for XSS prevention.
+* **Large Video Processing:** Videos over ~40 MB are processed before Railway upload. Prefer CloudConvert (set `CLOUDCONVERT_API_KEY`) for fast server encode; otherwise browser ffmpeg is used as a fallback.
 * **Draft Mode:** A `DRAFT_MODE` toggle simulates posting workflows and API interactions without hitting live social networks, ensuring safe testing.
 
 ### 3. Content Calendar & Background Scheduler
@@ -52,6 +53,7 @@ An end-to-end, in-house social media operations platform built for Kafi Commodit
 * A dedicated, product-aware AI chatbot grounded in the Kafi/Essence product catalog.
 * Crafts highly optimized image and video prompts for external tools (Meta AI, Midjourney, etc.).
 * Multi-key Gemini fallback ensures high availability and quota resilience.
+* Optional OpenRouter models for chat/voice, plus Cloudflare Flux.2 when product/logo reference images are attached.
 
 ### 6. Analytics & Rival Review
 
@@ -193,6 +195,59 @@ npm run dev
 **Frontend (`.env.local`)**
 
 * `NEXT_PUBLIC_API_URL`: Points to backend (e.g., Railway URL in production or `http://localhost:8000`).
+
+### New / recently added (Railway checklist)
+
+Add these on the **Railway backend** service if missing. Full comments live in `backend/.env.example`.
+
+#### 1) Fast large-video processing (CloudConvert)
+
+| Variable | Required? | Default / example | Notes |
+| --- | --- | --- | --- |
+| `CLOUDCONVERT_API_KEY` | **Yes** (for fast path) | *(your API key)* | [cloudconvert.com](https://cloudconvert.com) → verify email first |
+| `CLOUDCONVERT_TARGET_HEIGHT` | No | `720` | Max output height |
+| `CLOUDCONVERT_CRF` | No | `28` | Quality (higher = smaller file) |
+| `CLOUDCONVERT_AUDIO_BITRATE_K` | No | `96` | Audio kbps |
+| `CLOUDCONVERT_POLL_TIMEOUT_SEC` | No | `600` | Wait for encode to finish |
+| `MAX_UPLOAD_SIZE_MB` | Recommended | `200` | Allow large video uploads |
+| `MAX_REQUEST_BODY_MB` | Recommended | `200` | Keep ≥ upload limit |
+
+Without `CLOUDCONVERT_API_KEY`, large videos fall back to slow in-browser encoding.
+
+#### 2) Prompt Studio — OpenRouter chat / voice
+
+| Variable | Required? | Default / example | Notes |
+| --- | --- | --- | --- |
+| `OPENROUTER_API_KEY` | For Claude/Nemotron chat | | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| `OPENROUTER_CHAT_MODEL` | No | `nvidia/nemotron-3-ultra-550b-a55b:free` | |
+| `OPENROUTER_CHATGPT_API_KEY` | For ChatGPT dropdown | | Can reuse same OpenRouter key |
+| `OPENROUTER_CHATGPT_MODEL` | No | `google/gemma-4-26b-a4b-it:free` | |
+| `OPENROUTER_TIMEOUT` | No | `120` | |
+| `OPENROUTER_FISH_API_KEY` | For voice-over | | Fish Audio via OpenRouter |
+| `OPENROUTER_FISH_MODEL` | No | `fish-audio/s2.1-pro-free:free` | |
+| `OPENROUTER_FISH_TIMEOUT` | No | `120` | |
+
+#### 3) Prompt Studio — Gemini image slots + Cloudflare Flux.2 refs
+
+| Variable | Required? | Default / example | Notes |
+| --- | --- | --- | --- |
+| `IMAGE_PROVIDER` | No | `gemini` | `gemini` \| `modelslab` \| `cloudflare` |
+| `STUDIO_IMAGE_GEMINI_API_KEY` | For Gemini images | | Slot 1 |
+| `IMAGE_GEMINI_MODEL` | No | `gemini-2.5-flash-image` | |
+| `IMAGE_GEMINI_FALLBACK_MODEL` | No | `gemini-3.1-flash-image` | |
+| `STUDIO_IMAGE_GEMINI_API_KEY_2` | Optional | | Slot 2 (quota failover) |
+| `IMAGE_GEMINI_MODEL_2` | No | `gemini-3.1-flash-image` | |
+| `IMAGE_GEMINI_FALLBACK_MODEL_2` | No | `gemini-2.5-flash-image` | |
+| `STUDIO_IMAGE_GEMINI_API_KEY_3` | Optional | | Slot 3 |
+| `IMAGE_GEMINI_MODEL_3` | No | `gemini-2.5-flash-image` | |
+| `IMAGE_GEMINI_FALLBACK_MODEL_3` | No | `gemini-3.1-flash-image` | |
+| `IMAGE_GEMINI_PRIORITY_COUNT` | No | `0` | `0` = use all Gemini slots |
+| `CLOUDFLARE_ACCOUNT_ID` | For Flux.2 / refs | | Workers AI |
+| `CLOUDFLARE_API_TOKEN` | For Flux.2 / refs | | |
+| `CLOUDFLARE_IMAGE_MODEL` | No | `@cf/black-forest-labs/flux-2-klein-4b` | Text-only / fallback |
+| `CLOUDFLARE_REFERENCE_IMAGE_MODEL` | No | `@cf/black-forest-labs/flux-2-klein-4b` | When user attaches product/logo images |
+
+**Frontend (Vercel):** no new public env vars for the above — only `NEXT_PUBLIC_API_URL` must point at Railway.
 
 ---
 

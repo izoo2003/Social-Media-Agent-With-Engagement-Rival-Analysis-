@@ -8,6 +8,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 import requests
@@ -624,6 +625,7 @@ class FacebookClient:
         body: str,
         media_path: Optional[str] = None,
         media_type: Optional[str] = None,
+        thumbnail_file_path: Optional[str] = None,
     ) -> dict:
         """
         Create a post on Facebook Page.
@@ -675,7 +677,8 @@ class FacebookClient:
                         timeout=180,
                     )
             elif media_path and media_type == "video":
-                # Upload video
+                # Upload video first, then set preferred thumbnail via /thumbnails
+                # (inline `thumb` on /videos is unreliable across Graph API versions).
                 with open(media_path, "rb") as f:
                     files = {"source": f}
                     data = {
@@ -702,11 +705,21 @@ class FacebookClient:
             post_id = result.get("id", "")
             logger.info(f"Facebook post created: {post_id}")
 
+            thumb_error = None
+            if (
+                media_path
+                and media_type == "video"
+                and post_id
+                and thumbnail_file_path
+                and os.path.exists(thumbnail_file_path)
+            ):
+                thumb_error = self._set_video_thumbnail(post_id, thumbnail_file_path)
+
             return {
-                "status": "published",
+                "status": "partial" if thumb_error else "published",
                 "post_id": post_id,
                 "post_url": f"https://www.facebook.com/{post_id}",
-                "error_message": None,
+                "error_message": thumb_error,
             }
 
         except requests.exceptions.HTTPError as e:
@@ -732,6 +745,43 @@ class FacebookClient:
                 "post_url": None,
                 "error_message": str(e),
             }
+
+    def _set_video_thumbnail(self, video_id: str, thumbnail_file_path: str) -> Optional[str]:
+        """
+        Set the preferred custom thumbnail on a Facebook Page video.
+
+        Returns an error string on failure, otherwise None.
+        """
+        ext = Path(thumbnail_file_path).suffix.lower()
+        content_type = "image/jpeg"
+        if ext == ".png":
+            content_type = "image/png"
+        elif ext == ".webp":
+            content_type = "image/webp"
+        filename = Path(thumbnail_file_path).name or f"thumb{ext or '.jpg'}"
+
+        try:
+            with open(thumbnail_file_path, "rb") as thumb_file:
+                response = requests.post(
+                    f"{self._graph_api_url()}/{video_id}/thumbnails",
+                    data={
+                        "access_token": self.page_access_token,
+                        "is_preferred": "true",
+                    },
+                    files={
+                        "source": (filename, thumb_file, content_type),
+                    },
+                    timeout=60,
+                )
+            if not response.ok:
+                detail = response.text[:500]
+                logger.error(f"Facebook thumbnail set failed for {video_id}: {detail}")
+                return f"Facebook video posted but thumbnail failed: {detail}"
+            logger.info(f"Facebook preferred thumbnail set for video {video_id}")
+            return None
+        except Exception as exc:
+            logger.error(f"Facebook thumbnail upload error: {exc}")
+            return f"Facebook video posted but thumbnail failed: {exc}"
 
 
 class InstagramClient:
@@ -839,6 +889,7 @@ class InstagramClient:
         media_type: Optional[str] = None,
         media_relative_path: Optional[str] = None,
         media_url: Optional[str] = None,
+        thumbnail_url: Optional[str] = None,
     ) -> dict:
         """
         Create a post on Instagram Business Account.
@@ -911,7 +962,7 @@ class InstagramClient:
                         ),
                     }
 
-                # Build params: image_url for images, media_type=VIDEO + video_url for videos
+                # Build params: image_url for images, media_type=REELS + video_url for videos
                 params = {
                     "caption": caption,
                     "access_token": self.page_access_token,
@@ -921,14 +972,27 @@ class InstagramClient:
                     # This publishes the video to the main feed (not Reels tab)
                     params["media_type"] = "REELS"
                     params["video_url"] = public_url
+                    if thumbnail_url and str(thumbnail_url).startswith("https://"):
+                        params["cover_url"] = thumbnail_url
+                        logger.info(f"Instagram REELS cover_url: {thumbnail_url}")
+                    elif thumbnail_url:
+                        logger.warning(
+                            "Instagram cover_url ignored — must be a public HTTPS URL, "
+                            f"got: {thumbnail_url}"
+                        )
+                    else:
+                        logger.warning(
+                            "Instagram video post has no cover_url; Meta will use a frame from the video."
+                        )
                 else:
                     params["image_url"] = public_url
 
                 logger.info(f"Instagram media container URL: {public_url}")
 
+                # Use form body (data=) so cover_url / video_url are not truncated in the query string
                 container_response = requests.post(
                     f"{self._graph_api_url()}/{self.instagram_account_id}/media",
-                    params=params,
+                    data=params,
                     timeout=120,
                 )
 
@@ -1140,6 +1204,7 @@ class YouTubeClient:
         description: str,
         tags: Optional[list[str]] = None,
         privacy_status: Optional[str] = None,  # private, unlisted, public
+        thumbnail_file_path: Optional[str] = None,
     ) -> dict:
         """
         Upload a video to YouTube using the resumable upload protocol.
@@ -1353,6 +1418,44 @@ class YouTubeClient:
 
             logger.info(f"YouTube video uploaded successfully: {video_id} ({video_url})")
 
+            likely_short = self._is_likely_short(video_id, token)
+            thumb_warning = None
+
+            if thumbnail_file_path and os.path.exists(thumbnail_file_path):
+                thumb_result = self.set_thumbnail(video_id, thumbnail_file_path)
+                if thumb_result.get("status") == "failed":
+                    logger.warning(
+                        f"YouTube video uploaded but thumbnail failed: "
+                        f"{thumb_result.get('error_message')}"
+                    )
+                    return {
+                        "status": "partial",
+                        "post_id": video_id,
+                        "post_url": video_url,
+                        "error_message": thumb_result.get("error_message"),
+                    }
+
+                # Shorts: thumbnails.set often returns 200 but YouTube silently ignores
+                # the custom image. Surface that so it doesn't look like a silent bug.
+                if likely_short:
+                    thumb_warning = (
+                        "YouTube Short: custom thumbnails are not applied via the API "
+                        "(YouTube accepts the upload then ignores it). "
+                        "Open the Short in YouTube Studio on desktop and set the "
+                        "thumbnail manually."
+                    )
+                    logger.warning(
+                        f"YouTube Shorts thumbnail likely ignored for {video_id}"
+                    )
+
+            if thumb_warning:
+                return {
+                    "status": "partial",
+                    "post_id": video_id,
+                    "post_url": video_url,
+                    "error_message": thumb_warning,
+                }
+
             result = {
                 "status": "published",
                 "post_id": video_id,
@@ -1385,6 +1488,128 @@ class YouTubeClient:
                 "post_url": None,
                 "error_message": str(e),
             }
+
+    def _parse_iso8601_duration_seconds(self, duration: str) -> Optional[int]:
+        """Parse YouTube contentDetails.duration (e.g. PT1M30S) to seconds."""
+        if not duration or not duration.startswith("P"):
+            return None
+        match = re.match(
+            r"^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?$",
+            duration,
+        )
+        if not match:
+            return None
+        days, hours, minutes, seconds = (int(g or 0) for g in match.groups())
+        return days * 86400 + hours * 3600 + minutes * 60 + seconds
+
+    def _is_likely_short(self, video_id: str, access_token: str) -> bool:
+        """
+        Detect videos YouTube will treat as Shorts.
+
+        YouTube classifies vertical videos up to ~3 minutes as Shorts.
+        Custom thumbnails via thumbnails.set are silently ignored on Shorts.
+        """
+        try:
+            response = requests.get(
+                self.VIDEO_API_URL,
+                params={"part": "contentDetails,snippet", "id": video_id},
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=20,
+            )
+            if not response.ok:
+                logger.warning(
+                    f"Could not inspect YouTube video {video_id} for Shorts: "
+                    f"{response.status_code}"
+                )
+                return False
+
+            items = response.json().get("items") or []
+            if not items:
+                return False
+
+            details = items[0].get("contentDetails") or {}
+            duration_sec = self._parse_iso8601_duration_seconds(
+                details.get("duration") or ""
+            )
+            # Shorts are currently allowed up to 3 minutes
+            if duration_sec is not None and duration_sec <= 180:
+                logger.info(
+                    f"YouTube video {video_id} duration={duration_sec}s — treating as Short"
+                )
+                return True
+            return False
+        except Exception as exc:
+            logger.warning(f"YouTube Shorts detection failed for {video_id}: {exc}")
+            return False
+
+    def set_thumbnail(self, video_id: str, thumbnail_path: str) -> dict:
+        """
+        Set a custom thumbnail on an uploaded YouTube video.
+
+        Reference: https://developers.google.com/youtube/v3/docs/thumbnails/set
+        """
+        if self.draft_mode:
+            logger.info(
+                f"[DRAFT] YouTube thumbnail would be set for {video_id}: {thumbnail_path}"
+            )
+            return {"status": "draft", "error_message": None}
+
+        if not os.path.exists(thumbnail_path):
+            return {
+                "status": "failed",
+                "error_message": f"Thumbnail file not found: {thumbnail_path}",
+            }
+
+        token = self._access_token or self._refresh_access_token()
+        if not token:
+            return {
+                "status": "failed",
+                "error_message": "Failed to obtain YouTube access token for thumbnail upload.",
+            }
+
+        content_type = "image/jpeg"
+        lower_path = thumbnail_path.lower()
+        if lower_path.endswith(".png"):
+            content_type = "image/png"
+
+        try:
+            with open(thumbnail_path, "rb") as f:
+                thumb_data = f.read()
+
+            response = requests.post(
+                "https://www.googleapis.com/upload/youtube/v3/thumbnails/set",
+                params={"videoId": video_id},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": content_type,
+                },
+                data=thumb_data,
+                timeout=60,
+            )
+
+            if not response.ok:
+                error_detail = response.text[:500]
+                logger.error(
+                    f"YouTube thumbnail upload failed: {response.status_code} - {error_detail}"
+                )
+                hint = ""
+                lower = error_detail.lower()
+                if "verified" in lower or "permission" in lower or response.status_code == 403:
+                    hint = (
+                        " Custom thumbnails require a verified YouTube channel, "
+                        "and Shorts do not support custom thumbnails via API."
+                    )
+                return {
+                    "status": "failed",
+                    "error_message": f"YouTube thumbnail upload failed: {error_detail}.{hint}",
+                }
+
+            logger.info(f"YouTube thumbnail set for video {video_id}")
+            return {"status": "published", "error_message": None}
+
+        except Exception as e:
+            logger.error(f"YouTube thumbnail upload error: {str(e)}")
+            return {"status": "failed", "error_message": str(e)}
 
 
 class TikTokClient:
@@ -1881,6 +2106,9 @@ class SocialPublisher:
         media_type: Optional[str] = None,
         media_relative_path: Optional[str] = None,
         media_url: Optional[str] = None,
+        thumbnail_file_path: Optional[str] = None,
+        thumbnail_relative_path: Optional[str] = None,
+        thumbnail_url: Optional[str] = None,
         tags: Optional[list[str]] = None,
         privacy_status: Optional[str] = None,
         linkedin_account_labels: Optional[list[str]] = None,
@@ -1910,6 +2138,8 @@ class SocialPublisher:
                     platform, title, body, media_file_path, media_type,
                     media_relative_path=media_relative_path,
                     media_url=media_url,
+                    thumbnail_file_path=thumbnail_file_path,
+                    thumbnail_url=thumbnail_url,
                     tags=tags,
                     privacy_status=youtube_privacy,
                     linkedin_account_labels=linkedin_account_labels,
@@ -1933,6 +2163,8 @@ class SocialPublisher:
         media_type: Optional[str] = None,
         media_relative_path: Optional[str] = None,
         media_url: Optional[str] = None,
+        thumbnail_file_path: Optional[str] = None,
+        thumbnail_url: Optional[str] = None,
         tags: Optional[list[str]] = None,
         privacy_status: Optional[str] = None,
         linkedin_account_labels: Optional[list[str]] = None,
@@ -1965,12 +2197,16 @@ class SocialPublisher:
                 account_labels=linkedin_account_labels,
             )
         elif platform == "facebook":
-            return self.facebook.create_post(title, body, media_file_path, media_type)
+            return self.facebook.create_post(
+                title, body, media_file_path, media_type,
+                thumbnail_file_path=thumbnail_file_path,
+            )
         elif platform == "instagram":
             return self.instagram.create_post(
                 title, body, media_file_path, media_type,
                 media_relative_path=media_relative_path,
                 media_url=media_url,
+                thumbnail_url=thumbnail_url,
             )
         elif platform == "youtube":
             if not media_file_path:
@@ -1986,6 +2222,7 @@ class SocialPublisher:
                 description=body,
                 tags=tags,
                 privacy_status=privacy_status or settings.YOUTUBE_DEFAULT_PRIVACY_STATUS,
+                thumbnail_file_path=thumbnail_file_path,
             )
         elif platform == "tiktok":
             if not media_file_path or media_type != "video":

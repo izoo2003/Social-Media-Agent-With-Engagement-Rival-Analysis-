@@ -185,6 +185,20 @@ class ImageGenerateRequest(BaseModel):
             "input_image_0… so packaging/logo stay faithful to the attachment."
         ),
     )
+    edit_mode: bool = Field(
+        default=False,
+        description=(
+            "When true, treat reference image(s) as a prior generated output to edit "
+            "instead of ground-truth product/logo references."
+        ),
+    )
+    source_media_path: Optional[str] = Field(
+        default=None,
+        description=(
+            "Storage path of a prior generated image (e.g. images/abc.jpg or "
+            "/uploads/images/abc.jpg). Loaded server-side and sent as input_image_0."
+        ),
+    )
 
 
 class ImageGenerateResponse(BaseModel):
