@@ -121,6 +121,17 @@ export const API_ENDPOINTS = {
   CAMPAIGN_COMMIT: (id: number) =>
     `${API_BASE_URL}/api/${API_VERSION}/campaigns/${id}/commit`,
 
+  // Designer KPIs
+  KPI_CATALOG: `${API_BASE_URL}/api/${API_VERSION}/kpis/catalog`,
+  KPI_SUMMARY: (from: string, to: string) =>
+    `${API_BASE_URL}/api/${API_VERSION}/kpis/summary?from=${from}&to=${to}`,
+  KPI_MANUAL: `${API_BASE_URL}/api/${API_VERSION}/kpis/manual`,
+  KPI_MANUAL_DETAIL: (id: number) =>
+    `${API_BASE_URL}/api/${API_VERSION}/kpis/manual/${id}`,
+  KPI_CUSTOM: `${API_BASE_URL}/api/${API_VERSION}/kpis/custom`,
+  KPI_CUSTOM_DETAIL: (id: number) =>
+    `${API_BASE_URL}/api/${API_VERSION}/kpis/custom/${id}`,
+
   // Uploads
   UPLOADS: `${API_BASE_URL}/uploads`,
 };

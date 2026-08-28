@@ -45,6 +45,7 @@ from app.schemas.creation import (
     VoiceGenerateResponse,
 )
 from app.services.image_generation import extract_image_prompt, generate_image
+from app.services.kpi import KpiMetricKey, record_auto_event
 from app.services.media import MediaService
 from app.data.creation_languages import list_creation_languages
 from app.services.product_knowledge import (
@@ -61,6 +62,16 @@ from app.utils.logger import logger
 router = APIRouter()
 
 chat_client = LLMClient()
+
+_SCRIPT_INTENTS = {
+    CreationIntent.PROMPT,
+    CreationIntent.CREATE_VOICE,
+    CreationIntent.VIDEO_PROMPT,
+}
+
+
+def _kpi_actor(request: Request) -> str | None:
+    return getattr(request.state, "dashboard_user", None)
 
 
 def _creation_model_label() -> str:
@@ -311,6 +322,13 @@ async def creation_chat(request: Request, body: ChatRequest):
                 models=models,
             )
 
+        if body.intent in _SCRIPT_INTENTS:
+            record_auto_event(
+                KpiMetricKey.SCRIPTS_GENERATED.value,
+                created_by=_kpi_actor(request),
+                meta={"intent": body.intent.value},
+            )
+
         return ChatResponse(
             model=model,
             reply=reply,
@@ -452,6 +470,14 @@ async def creation_generate_image(request: Request, body: ImageGenerateRequest):
             reference_images=refs_for_gen,
             edit_mode=edit_mode,
         )
+        record_auto_event(
+            KpiMetricKey.IMAGES_GENERATED.value,
+            created_by=_kpi_actor(request),
+            meta={
+                "provider": result.get("provider") or preferred or resolve_image_provider(),
+                "media_path": result.get("media_path"),
+            },
+        )
         return ImageGenerateResponse(
             media_path=result["media_path"],
             media_url=_resolve_media_url(result["media_url"], request),
@@ -520,6 +546,14 @@ async def creation_generate_voice(request: Request, body: VoiceGenerateRequest):
             body.text,
             language=body.language,
             provider=provider,  # type: ignore[arg-type]
+        )
+        record_auto_event(
+            KpiMetricKey.VOICEOVERS_GENERATED.value,
+            created_by=_kpi_actor(request),
+            meta={
+                "provider": result.get("provider", provider),
+                "media_path": result.get("media_path"),
+            },
         )
         return VoiceGenerateResponse(
             media_path=result["media_path"],

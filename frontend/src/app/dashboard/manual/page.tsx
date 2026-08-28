@@ -307,6 +307,43 @@ const MANUAL_SECTIONS: ManualSection[] = [
     ],
   },
   {
+    id: 'kpis',
+    number: '7',
+    title: 'KPI Creation',
+    href: '/dashboard/kpis',
+    intro:
+      'Designer work report. Auto cards count activity in this agent. Manual entries cover work done in other tools. Senior accounts only. Days use Asia/Karachi.',
+    steps: [],
+    subsections: [
+      {
+        number: '7.1',
+        title: 'Auto catalog',
+        steps: [
+          'Open KPIs from the sidebar (senior accounts).',
+          'The page defaults to today. Use Today, This week, This month, or pick a From–To date range.',
+          'Read the auto catalog cards: posts published, scheduled posts, images, voiceovers, scripts, campaigns, and rivals.',
+          'Each card shows Auto (from the agent), Manual (what you typed), and Total (Auto + Manual).',
+          'Posts published also splits images vs reels/video when media type is known.',
+        ],
+        tips: [
+          'Image, voiceover, and script auto-counts start from when this feature was added — older Prompt Studio work is not backfilled.',
+          'Junior work in the agent is included in the workspace totals.',
+        ],
+      },
+      {
+        number: '7.2',
+        title: 'Manual entries and custom KPIs',
+        steps: [
+          'In Manual entry, pick a catalog KPI or a custom card, enter quantity and date, add an optional note, then Add entry.',
+          'Use this for work done outside the agent (Canva, Photoshop, other software).',
+          'Create a Custom KPI with a name (for example “Canva graphics”) when the catalog does not cover it. Fill that card with manual entries.',
+          'Edit or delete a manual row from the Manual log. Archive a custom card if you no longer need it — old entries stay in history.',
+          'The daily report table shows Auto + Manual totals for every day in the selected range.',
+        ],
+      },
+    ],
+  },
+  {
     id: 'settings',
     number: '—',
     title: 'Settings',

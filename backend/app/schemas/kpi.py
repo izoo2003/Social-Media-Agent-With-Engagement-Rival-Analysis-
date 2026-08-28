@@ -1,0 +1,146 @@
+"""
+Pydantic Schemas - Designer KPI Creation DTOs
+"""
+
+from datetime import date, datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+
+class KpiCatalogItem(BaseModel):
+    key: str
+    label: str
+    description: str
+
+
+class KpiCounts(BaseModel):
+    auto: int = 0
+    manual: int = 0
+    total: int = 0
+
+
+class KpiCatalogMetric(KpiCounts):
+    key: str
+    label: str
+    description: str = ""
+    breakdown: Optional[dict[str, int]] = None
+
+
+class KpiCustomMetric(KpiCounts):
+    id: int
+    name: str
+    is_active: bool = True
+
+
+class KpiDailyCatalogCounts(KpiCounts):
+    breakdown: Optional[dict[str, int]] = None
+
+
+class KpiDailyRow(BaseModel):
+    date: date
+    catalog: dict[str, KpiDailyCatalogCounts] = Field(default_factory=dict)
+    custom: dict[str, KpiCounts] = Field(default_factory=dict)
+
+
+class KpiManualEntryResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    metric_key: Optional[str] = None
+    custom_definition_id: Optional[int] = None
+    custom_name: Optional[str] = None
+    quantity: int
+    note: Optional[str] = None
+    occurred_on: date
+    created_by: Optional[str] = None
+    created_at: datetime
+
+
+class KpiCustomDefinitionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    is_active: bool
+    created_at: datetime
+
+
+class KpiSummaryResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, ser_json_by_alias=True)
+
+    from_date: date = Field(alias="from")
+    to_date: date = Field(alias="to")
+    timezone: str = "Asia/Karachi"
+    catalog: list[KpiCatalogMetric]
+    custom: list[KpiCustomMetric]
+    daily: list[KpiDailyRow]
+    manual_entries: list[KpiManualEntryResponse]
+
+
+class KpiManualCreate(BaseModel):
+    metric_key: Optional[str] = Field(
+        default=None,
+        description="Catalog metric key, e.g. images_generated",
+    )
+    custom_definition_id: Optional[int] = Field(
+        default=None,
+        description="Custom KPI card id (mutually exclusive with metric_key)",
+    )
+    quantity: int = Field(..., ge=1, le=100_000)
+    note: Optional[str] = Field(default=None, max_length=500)
+    occurred_on: date
+
+    @model_validator(mode="after")
+    def exactly_one_target(self):
+        has_key = bool((self.metric_key or "").strip())
+        has_custom = self.custom_definition_id is not None
+        if has_key == has_custom:
+            raise ValueError("Provide either metric_key or custom_definition_id, not both.")
+        if self.metric_key:
+            self.metric_key = self.metric_key.strip()
+        if self.note is not None:
+            cleaned = self.note.strip()
+            self.note = cleaned or None
+        return self
+
+
+class KpiManualUpdate(BaseModel):
+    quantity: Optional[int] = Field(default=None, ge=1, le=100_000)
+    note: Optional[str] = Field(default=None, max_length=500)
+    occurred_on: Optional[date] = None
+    metric_key: Optional[str] = None
+    custom_definition_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def strip_note(self):
+        if self.note is not None:
+            cleaned = self.note.strip()
+            self.note = cleaned or None
+        if self.metric_key is not None:
+            self.metric_key = self.metric_key.strip() or None
+        return self
+
+
+class KpiCustomCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=150)
+
+    @model_validator(mode="after")
+    def strip_name(self):
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValueError("name is required")
+        return self
+
+
+class KpiCustomUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=150)
+    is_active: Optional[bool] = None
+
+    @model_validator(mode="after")
+    def strip_name(self):
+        if self.name is not None:
+            self.name = self.name.strip()
+            if not self.name:
+                raise ValueError("name cannot be empty")
+        return self

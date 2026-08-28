@@ -397,3 +397,75 @@ class CampaignItem(Base):
     campaign = relationship("Campaign", back_populates="items")
     content = relationship("Content", foreign_keys=[content_id])
     calendar_event = relationship("CalendarEvent", foreign_keys=[calendar_event_id])
+
+
+class KpiMetricKey(str, PyEnum):
+    """Fixed auto-catalog keys for designer KPI Creation."""
+
+    POSTS_PUBLISHED = "posts_published"
+    POSTS_SCHEDULED = "posts_scheduled"
+    IMAGES_GENERATED = "images_generated"
+    VOICEOVERS_GENERATED = "voiceovers_generated"
+    SCRIPTS_GENERATED = "scripts_generated"
+    CAMPAIGNS_STARTED = "campaigns_started"
+    RIVALS_ADDED = "rivals_added"
+
+
+class KpiAutoEvent(Base):
+    """
+    Countable Prompt Studio activity that is not stored on other tables.
+
+    Written when image generation, voice-over generation, or script chat succeeds.
+    """
+
+    __tablename__ = "kpi_auto_event"
+
+    id = Column(Integer, primary_key=True)
+    metric_key = Column(String(80), nullable=False, index=True)
+    quantity = Column(Integer, nullable=False, default=1)
+    occurred_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    created_by = Column(String(100), nullable=True)
+    meta_data = Column(JSON, nullable=True)
+
+
+class KpiCustomDefinition(Base):
+    """Designer-created KPI card with no auto source (manual fills only)."""
+
+    __tablename__ = "kpi_custom_definition"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    entries = relationship(
+        "KpiManualEntry",
+        back_populates="custom_definition",
+    )
+
+
+class KpiManualEntry(Base):
+    """Designer-typed count for a catalog metric or a custom KPI card."""
+
+    __tablename__ = "kpi_manual_entry"
+
+    id = Column(Integer, primary_key=True)
+    metric_key = Column(String(80), nullable=True, index=True)
+    custom_definition_id = Column(
+        Integer,
+        ForeignKey("kpi_custom_definition.id"),
+        nullable=True,
+        index=True,
+    )
+    quantity = Column(Integer, nullable=False)
+    note = Column(Text, nullable=True)
+    occurred_on = Column(Date, nullable=False, index=True)
+    created_by = Column(String(100), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    custom_definition = relationship(
+        "KpiCustomDefinition",
+        back_populates="entries",
+    )

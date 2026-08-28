@@ -578,3 +578,66 @@ export interface CampaignCommitResponse {
   calendar_event_ids: number[];
   message: string;
 }
+
+export type KpiCatalogKey =
+  | 'posts_published'
+  | 'posts_scheduled'
+  | 'images_generated'
+  | 'voiceovers_generated'
+  | 'scripts_generated'
+  | 'campaigns_started'
+  | 'rivals_added';
+
+export interface KpiCounts {
+  auto: number;
+  manual: number;
+  total: number;
+  breakdown?: Record<string, number> | null;
+}
+
+export interface KpiCatalogMetric extends KpiCounts {
+  key: KpiCatalogKey | string;
+  label: string;
+  description?: string;
+}
+
+export interface KpiCustomMetric extends KpiCounts {
+  id: number;
+  name: string;
+  is_active: boolean;
+}
+
+export interface KpiDailyRow {
+  date: string;
+  catalog: Record<string, KpiCounts>;
+  custom: Record<string, KpiCounts>;
+}
+
+export interface KpiManualEntry {
+  id: number;
+  metric_key?: string | null;
+  custom_definition_id?: number | null;
+  custom_name?: string | null;
+  quantity: number;
+  note?: string | null;
+  occurred_on: string;
+  created_by?: string | null;
+  created_at: string;
+}
+
+export interface KpiCustomDefinition {
+  id: number;
+  name: string;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface KpiSummaryResponse {
+  from: string;
+  to: string;
+  timezone: string;
+  catalog: KpiCatalogMetric[];
+  custom: KpiCustomMetric[];
+  daily: KpiDailyRow[];
+  manual_entries: KpiManualEntry[];
+}

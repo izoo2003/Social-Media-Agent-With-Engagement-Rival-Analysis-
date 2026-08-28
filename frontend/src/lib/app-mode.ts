@@ -87,6 +87,7 @@ const FULL_NAV_ITEMS: Omit<NavItem, 'locked'>[] = [
   { href: '/dashboard/generator', label: 'Content Posting' },
   { href: '/dashboard/calendar', label: 'Calendar' },
   { href: '/dashboard/campaigns', label: 'Campaigns' },
+  { href: '/dashboard/kpis', label: 'KPIs' },
   { href: '/dashboard/analytics', label: 'Analytics' },
   { href: '/dashboard/qa', label: 'QA Checker' },
   { href: '/dashboard/rivals', label: 'Rival Review' },
