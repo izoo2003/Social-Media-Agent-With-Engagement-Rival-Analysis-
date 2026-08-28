@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { API_ENDPOINTS, API_BASE_URL, apiFetch } from '@/lib/api-client';
 import { uploadMediaFile } from '@/lib/media-upload';
+import MediaProcessingBar from '@/components/media/MediaProcessingBar';
 import { CalendarEvent } from '@/lib/types';
 
 interface EventDetailModalProps {
@@ -42,6 +43,20 @@ function resolveMediaUrl(pathOrUrl?: string | null): string | null {
   return `${API_BASE_URL}/uploads/${cleaned}`;
 }
 
+function resetProcessingState(
+  setMediaProcessing: (v: boolean) => void,
+  setMediaProgress: (v: number) => void,
+  setMediaProgressLabel: (v: string) => void,
+  setMediaElapsedSec: (v: number) => void,
+  setMediaEngine: (v: 'cloud' | 'browser' | undefined) => void,
+) {
+  setMediaProcessing(false);
+  setMediaProgress(0);
+  setMediaProgressLabel('Processing…');
+  setMediaElapsedSec(0);
+  setMediaEngine(undefined);
+}
+
 export default function EventDetailModal({
   event,
   onClose,
@@ -53,6 +68,11 @@ export default function EventDetailModal({
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [localMediaType, setLocalMediaType] = useState<string | null>(null);
   const [attachSuccess, setAttachSuccess] = useState(false);
+  const [mediaProcessing, setMediaProcessing] = useState(false);
+  const [mediaProgress, setMediaProgress] = useState(0);
+  const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
+  const [mediaElapsedSec, setMediaElapsedSec] = useState(0);
+  const [mediaEngine, setMediaEngine] = useState<'cloud' | 'browser' | undefined>();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -61,6 +81,13 @@ export default function EventDetailModal({
     setAttachSuccess(false);
     setLocalPreview(null);
     setLocalMediaType(null);
+    resetProcessingState(
+      setMediaProcessing,
+      setMediaProgress,
+      setMediaProgressLabel,
+      setMediaElapsedSec,
+      setMediaEngine,
+    );
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, [event?.id]);
 
@@ -77,6 +104,7 @@ export default function EventDetailModal({
   const canCancel = ['pending', 'failed'].includes(event.status);
   const canAttachMedia =
     !isFinal && event.status !== 'cancelled' && Boolean(event.content_id);
+  const mediaBusy = busy === 'media' || mediaProcessing;
 
   const existingMediaUrl = resolveMediaUrl(event.media_url || event.media_path);
   const previewUrl = localPreview || existingMediaUrl;
@@ -173,8 +201,27 @@ export default function EventDetailModal({
       const { needsVideoProcessing, prepareMediaForUpload } = await import(
         '@/lib/process-media'
       );
+
+      // Same large-video pipeline as Content Posting / Schedule modal
+      // (CloudConvert when configured, else browser ffmpeg for files over ~40 MB).
       if (needsVideoProcessing(file)) {
-        const prepared = await prepareMediaForUpload(file);
+        setMediaProcessing(true);
+        setMediaProgress(1);
+        setMediaProgressLabel('Preparing…');
+        setMediaElapsedSec(0);
+        setMediaEngine(undefined);
+
+        const prepared = await prepareMediaForUpload(file, {
+          onProgress: ({ percent, label, elapsedSec, engine }) => {
+            setMediaProgress(percent);
+            setMediaProgressLabel(label);
+            if (typeof elapsedSec === 'number') setMediaElapsedSec(elapsedSec);
+            if (engine) setMediaEngine(engine);
+          },
+        });
+
+        if (immediatePreview.startsWith('blob:')) URL.revokeObjectURL(immediatePreview);
+
         if (prepared.mode === 'stored') {
           mediaMeta = {
             media_path: prepared.media_path,
@@ -182,7 +229,12 @@ export default function EventDetailModal({
             media_original_name: prepared.media_original_name,
             media_url: prepared.media_url,
           };
+          setLocalPreview(URL.createObjectURL(file));
+          setLocalMediaType('video');
         } else {
+          setLocalPreview(URL.createObjectURL(prepared.file));
+          setLocalMediaType('video');
+          setMediaProgressLabel('Uploading…');
           mediaMeta = await uploadMediaFile(prepared.file);
         }
       } else {
@@ -209,8 +261,8 @@ export default function EventDetailModal({
       }
 
       if (mediaMeta.media_url) {
-        if (localPreview?.startsWith('blob:')) URL.revokeObjectURL(localPreview);
-        setLocalPreview(resolveMediaUrl(mediaMeta.media_url));
+        const next = resolveMediaUrl(mediaMeta.media_url);
+        if (next) setLocalPreview(next);
       }
       setAttachSuccess(true);
       toast.success(
@@ -218,12 +270,23 @@ export default function EventDetailModal({
       );
       onChanged();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to attach media');
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Processing or attach failed. Try another file.'
+      );
       if (localPreview?.startsWith('blob:')) URL.revokeObjectURL(localPreview);
       setLocalPreview(null);
       setLocalMediaType(null);
     } finally {
       setBusy(null);
+      resetProcessingState(
+        setMediaProcessing,
+        setMediaProgress,
+        setMediaProgressLabel,
+        setMediaElapsedSec,
+        setMediaEngine,
+      );
       e.target.value = '';
     }
   };
@@ -237,7 +300,8 @@ export default function EventDetailModal({
           <h2 className="text-lg font-bold text-slate-900">Scheduled Post</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+            disabled={mediaBusy}
+            className="text-gray-400 hover:text-gray-600 text-2xl leading-none disabled:opacity-40"
           >
             ×
           </button>
@@ -310,15 +374,14 @@ export default function EventDetailModal({
             </div>
           )}
 
-          {/* Media attach */}
           <div>
             <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Media</p>
             {previewUrl && (
-              <div className="mb-3 rounded-lg border border-gray-200 overflow-hidden bg-gray-50">
+              <div className="mb-3 rounded-lg border border-gray-200 overflow-hidden bg-gray-50 relative">
                 {previewType === 'video' ? (
                   <video
                     src={previewUrl}
-                    controls
+                    controls={!mediaProcessing}
                     className="w-full max-h-48 object-contain bg-black"
                   />
                 ) : (
@@ -329,6 +392,28 @@ export default function EventDetailModal({
                     className="w-full max-h-48 object-contain"
                   />
                 )}
+                {mediaProcessing && (
+                  <div className="absolute inset-0 bg-black/55 flex items-center justify-center p-4">
+                    <MediaProcessingBar
+                      percent={mediaProgress}
+                      label={mediaProgressLabel}
+                      elapsedSec={mediaElapsedSec}
+                      engine={mediaEngine}
+                      onDark
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {mediaProcessing && !previewUrl && (
+              <div className="mb-3 rounded-lg border border-blue-100 bg-white p-3">
+                <MediaProcessingBar
+                  percent={mediaProgress}
+                  label={mediaProgressLabel}
+                  elapsedSec={mediaElapsedSec}
+                  engine={mediaEngine}
+                />
               </div>
             )}
 
@@ -339,23 +424,27 @@ export default function EventDetailModal({
                   type="file"
                   accept="image/*,video/*"
                   className="hidden"
+                  disabled={mediaBusy}
                   onChange={(ev) => void handleMediaSelect(ev)}
                 />
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={!!busy}
+                  disabled={mediaBusy || !!busy}
                   className="w-full py-2.5 px-3 rounded-lg text-sm font-semibold border-2 border-dashed border-brand-300 text-brand-800 bg-brand-50 hover:bg-brand-100 disabled:opacity-50"
                 >
-                  {busy === 'media'
-                    ? 'Uploading & linking…'
-                    : previewUrl
-                      ? 'Replace media'
-                      : 'Attach image or video'}
+                  {mediaProcessing
+                    ? `Processing… ${Math.round(mediaProgress)}%`
+                    : busy === 'media'
+                      ? 'Uploading & linking…'
+                      : previewUrl
+                        ? 'Replace media'
+                        : 'Attach image or video'}
                 </button>
                 <p className="text-[11px] text-gray-500">
-                  After attach, this post stays on the calendar and auto-publishes at the
-                  scheduled time (max {MAX_MEDIA_UPLOAD_MB} MB).
+                  Large videos (over ~40 MB, including 100 MB+) are processed the same way as
+                  Content Posting before upload, then linked to this scheduled post (max{' '}
+                  {MAX_MEDIA_UPLOAD_MB} MB).
                 </p>
               </div>
             )}
@@ -419,7 +508,7 @@ export default function EventDetailModal({
               {canPublishNow && (
                 <button
                   onClick={publishNow}
-                  disabled={!!busy}
+                  disabled={!!busy || mediaBusy}
                   className="flex-1 py-2 px-3 rounded-lg text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-400"
                 >
                   {busy === 'publish' ? 'Publishing…' : '⚡ Publish now'}
@@ -427,7 +516,7 @@ export default function EventDetailModal({
               )}
               <button
                 onClick={() => onEdit(event)}
-                disabled={!!busy}
+                disabled={!!busy || mediaBusy}
                 className="flex-1 py-2 px-3 rounded-lg text-sm font-semibold text-gray-800 bg-gray-200 hover:bg-gray-300 disabled:opacity-50"
               >
                 ✏️ Reschedule
@@ -435,7 +524,7 @@ export default function EventDetailModal({
               {canCancel && (
                 <button
                   onClick={cancelEvent}
-                  disabled={!!busy}
+                  disabled={!!busy || mediaBusy}
                   className="flex-1 py-2 px-3 rounded-lg text-sm font-semibold text-amber-800 bg-amber-100 hover:bg-amber-200 disabled:opacity-50"
                 >
                   {busy === 'cancel' ? '…' : 'Cancel'}
@@ -445,7 +534,7 @@ export default function EventDetailModal({
           )}
           <button
             onClick={deleteEvent}
-            disabled={!!busy}
+            disabled={!!busy || mediaBusy}
             className="w-full py-2 px-3 rounded-lg text-sm font-semibold text-red-700 bg-red-50 hover:bg-red-100 disabled:opacity-50"
           >
             {busy === 'delete' ? 'Deleting…' : '🗑️ Delete'}
