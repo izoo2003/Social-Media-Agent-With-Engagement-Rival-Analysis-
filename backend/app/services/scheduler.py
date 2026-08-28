@@ -208,6 +208,17 @@ def publish_due_events() -> None:
             return
         logger.info(f"Scheduler: {len(due)} due event(s) to publish")
         for event in due:
+            content = (
+                db.query(Content).filter(Content.id == event.content_id).first()
+            )
+            meta = (content.meta_data if content else None) or {}
+            needs_media = bool(meta.get("needs_media"))
+            if needs_media and content and not content.media_path:
+                logger.warning(
+                    f"Scheduler: skipping event {event.id} (content {event.content_id}) "
+                    "— campaign item still needs media attached"
+                )
+                continue
             publish_event(db, event)
     except Exception as e:
         logger.error(f"Scheduler tick failed: {e}")

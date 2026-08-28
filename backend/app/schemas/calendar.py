@@ -77,6 +77,8 @@ class CalendarEventResponse(BaseModel):
     media_path: Optional[str] = None
     media_type: Optional[str] = None
     media_url: Optional[str] = None
+    needs_media: bool = False
+    asset_type: Optional[str] = None
 
     class Config:
         from_attributes = True

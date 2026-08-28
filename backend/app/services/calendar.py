@@ -56,7 +56,7 @@ class CalendarService:
 
     # ------------------------------------------------------------------ CRUD
 
-    def create_event(self, data: CalendarEventCreate) -> CalendarEvent:
+    def create_event(self, data: CalendarEventCreate, *, commit: bool = True) -> CalendarEvent:
         """Schedule a piece of content for future publishing."""
         content = self.db.query(Content).filter(Content.id == data.content_id).first()
         if not content:
@@ -82,8 +82,11 @@ class CalendarService:
         content.status = ContentStatus.SCHEDULED
         content.updated_at = datetime.utcnow()
 
-        self.db.commit()
-        self.db.refresh(event)
+        if commit:
+            self.db.commit()
+            self.db.refresh(event)
+        else:
+            self.db.flush()
         logger.info(
             f"Scheduled content {data.content_id} -> event {event.id} "
             f"at {data.scheduled_date} for {event.platforms}"
@@ -191,6 +194,8 @@ class CalendarService:
         media_url = None
         media_path = content.media_path if content else None
         media_type = None
+        needs_media = False
+        asset_type = None
         if content and content.media_path:
             media_type = content.media_type.value if content.media_type else None
             try:
@@ -200,6 +205,9 @@ class CalendarService:
                     media_url = f"/uploads/{content.media_path}"
             except Exception:
                 media_url = None
+        if content and isinstance(content.meta_data, dict):
+            needs_media = bool(content.meta_data.get("needs_media")) and not media_path
+            asset_type = content.meta_data.get("asset_type")
 
         return {
             "id": event.id,
@@ -223,4 +231,6 @@ class CalendarService:
             "media_path": media_path,
             "media_type": media_type,
             "media_url": media_url,
+            "needs_media": needs_media,
+            "asset_type": asset_type,
         }

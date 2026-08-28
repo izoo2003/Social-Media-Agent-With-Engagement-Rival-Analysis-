@@ -133,6 +133,8 @@ export interface CalendarEvent {
   media_path?: string | null;
   media_type?: string | null;
   media_url?: string | null;
+  needs_media?: boolean;
+  asset_type?: string | null;
 }
 
 export interface CalendarEventCreate {
@@ -497,4 +499,83 @@ export interface VoiceGenerateResponse {
   provider?: string;
   voice: string;
   script_preview: string;
+}
+
+export type CampaignStatus = 'draft' | 'planned' | 'committed';
+
+export type CampaignAssetType =
+  | 'reel'
+  | 'post_image'
+  | 'carousel'
+  | 'story'
+  | 'graphic'
+  | 'animation'
+  | 'video';
+
+export interface CampaignProductInput {
+  category: string;
+  product?: string | null;
+}
+
+export interface CampaignPlanRequest {
+  name?: string | null;
+  start_date: string; // YYYY-MM-DD
+  duration_days: number;
+  platforms: string[];
+  products: CampaignProductInput[];
+}
+
+export interface CampaignItem {
+  id: number;
+  campaign_id: number;
+  day_index: number;
+  scheduled_at_utc: string;
+  scheduled_at_pkt?: string | null;
+  platforms: string[];
+  asset_type: CampaignAssetType | string;
+  topic?: string | null;
+  title: string;
+  body: string;
+  product?: string | null;
+  category?: string | null;
+  content_id?: number | null;
+  calendar_event_id?: number | null;
+  sort_order: number;
+}
+
+export interface Campaign {
+  id: number;
+  name: string;
+  start_date: string;
+  duration_days: number;
+  platforms: string[];
+  products: CampaignProductInput[];
+  status: CampaignStatus | string;
+  plan_summary?: Record<string, number> | null;
+  timezone: string;
+  created_at: string;
+  updated_at?: string | null;
+  items: CampaignItem[];
+}
+
+export interface CampaignListItem {
+  id: number;
+  name: string;
+  start_date: string;
+  duration_days: number;
+  platforms: string[];
+  products: CampaignProductInput[];
+  status: CampaignStatus | string;
+  plan_summary?: Record<string, number> | null;
+  timezone: string;
+  item_count: number;
+  created_at: string;
+  updated_at?: string | null;
+}
+
+export interface CampaignCommitResponse {
+  campaign: Campaign;
+  content_ids: number[];
+  calendar_event_ids: number[];
+  message: string;
 }

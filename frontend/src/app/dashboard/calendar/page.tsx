@@ -251,6 +251,11 @@ export default function CalendarPage() {
                         title={ev.content_title || ''}
                       >
                         <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${STATUS_DOT[ev.status] || 'bg-gray-400'}`} />
+                        {ev.needs_media && (
+                          <span className="shrink-0 text-[9px] font-bold uppercase text-rose-700">
+                            media
+                          </span>
+                        )}
                         <span className="shrink-0">
                           {format(new Date(ev.scheduled_date), 'HH:mm')}
                         </span>
@@ -293,6 +298,11 @@ export default function CalendarPage() {
                       <span className="text-xs font-semibold text-gray-700">
                         {format(new Date(ev.scheduled_date), 'MMM d, HH:mm')}
                       </span>
+                      {ev.needs_media && (
+                        <span className="text-[10px] font-bold uppercase text-rose-700 bg-rose-50 border border-rose-200 px-1 rounded">
+                          Needs media
+                        </span>
+                      )}
                       <span className="ml-auto text-sm">
                         {ev.platforms.map((p) => PLATFORM_ICONS[p] || '').join('')}
                       </span>

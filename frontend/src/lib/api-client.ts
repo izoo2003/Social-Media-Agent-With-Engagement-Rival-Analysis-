@@ -111,6 +111,14 @@ export const API_ENDPOINTS = {
   META_AUTH: `${API_BASE_URL}/api/${API_VERSION}/auth/meta`,
   TIKTOK_AUTH: `${API_BASE_URL}/api/${API_VERSION}/auth/tiktok`,
 
+  // Campaigns
+  CAMPAIGNS: `${API_BASE_URL}/api/${API_VERSION}/campaigns`,
+  CAMPAIGNS_PLAN: `${API_BASE_URL}/api/${API_VERSION}/campaigns/plan`,
+  CAMPAIGN_DETAIL: (id: number) =>
+    `${API_BASE_URL}/api/${API_VERSION}/campaigns/${id}`,
+  CAMPAIGN_COMMIT: (id: number) =>
+    `${API_BASE_URL}/api/${API_VERSION}/campaigns/${id}/commit`,
+
   // Uploads
   UPLOADS: `${API_BASE_URL}/uploads`,
 };

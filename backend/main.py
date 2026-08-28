@@ -22,6 +22,7 @@ from app.middleware.security import SecurityHeadersMiddleware
 from app.routes import (
     health, content, calendar, analytics, qa,
     scraper, rival, youtube_auth, meta_auth, linkedin_auth, tiktok_auth, social, creation, approval, auth,
+    campaign,
 )
 from app.services import auth_service
 
@@ -211,6 +212,7 @@ app.include_router(tiktok_auth.router,  prefix="/api/v1", tags=["TikTok Auth"])
 if settings.APP_MODE == "full":
     app.include_router(content.router,      prefix="/api/v1", tags=["Content"])
     app.include_router(calendar.router,     prefix="/api/v1", tags=["Calendar"])
+    app.include_router(campaign.router,     prefix="/api/v1", tags=["Campaigns"])
     app.include_router(analytics.router,    prefix="/api/v1", tags=["Analytics"])
     app.include_router(qa.router,           prefix="/api/v1", tags=["QA"])
     app.include_router(approval.router,     prefix="/api/v1", tags=["Approvals"])
