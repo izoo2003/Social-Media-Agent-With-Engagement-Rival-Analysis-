@@ -13,6 +13,7 @@ import time
 import requests
 
 from app.config import settings
+from app.config import get_posting_gemini_api_keys, get_posting_gemini_models
 from app.utils.exceptions import LLMConnectionError
 from app.utils.logger import logger
 
@@ -37,7 +38,7 @@ class LLMClient:
         Args:
             prompt: The prompt to send to the LLM
             **kwargs: Additional parameters (temperature, max_output_tokens,
-                      response_mime_type, etc.)
+                      response_mime_type, api_keys, models, slots, etc.)
 
         Returns:
             Generated text string
@@ -53,6 +54,9 @@ class LLMClient:
             temperature,
             max_output_tokens=max_output_tokens,
             response_mime_type=response_mime_type,
+            api_keys=kwargs.get("api_keys"),
+            models=kwargs.get("models"),
+            slots=kwargs.get("slots"),
         )
 
     def chat(
@@ -282,38 +286,95 @@ class LLMClient:
         *,
         max_output_tokens: int = settings.MAX_TOKENS,
         response_mime_type: str | None = None,
+        api_keys: list[str] | None = None,
+        models: list[str] | None = None,
+        slots: list[dict] | None = None,
     ) -> str:
-        """Generate text via Google Gemini API (free, fast)."""
-        if not settings.GEMINI_API_KEY:
+        """Generate text via Google Gemini API with model + API-key failover."""
+        resolved_slots: list[dict] = []
+        if slots:
+            for slot in slots:
+                key = str(slot.get("api_key") or "").strip()
+                slot_models = [
+                    str(m).strip()
+                    for m in (slot.get("models") or [])
+                    if str(m).strip()
+                ]
+                if key and slot_models:
+                    resolved_slots.append(
+                        {
+                            "label": slot.get("label") or "custom",
+                            "api_key": key,
+                            "models": slot_models,
+                        }
+                    )
+        elif api_keys:
+            model_chain = [
+                m.strip() for m in (models or get_posting_gemini_models()) if m.strip()
+            ]
+            for i, key in enumerate(api_keys):
+                cleaned = (key or "").strip()
+                if cleaned and model_chain:
+                    resolved_slots.append(
+                        {
+                            "label": f"api_keys[{i}]",
+                            "api_key": cleaned,
+                            "models": list(model_chain),
+                        }
+                    )
+        else:
+            keys = get_posting_gemini_api_keys()
+            model_chain = models or get_posting_gemini_models()
+            model_chain = [m.strip() for m in model_chain if m.strip()]
+            for i, key in enumerate(keys):
+                if key and model_chain:
+                    resolved_slots.append(
+                        {
+                            "label": "GEMINI_API_KEY" if i == 0 else f"GEMINI_API_KEYS[{i}]",
+                            "api_key": key,
+                            "models": list(model_chain),
+                        }
+                    )
+
+        if not resolved_slots:
             raise LLMConnectionError(
                 "Gemini API key not configured. "
-                "Set GEMINI_API_KEY in your .env file. "
+                "Set GEMINI_API_KEY / CAMPAIGN_GEMINI_API_KEY in your .env file. "
                 "Get a free key at https://aistudio.google.com/apikey"
             )
 
-        models = [settings.GEMINI_MODEL]
-        if settings.GEMINI_FALLBACK_MODEL and settings.GEMINI_FALLBACK_MODEL not in models:
-            models.append(settings.GEMINI_FALLBACK_MODEL)
-
         last_error: Exception | None = None
-        for model_index, model in enumerate(models):
-            try:
-                return self._generate_gemini_with_retries(
-                    prompt,
-                    temperature,
-                    model,
-                    max_output_tokens=max_output_tokens,
-                    response_mime_type=response_mime_type,
-                )
-            except LLMConnectionError as e:
-                last_error = e
-                if model_index < len(models) - 1:
-                    logger.warning(
-                        f"Gemini model {model} failed ({e}). "
-                        f"Trying fallback: {models[model_index + 1]}"
+        for slot_index, slot in enumerate(resolved_slots):
+            api_key = str(slot["api_key"])
+            slot_models = list(slot["models"])
+            label = str(slot.get("label") or "slot")
+            for model_index, model in enumerate(slot_models):
+                try:
+                    return self._generate_gemini_with_retries(
+                        prompt,
+                        temperature,
+                        model,
+                        api_key=api_key,
+                        max_output_tokens=max_output_tokens,
+                        response_mime_type=response_mime_type,
                     )
-                    continue
-                raise
+                except LLMConnectionError as e:
+                    last_error = e
+                    has_next_model = model_index < len(slot_models) - 1
+                    has_next_slot = slot_index < len(resolved_slots) - 1
+                    if has_next_model:
+                        logger.warning(
+                            f"Gemini model {model} failed on {label} ({e}). "
+                            f"Trying fallback: {slot_models[model_index + 1]}"
+                        )
+                        continue
+                    if has_next_slot:
+                        logger.warning(
+                            f"All models failed on {label} ({e}). "
+                            "Trying next API key slot."
+                        )
+                        break
+                    raise
 
         raise LLMConnectionError(f"Gemini API request failed: {last_error}") from last_error
 
@@ -323,6 +384,7 @@ class LLMClient:
         temperature: float,
         model: str,
         *,
+        api_key: str,
         max_output_tokens: int = settings.MAX_TOKENS,
         response_mime_type: str | None = None,
     ) -> str:
@@ -332,7 +394,7 @@ class LLMClient:
         url = (
             f"https://generativelanguage.googleapis.com/v1beta/models/"
             f"{model}:generateContent"
-            f"?key={settings.GEMINI_API_KEY}"
+            f"?key={api_key}"
         )
 
         generation_config: dict = {
@@ -363,7 +425,7 @@ class LLMClient:
                     raise LLMConnectionError(
                         "Gemini API rate limit exceeded. "
                         "Free tier allows ~1,500 requests/day. "
-                        "Try again tomorrow."
+                        "Try again tomorrow or add another key to GEMINI_API_KEYS."
                     )
 
                 if response.status_code in _RETRYABLE_STATUS_CODES:
@@ -414,14 +476,16 @@ class LLMClient:
                 raise LLMConnectionError(
                     f"Gemini API request timed out after {settings.GEMINI_TIMEOUT}s"
                 ) from e
+            except LLMConnectionError:
+                raise
             except requests.exceptions.RequestException as e:
                 raise LLMConnectionError(f"Gemini API request failed: {str(e)}") from e
 
         raise LLMConnectionError(f"Gemini API request failed after {max_retries} attempts")
 
     def health_check(self) -> bool:
-        """Check if the Gemini API key is configured."""
-        return bool(settings.GEMINI_API_KEY)
+        """Check if at least one Gemini API key is configured for generate()."""
+        return bool(get_posting_gemini_api_keys())
 
 
 # Keep backward compatibility alias

@@ -28,6 +28,7 @@ from app.database.models import (
     ContentStatus,
 )
 from app.llm.ollama_client import LLMClient, LLMConnectionError
+from app.config import get_campaign_gemini_slots
 from app.schemas.calendar import CalendarEventCreate
 from app.schemas.campaign import CampaignPlanRequest
 from app.schemas.content import ContentPlatform as PlatformEnum
@@ -170,11 +171,24 @@ class CampaignService:
         )
 
         try:
+            slots = get_campaign_gemini_slots()
+            if not slots:
+                raise ValueError(
+                    "Campaign Gemini keys not configured. "
+                    "Set CAMPAIGN_GEMINI_API_KEY (and optional _2) in .env / Railway."
+                )
+            logger.info(
+                "Campaign Gemini slots: %s",
+                ", ".join(
+                    f"{s['label']}({len(s['models'])} models)" for s in slots
+                ),
+            )
             raw = LLMClient().generate(
                 prompt,
                 temperature=0.5,
                 max_output_tokens=8192,
                 response_mime_type="application/json",
+                slots=slots,
             )
         except LLMConnectionError as exc:
             logger.error(f"Campaign plan LLM call failed: {exc}")

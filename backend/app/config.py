@@ -85,11 +85,26 @@ class Settings(BaseSettings):
     # Google Gemini Settings (used when LLM_PROVIDER="gemini")
     # Get a free API key at https://aistudio.google.com/apikey
     GEMINI_API_KEY: str = ""
+    # Optional extra keys (comma-separated). Tried after GEMINI_API_KEY when quota/rate limits hit.
+    # Use keys from different Google accounts for separate free-tier quotas.
+    # Shared by content generation, rival insights, and campaign planning.
+    GEMINI_API_KEYS: str = ""
     # Primary model. gemini-3.5-flash can hit 503 under high demand; fallback is used automatically.
     GEMINI_MODEL: str = "gemini-2.5-flash"
     GEMINI_FALLBACK_MODEL: str = "gemini-3.1-flash-lite"
     GEMINI_TIMEOUT: int = 120
     GEMINI_MAX_RETRIES: int = 3
+
+    # Campaign planner — dedicated AI Studio keys (isolated from posting GEMINI_API_KEY).
+    # Each slot: one key + primary model + up to two fallbacks. Tried key1 models, then key2.
+    CAMPAIGN_GEMINI_API_KEY: str = ""
+    CAMPAIGN_GEMINI_MODEL: str = "gemini-2.5-flash"
+    CAMPAIGN_GEMINI_FALLBACK_MODEL: str = "gemini-2.0-flash"
+    CAMPAIGN_GEMINI_FALLBACK_MODEL_B: str = "gemini-3.1-flash-lite"
+    CAMPAIGN_GEMINI_API_KEY_2: str = ""
+    CAMPAIGN_GEMINI_MODEL_2: str = "gemini-2.5-flash"
+    CAMPAIGN_GEMINI_FALLBACK_MODEL_2: str = "gemini-2.0-flash"
+    CAMPAIGN_GEMINI_FALLBACK_MODEL_2B: str = "gemini-3.1-flash-lite"
 
     # LLM Settings
     TEMPERATURE: float = 0.7
@@ -461,6 +476,93 @@ def public_api_url(path: str = "") -> str:
 
 def _parse_csv(value: str) -> list[str]:
     return [part.strip() for part in value.split(",") if part.strip()]
+
+
+def get_posting_gemini_api_keys() -> list[str]:
+    """
+    API keys for posting / campaigns / rival insights (LLMClient.generate), in failover order.
+
+    Primary GEMINI_API_KEY first, then comma-separated GEMINI_API_KEYS extras.
+    """
+    keys: list[str] = []
+    primary = (settings.GEMINI_API_KEY or "").strip()
+    if primary:
+        keys.append(primary)
+    for key in _parse_csv(settings.GEMINI_API_KEYS):
+        if key not in keys:
+            keys.append(key)
+    return keys
+
+
+def get_posting_gemini_models() -> list[str]:
+    """Gemini models for generate(), primary then fallback."""
+    ordered: list[str] = []
+    for model in (settings.GEMINI_MODEL, settings.GEMINI_FALLBACK_MODEL):
+        name = (model or "").strip()
+        if name and name not in ordered:
+            ordered.append(name)
+    return ordered
+
+
+def get_campaign_gemini_slots() -> list[dict[str, object]]:
+    """
+    Campaign planner key+model slots in failover order.
+
+    Each slot: {label, api_key, models}. Falls back to posting Gemini keys/models
+    when no CAMPAIGN_GEMINI_* keys are configured.
+    """
+    slots: list[dict[str, object]] = []
+
+    def _models(*names: str) -> list[str]:
+        ordered: list[str] = []
+        for name in names:
+            m = (name or "").strip()
+            if m and m not in ordered:
+                ordered.append(m)
+        return ordered
+
+    slot1_key = (settings.CAMPAIGN_GEMINI_API_KEY or "").strip()
+    if slot1_key:
+        slots.append(
+            {
+                "label": "CAMPAIGN_GEMINI_API_KEY",
+                "api_key": slot1_key,
+                "models": _models(
+                    settings.CAMPAIGN_GEMINI_MODEL,
+                    settings.CAMPAIGN_GEMINI_FALLBACK_MODEL,
+                    settings.CAMPAIGN_GEMINI_FALLBACK_MODEL_B,
+                ),
+            }
+        )
+
+    slot2_key = (settings.CAMPAIGN_GEMINI_API_KEY_2 or "").strip()
+    if slot2_key:
+        slots.append(
+            {
+                "label": "CAMPAIGN_GEMINI_API_KEY_2",
+                "api_key": slot2_key,
+                "models": _models(
+                    settings.CAMPAIGN_GEMINI_MODEL_2,
+                    settings.CAMPAIGN_GEMINI_FALLBACK_MODEL_2,
+                    settings.CAMPAIGN_GEMINI_FALLBACK_MODEL_2B,
+                ),
+            }
+        )
+
+    if slots:
+        return slots
+
+    # Fallback: reuse posting keys so campaigns still work without dedicated keys
+    posting_models = get_posting_gemini_models()
+    for i, key in enumerate(get_posting_gemini_api_keys()):
+        slots.append(
+            {
+                "label": "GEMINI_API_KEY" if i == 0 else f"GEMINI_API_KEYS[{i}]",
+                "api_key": key,
+                "models": list(posting_models),
+            }
+        )
+    return slots
 
 
 def get_creation_gemini_api_keys() -> list[str]:

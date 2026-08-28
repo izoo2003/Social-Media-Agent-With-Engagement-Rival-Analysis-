@@ -184,7 +184,8 @@ npm run dev
 **Backend (`.env`)**
 
 * `DATABASE_URL`: PostgreSQL connection string.
-* `GEMINI_API_KEY` / `CREATION_GEMINI_API_KEY`: API keys for core content and Prompt Studio.
+* `GEMINI_API_KEY` / `GEMINI_API_KEYS`: Primary + optional comma-separated backup AI Studio keys for content generation, campaigns, and rival insights (model failover via `GEMINI_MODEL` / `GEMINI_FALLBACK_MODEL`).
+* `CREATION_GEMINI_API_KEY`: API key for Prompt Studio (optional `CREATION_GEMINI_API_KEYS` for quota failover).
 * `ENVIRONMENT`: `development` or `production`.
 * `DRAFT_MODE`: `true` to block actual social posting during tests.
 * `APPROVAL_REQUIRED`: `true` enforces the designer QA workflow.
