@@ -66,7 +66,7 @@ function errorDetail(err: unknown, fallback: string): string {
 export default function CampaignsPage() {
   const [name, setName] = useState('');
   const [startDate, setStartDate] = useState(todayISODate);
-  const [durationDays, setDurationDays] = useState(14);
+  const [durationDays, setDurationDays] = useState('14');
   const [platforms, setPlatforms] = useState<string[]>(['instagram', 'facebook']);
   const [products, setProducts] = useState<CampaignProductInput[]>([
     { category: '', product: '' },
@@ -154,7 +154,8 @@ export default function CampaignsPage() {
       toast.error('Select at least one platform');
       return;
     }
-    if (durationDays < 1 || durationDays > 90) {
+    const days = Number.parseInt(durationDays, 10);
+    if (!Number.isFinite(days) || days < 1 || days > 90) {
       toast.error('Duration must be between 1 and 90 days');
       return;
     }
@@ -166,7 +167,7 @@ export default function CampaignsPage() {
         body: JSON.stringify({
           name: name.trim() || null,
           start_date: startDate,
-          duration_days: durationDays,
+          duration_days: days,
           platforms,
           products: cleaned,
         }),
@@ -293,11 +294,19 @@ export default function CampaignsPage() {
                   Duration (days)
                 </label>
                 <input
-                  type="number"
-                  min={1}
-                  max={90}
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  maxLength={2}
                   value={durationDays}
-                  onChange={(e) => setDurationDays(Number(e.target.value) || 14)}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/\D/g, '').slice(0, 2);
+                    setDurationDays(next);
+                  }}
+                  onBlur={() => {
+                    if (!durationDays) setDurationDays('14');
+                  }}
+                  placeholder="14"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-600 focus:ring-2 focus:ring-brand-500/30"
                 />
               </div>
