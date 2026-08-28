@@ -141,8 +141,12 @@ class CalendarService:
             event.draft_mode = data.draft_mode
         if data.override_title is not None:
             event.override_title = data.override_title
+            if event.content and data.override_title.strip():
+                event.content.title = data.override_title.strip()[:255]
         if data.override_body is not None:
             event.override_body = data.override_body
+            if event.content and data.override_body.strip():
+                event.content.body = data.override_body.strip()
         if data.linkedin_account_labels is not None:
             event.linkedin_account_labels = data.linkedin_account_labels
         if data.notes is not None:

@@ -73,6 +73,8 @@ export default function EventDetailModal({
   const [mediaProgressLabel, setMediaProgressLabel] = useState('Processing…');
   const [mediaElapsedSec, setMediaElapsedSec] = useState(0);
   const [mediaEngine, setMediaEngine] = useState<'cloud' | 'browser' | undefined>();
+  const [titleDraft, setTitleDraft] = useState('');
+  const [bodyDraft, setBodyDraft] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -92,6 +94,18 @@ export default function EventDetailModal({
   }, [event?.id]);
 
   useEffect(() => {
+    if (!event) return;
+    setTitleDraft(event.override_title || event.content_title || '');
+    setBodyDraft(event.override_body || event.content_body || '');
+  }, [
+    event?.id,
+    event?.override_title,
+    event?.override_body,
+    event?.content_title,
+    event?.content_body,
+  ]);
+
+  useEffect(() => {
     return () => {
       if (localPreview?.startsWith('blob:')) URL.revokeObjectURL(localPreview);
     };
@@ -104,12 +118,18 @@ export default function EventDetailModal({
   const canCancel = ['pending', 'failed'].includes(event.status);
   const canAttachMedia =
     !isFinal && event.status !== 'cancelled' && Boolean(event.content_id);
+  const canEditCopy = !isFinal && event.status !== 'cancelled';
   const mediaBusy = busy === 'media' || mediaProcessing;
 
   const existingMediaUrl = resolveMediaUrl(event.media_url || event.media_path);
   const previewUrl = localPreview || existingMediaUrl;
   const previewType = localMediaType || event.media_type;
   const showNeedsMedia = Boolean(event.needs_media) && !attachSuccess && !localPreview;
+
+  const savedTitle = event.override_title || event.content_title || '';
+  const savedBody = event.override_body || event.content_body || '';
+  const copyDirty =
+    titleDraft.trim() !== savedTitle.trim() || bodyDraft.trim() !== savedBody.trim();
 
   const run = async (
     key: string,
@@ -169,6 +189,42 @@ export default function EventDetailModal({
       () => apiFetch(API_ENDPOINTS.CALENDAR_EVENT(event.id), { method: 'DELETE' }),
       true
     );
+  };
+
+  const saveCopy = async () => {
+    const title = titleDraft.trim();
+    const body = bodyDraft.trim();
+    if (!title) {
+      setError('Title cannot be empty.');
+      return;
+    }
+    if (!body) {
+      setError('Caption cannot be empty.');
+      return;
+    }
+    setBusy('save-copy');
+    setError(null);
+    try {
+      const res = await apiFetch(API_ENDPOINTS.CALENDAR_EVENT(event.id), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          override_title: title,
+          override_body: body,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        const detail = err.detail;
+        throw new Error(typeof detail === 'string' ? detail : 'Failed to save');
+      }
+      await Promise.resolve(onChanged());
+      toast.success('Title and caption saved for this scheduled post.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to save');
+    } finally {
+      setBusy(null);
+    }
   };
 
   const handleMediaSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -367,20 +423,72 @@ export default function EventDetailModal({
             </div>
           </div>
 
-          {event.content_title && (
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase">Title</p>
-              <p className="text-sm font-medium text-gray-800">{event.content_title}</p>
-            </div>
-          )}
-
-          {event.content_body && (
-            <div>
-              <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Caption</p>
-              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto">
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{event.content_body}</p>
+          {canEditCopy ? (
+            <>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                  Title
+                </label>
+                <input
+                  type="text"
+                  value={titleDraft}
+                  onChange={(e) => setTitleDraft(e.target.value)}
+                  disabled={!!busy || mediaBusy}
+                  maxLength={255}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-600 focus:ring-2 focus:ring-brand-500/30 disabled:opacity-60"
+                />
               </div>
-            </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-500 uppercase mb-1 block">
+                  Caption
+                </label>
+                <textarea
+                  value={bodyDraft}
+                  onChange={(e) => setBodyDraft(e.target.value)}
+                  disabled={!!busy || mediaBusy}
+                  rows={6}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:border-brand-600 focus:ring-2 focus:ring-brand-500/30 disabled:opacity-60 whitespace-pre-wrap"
+                />
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <p className="text-[11px] text-gray-500">
+                    Edits apply when this post publishes (or Publish now).
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void saveCopy()}
+                    disabled={!copyDirty || !!busy || mediaBusy}
+                    className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-brand-700 hover:bg-brand-800 disabled:opacity-40"
+                  >
+                    {busy === 'save-copy' ? 'Saving…' : 'Save text'}
+                  </button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              {event.content_title && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase">Title</p>
+                  <p className="text-sm font-medium text-gray-800">
+                    {event.override_title || event.content_title}
+                  </p>
+                </div>
+              )}
+
+              {(event.override_body || event.content_body) && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase mb-1">
+                    Caption
+                  </p>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 max-h-40 overflow-y-auto">
+                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                      {event.override_body || event.content_body}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           <div>
