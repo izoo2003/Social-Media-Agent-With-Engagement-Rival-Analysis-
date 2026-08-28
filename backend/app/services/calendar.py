@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.database.models import (
     CalendarEvent,
+    CampaignItem,
     Content,
     ContentStatus,
     ScheduleStatus,
@@ -162,6 +163,13 @@ class CalendarService:
         event = self.get_event(event_id)
         if not event:
             return False
+
+        # Campaign items keep a nullable FK to calendar_event — clear it first so
+        # delete is not blocked by IntegrityError for committed campaign slots.
+        self.db.query(CampaignItem).filter(
+            CampaignItem.calendar_event_id == event_id
+        ).update({CampaignItem.calendar_event_id: None}, synchronize_session=False)
+
         self.db.delete(event)
         self.db.commit()
         logger.info(f"Deleted calendar event {event_id}")

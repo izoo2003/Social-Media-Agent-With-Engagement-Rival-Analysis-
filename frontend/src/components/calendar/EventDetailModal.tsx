@@ -123,11 +123,12 @@ export default function EventDetailModal({
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         const detail = err.detail;
-        throw new Error(
-          typeof detail === 'string' ? detail : 'Request failed'
-        );
+        let message = 'Request failed';
+        if (typeof detail === 'string') message = detail;
+        else if (Array.isArray(detail) && detail[0]?.msg) message = detail[0].msg;
+        throw new Error(message);
       }
-      onChanged();
+      await Promise.resolve(onChanged());
       if (closeAfter) onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Request failed');
@@ -155,12 +156,20 @@ export default function EventDetailModal({
       })
     );
 
-  const deleteEvent = () =>
-    run(
+  const deleteEvent = () => {
+    if (
+      !window.confirm(
+        'Delete this scheduled post? It will be removed from the calendar.'
+      )
+    ) {
+      return;
+    }
+    return run(
       'delete',
       () => apiFetch(API_ENDPOINTS.CALENDAR_EVENT(event.id), { method: 'DELETE' }),
       true
     );
+  };
 
   const handleMediaSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

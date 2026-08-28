@@ -82,7 +82,7 @@ export default function CalendarPage() {
         setEvents(data);
         setDetailEvent((current) => {
           if (!current) return current;
-          return data.find((ev) => ev.id === current.id) || current;
+          return data.find((ev) => ev.id === current.id) ?? null;
         });
       } else if (!options?.background) {
         setEvents([]);

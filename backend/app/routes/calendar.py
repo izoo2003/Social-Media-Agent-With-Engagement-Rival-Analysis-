@@ -117,11 +117,21 @@ async def delete_calendar_event(
     db: Session = Depends(get_db),
 ):
     """Delete a scheduled event."""
-    service = CalendarService(db)
-    deleted = service.delete_event(event_id)
-    if not deleted:
-        raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
-    return {"message": f"Event {event_id} deleted successfully"}
+    try:
+        service = CalendarService(db)
+        deleted = service.delete_event(event_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail=f"Event {event_id} not found")
+        return {"message": f"Event {event_id} deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Calendar delete error: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=safe_error_detail(e, "Failed to delete scheduled event"),
+        )
 
 
 @router.post("/calendar/events/{event_id}/publish-now", response_model=CalendarEventResponse)
