@@ -345,7 +345,8 @@ const MANUAL_SECTIONS: ManualSection[] = [
         number: '7.3',
         title: 'KPI Guidelines',
         steps: [
-          'Open KPIs and switch to the KPI Guidelines tab. Keep or change the same date range (Today, This week, This month, or From–To).',
+          'Open KPI Guidelines from the sidebar (nested under KPIs). Senior accounts only.',
+          'Keep or change the date range (Today, This week, This month, or From–To).',
           'Click Review KPIs. Gemini reads Auto + Manual totals and recent published posts in that range.',
           'Up to three published images are sent for visual review. Reels and videos are judged from captions and media type, not the video file.',
           'Read the verdict: enough, partial, or not enough for that many 9-hour shifts. Use Still needed for leftover tasks and Improvements for what to change.',

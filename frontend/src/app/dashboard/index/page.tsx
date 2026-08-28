@@ -26,6 +26,7 @@ interface IndexFeature {
   title: string;
   description?: string;
   icon?: LucideIcon;
+  href?: string;
 }
 
 interface IndexSection {
@@ -196,7 +197,8 @@ const INDEX_SECTIONS: IndexSection[] = [
       {
         number: '7.3',
         title: 'KPI Guidelines',
-        description: 'Gemini judges logged KPIs and recent published posts against a 9-hour shift, with leftover work and improvements.',
+        href: '/dashboard/kpis/guidelines',
+        description: 'Open from the sidebar under KPIs. Gemini judges logged KPIs and recent posts against a 9-hour shift.',
         icon: ClipboardCheck,
       },
     ],
@@ -269,9 +271,18 @@ export default function IndexPage() {
                               aria-hidden
                             />
                           ) : null}
-                          <p className="font-semibold text-slate-900 dark:text-slate-100">
-                            {feature.title}
-                          </p>
+                          {feature.href ? (
+                            <Link
+                              href={feature.href}
+                              className="font-semibold text-slate-900 hover:underline dark:text-slate-100"
+                            >
+                              {feature.title}
+                            </Link>
+                          ) : (
+                            <p className="font-semibold text-slate-900 dark:text-slate-100">
+                              {feature.title}
+                            </p>
+                          )}
                         </div>
                         {feature.description ? (
                           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">

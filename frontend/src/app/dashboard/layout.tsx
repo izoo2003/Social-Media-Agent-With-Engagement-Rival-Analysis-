@@ -78,6 +78,43 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [mobileNavOpen]);
 
+  const renderNavLink = (item: (typeof navItems)[number], opts?: { nested?: boolean }) => {
+    const isActive =
+      item.href === '/dashboard'
+        ? pathname === '/dashboard'
+        : item.children?.length
+          ? pathname === item.href
+          : pathname === item.href || pathname.startsWith(`${item.href}/`);
+    const className = `block rounded-lg text-sm font-medium transition-colors border-l-4 ${
+      opts?.nested ? 'px-4 py-2 ml-2' : 'px-4 py-2.5'
+    } ${
+      isActive
+        ? 'border-gold-400 bg-brand-800/60 text-gold-300'
+        : 'border-transparent text-white/85 hover:bg-brand-800 hover:text-white'
+    }`;
+
+    if (item.locked) {
+      return (
+        <div
+          key={item.href}
+          title="Senior access only — use a senior developer account to open this section"
+          className={`flex items-center gap-2 rounded-lg text-sm font-medium border-l-4 border-transparent text-white/40 cursor-not-allowed select-none ${
+            opts?.nested ? 'px-4 py-2 ml-2' : 'px-4 py-2.5'
+          }`}
+        >
+          <Lock className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+          <span>{item.label}</span>
+        </div>
+      );
+    }
+
+    return (
+      <Link key={item.href} href={item.href} className={className}>
+        {item.label}
+      </Link>
+    );
+  };
+
   const renderSidebar = (opts?: { showClose?: boolean; desktop?: boolean }) => (
     <>
       <div className="p-4 sm:p-5 border-b border-brand-800">
@@ -125,38 +162,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       <nav className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-1">
-        {navItems.map((item) => {
-          const isActive =
-            pathname === item.href ||
-            (item.href !== '/dashboard' && pathname.startsWith(item.href));
-
-          if (item.locked) {
-            return (
-              <div
-                key={item.href}
-                title="Senior access only — use a senior developer account to open this section"
-                className="flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium border-l-4 border-transparent text-white/40 cursor-not-allowed select-none"
-              >
-                <Lock className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
-                <span>{item.label}</span>
-              </div>
-            );
-          }
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors border-l-4 ${
-                isActive
-                  ? 'border-gold-400 bg-brand-800/60 text-gold-300'
-                  : 'border-transparent text-white/85 hover:bg-brand-800 hover:text-white'
-              }`}
-            >
-              {item.label}
-            </Link>
-          );
-        })}
+        {navItems.map((item) => (
+          <div key={item.href} className="space-y-1">
+            {renderNavLink(item)}
+            {item.children?.map((child) => renderNavLink(child, { nested: true }))}
+          </div>
+        ))}
       </nav>
 
       <div className="p-3 sm:p-4 border-t border-brand-800 space-y-2">

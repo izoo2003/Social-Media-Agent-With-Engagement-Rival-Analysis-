@@ -75,11 +75,18 @@ export interface NavItem {
   href: string;
   label: string;
   locked: boolean;
+  children?: NavItem[];
 }
+
+type NavItemConfig = {
+  href: string;
+  label: string;
+  children?: { href: string; label: string }[];
+};
 
 const MANUAL_HOME = '/dashboard/manual';
 
-const FULL_NAV_ITEMS: Omit<NavItem, 'locked'>[] = [
+const FULL_NAV_ITEMS: NavItemConfig[] = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/dashboard/index', label: 'Index' },
   { href: MANUAL_HOME, label: 'User Manual' },
@@ -87,7 +94,11 @@ const FULL_NAV_ITEMS: Omit<NavItem, 'locked'>[] = [
   { href: '/dashboard/generator', label: 'Content Posting' },
   { href: '/dashboard/calendar', label: 'Calendar' },
   { href: '/dashboard/campaigns', label: 'Campaigns' },
-  { href: '/dashboard/kpis', label: 'KPIs' },
+  {
+    href: '/dashboard/kpis',
+    label: 'KPIs',
+    children: [{ href: '/dashboard/kpis/guidelines', label: 'KPI Guidelines' }],
+  },
   { href: '/dashboard/analytics', label: 'Analytics' },
   { href: '/dashboard/qa', label: 'QA Checker' },
   { href: '/dashboard/rivals', label: 'Rival Review' },
@@ -111,22 +122,23 @@ export function getNavItems(tier?: AccessTier | null): NavItem[] {
   const mode = getEffectiveMode(tier);
 
   return FULL_NAV_ITEMS.map((item) => {
+    let locked = false;
     if (mode === 'full') {
-      return { ...item, locked: false };
-    }
-    // Index and User Manual are always available as documentation.
-    if (item.href === INDEX_HOME || item.href === MANUAL_HOME) {
-      return { ...item, locked: false };
-    }
-    if (mode === 'creation-only') {
-      return { ...item, locked: item.href !== CREATION_HOME };
-    }
-    // junior workspace
-    return {
-      ...item,
-      locked: !JUNIOR_ALLOWED_PATHS.includes(
+      locked = false;
+    } else if (item.href === INDEX_HOME || item.href === MANUAL_HOME) {
+      locked = false;
+    } else if (mode === 'creation-only') {
+      locked = item.href !== CREATION_HOME;
+    } else {
+      locked = !JUNIOR_ALLOWED_PATHS.includes(
         item.href as (typeof JUNIOR_ALLOWED_PATHS)[number],
-      ),
+      );
+    }
+    return {
+      href: item.href,
+      label: item.label,
+      locked,
+      children: item.children?.map((child) => ({ ...child, locked })),
     };
   });
 }
