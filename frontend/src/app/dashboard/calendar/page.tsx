@@ -17,6 +17,15 @@ import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
 import { CalendarEvent } from '@/lib/types';
 import ScheduleModal from '@/components/calendar/ScheduleModal';
 import EventDetailModal from '@/components/calendar/EventDetailModal';
+import HolidayReminderModal from '@/components/calendar/HolidayReminderModal';
+import {
+  dismissHolidayReminder,
+  getPakistanHolidaysInRange,
+  getUpcomingHolidayReminders,
+  holidaysByDateMap,
+  isHolidayReminderDismissed,
+  type PakistanHoliday,
+} from '@/lib/pakistan-holidays';
 
 const PLATFORM_ICONS: Record<string, string> = {
   linkedin: '💼',
@@ -56,6 +65,9 @@ export default function CalendarPage() {
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null);
   const [presetDate, setPresetDate] = useState<Date | null>(null);
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
+  const [reminderHoliday, setReminderHoliday] = useState<
+    (PakistanHoliday & { daysUntil: number }) | null
+  >(null);
 
   // Grid covers full weeks around the current month
   const gridStart = useMemo(
@@ -67,6 +79,22 @@ export default function CalendarPage() {
     () => eachDayOfInterval({ start: gridStart, end: gridEnd }),
     [gridStart, gridEnd]
   );
+
+  const holidaysInView = useMemo(
+    () => getPakistanHolidaysInRange(gridStart, gridEnd),
+    [gridStart, gridEnd]
+  );
+  const holidaysByDay = useMemo(
+    () => holidaysByDateMap(holidaysInView),
+    [holidaysInView]
+  );
+
+  const upcomingHolidays = useMemo(() => {
+    const today = new Date();
+    const end = new Date(today);
+    end.setDate(end.getDate() + 45);
+    return getPakistanHolidaysInRange(today, end).slice(0, 5);
+  }, [cursor]);
 
   const fetchEvents = useCallback(async (options?: { background?: boolean }) => {
     if (!options?.background) setLoading(true);
@@ -97,6 +125,13 @@ export default function CalendarPage() {
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
+
+  // Popup when a Pakistan holiday is within 7 days (once per holiday until dismissed)
+  useEffect(() => {
+    const upcoming = getUpcomingHolidayReminders(7);
+    const next = upcoming.find((h) => !isHolidayReminderDismissed(h.id));
+    setReminderHoliday(next || null);
+  }, []);
 
   // Refresh while events are pending/publishing; back off when idle (less load in dev)
   useEffect(() => {
@@ -158,8 +193,8 @@ export default function CalendarPage() {
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Content Calendar</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Schedule posts in advance — they publish automatically to LinkedIn, Facebook,
-            Instagram &amp; YouTube when their time arrives.
+            Schedule posts in advance — they publish automatically. Pakistan national
+            holidays are marked so designers can plan special creatives.
           </p>
         </div>
         <button
@@ -218,13 +253,20 @@ export default function CalendarPage() {
             {days.map((day) => {
               const key = format(day, 'yyyy-MM-dd');
               const dayEvents = eventsByDay.get(key) || [];
+              const dayHolidays = holidaysByDay.get(key) || [];
               const inMonth = isSameMonth(day, cursor);
               return (
                 <div
                   key={key}
                   onClick={() => openNewSchedule(day)}
                   className={`min-h-[56px] sm:min-h-[96px] rounded-md sm:rounded-lg border p-1 sm:p-1.5 cursor-pointer transition-colors ${
-                    inMonth ? 'bg-white border-gray-200 hover:border-brand-300 dark:bg-slate-800 dark:border-slate-600 dark:hover:border-gold-500/50' : 'bg-gray-50 border-gray-100 dark:bg-slate-900/50 dark:border-slate-700'
+                    dayHolidays.length
+                      ? inMonth
+                        ? 'bg-emerald-50/80 border-emerald-200 hover:border-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800'
+                        : 'bg-emerald-50/40 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900'
+                      : inMonth
+                        ? 'bg-white border-gray-200 hover:border-brand-300 dark:bg-slate-800 dark:border-slate-600 dark:hover:border-gold-500/50'
+                        : 'bg-gray-50 border-gray-100 dark:bg-slate-900/50 dark:border-slate-700'
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
@@ -239,10 +281,28 @@ export default function CalendarPage() {
                     >
                       {format(day, 'd')}
                     </span>
+                    {dayHolidays.length > 0 && (
+                      <span
+                        className="text-[9px] font-bold uppercase text-emerald-800 dark:text-emerald-300"
+                        title={dayHolidays.map((h) => h.name).join(', ')}
+                      >
+                        PK
+                      </span>
+                    )}
                   </div>
 
                   <div className="space-y-1">
-                    {dayEvents.slice(0, 3).map((ev) => (
+                    {dayHolidays.slice(0, 1).map((h) => (
+                      <div
+                        key={h.id}
+                        className="text-[10px] leading-tight px-1 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200 truncate dark:bg-emerald-900/50 dark:text-emerald-200 dark:border-emerald-700"
+                        title={`${h.name} — ${h.tip}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {h.name}
+                      </div>
+                    ))}
+                    {dayEvents.slice(0, dayHolidays.length ? 2 : 3).map((ev) => (
                       <button
                         key={ev.id}
                         onClick={(e) => {
@@ -269,9 +329,9 @@ export default function CalendarPage() {
                         <span className="truncate">{ev.content_title}</span>
                       </button>
                     ))}
-                    {dayEvents.length > 3 && (
+                    {dayEvents.length > (dayHolidays.length ? 2 : 3) && (
                       <p className="text-[10px] text-gray-400 pl-1">
-                        +{dayEvents.length - 3} more
+                        +{dayEvents.length - (dayHolidays.length ? 2 : 3)} more
                       </p>
                     )}
                   </div>
@@ -283,6 +343,29 @@ export default function CalendarPage() {
 
         {/* Upcoming sidebar */}
         <div className="lg:col-span-1 space-y-4">
+          <div className="bg-white rounded-lg shadow p-4">
+            <h3 className="text-sm font-bold text-slate-900 mb-3">Upcoming holidays</h3>
+            {upcomingHolidays.length === 0 ? (
+              <p className="text-sm text-gray-400">No holidays in the next 45 days.</p>
+            ) : (
+              <div className="space-y-2">
+                {upcomingHolidays.map((h) => (
+                  <div
+                    key={h.id}
+                    className="p-2.5 rounded-lg border border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/30"
+                  >
+                    <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                      {h.name}
+                    </p>
+                    <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
+                      {format(new Date(h.date + 'T00:00:00'), 'EEE, d MMM yyyy')}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="bg-white rounded-lg shadow p-4">
             <h3 className="text-sm font-bold text-slate-900 mb-3">Upcoming</h3>
             {loading ? (
@@ -328,6 +411,10 @@ export default function CalendarPage() {
                   <span className="text-xs text-gray-600 capitalize">{status}</span>
                 </div>
               ))}
+              <div className="flex items-center gap-2 pt-1 border-t border-gray-100 mt-1">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                <span className="text-xs text-gray-600">Pakistan holiday</span>
+              </div>
             </div>
           </div>
         </div>
@@ -346,6 +433,20 @@ export default function CalendarPage() {
         onClose={() => setDetailEvent(null)}
         onChanged={fetchEvents}
         onEdit={openEdit}
+      />
+
+      <HolidayReminderModal
+        holiday={reminderHoliday}
+        onDismiss={() => {
+          if (reminderHoliday) dismissHolidayReminder(reminderHoliday.id);
+          const upcoming = getUpcomingHolidayReminders(7);
+          const next = upcoming.find(
+            (h) =>
+              h.id !== reminderHoliday?.id && !isHolidayReminderDismissed(h.id)
+          );
+          setReminderHoliday(next || null);
+        }}
+        onRemindLater={() => setReminderHoliday(null)}
       />
     </div>
   );
