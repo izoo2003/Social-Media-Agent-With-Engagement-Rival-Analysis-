@@ -228,9 +228,14 @@ class VoiceGenerateRequest(BaseModel):
         default="en",
         description="Language code for TTS voice selection (matches Prompt Studio language).",
     )
-    # Kept for backward compatibility; ignored — tone/character come from the prompt text.
-    mood: str = Field(default="professional", description="Ignored — detected from prompt.")
-    character: str = Field(default="auto", description="Ignored — detected from prompt.")
+    mood: str = Field(
+        default="auto",
+        description="Delivery tone: auto | professional | calm | energetic | warm | promo.",
+    )
+    character: str = Field(
+        default="auto",
+        description="Speaker: auto | male | female | kid.",
+    )
 
     @field_validator("language")
     @classmethod
@@ -243,6 +248,24 @@ class VoiceGenerateRequest(BaseModel):
         cleaned = (value or "edge").strip().lower()
         if cleaned not in {"edge", "fish"}:
             raise ValueError("Invalid provider. Choose: edge | fish")
+        return cleaned
+
+    @field_validator("mood")
+    @classmethod
+    def validate_mood(cls, value: str) -> str:
+        cleaned = (value or "auto").strip().lower()
+        allowed = {"auto", "professional", "calm", "energetic", "warm", "promo"}
+        if cleaned not in allowed:
+            raise ValueError(f"Invalid mood. Choose: {' | '.join(sorted(allowed))}")
+        return cleaned
+
+    @field_validator("character")
+    @classmethod
+    def validate_character(cls, value: str) -> str:
+        cleaned = (value or "auto").strip().lower()
+        allowed = {"auto", "male", "female", "kid"}
+        if cleaned not in allowed:
+            raise ValueError(f"Invalid character. Choose: {' | '.join(sorted(allowed))}")
         return cleaned
 
 

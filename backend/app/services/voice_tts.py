@@ -377,7 +377,9 @@ VOICE_PROVIDERS: list[dict[str, str]] = [
 
 
 def list_voice_moods() -> list[dict[str, str]]:
-    return [{"id": mood, "label": preset["label"]} for mood, preset in MOOD_PRESETS.items()]
+    return [{"id": "auto", "label": "Auto (from prompt)"}] + [
+        {"id": mood, "label": preset["label"]} for mood, preset in MOOD_PRESETS.items()
+    ]
 
 
 def list_voice_characters() -> list[dict[str, str]]:
@@ -546,23 +548,31 @@ async def _synthesize_to_bytes(
             tmp_path.unlink(missing_ok=True)
 
 
-def _fish_styled_input(script: str, hint_text: str) -> tuple[str, VoiceMood, VoiceCharacter]:
+def _fish_styled_input(
+    script: str,
+    hint_text: str,
+    mood: VoiceMood | None = None,
+    character: VoiceCharacter = "auto",
+) -> tuple[str, VoiceMood, VoiceCharacter]:
     """
-    Build Fish Audio input with natural-language style cues from the prompt.
-    Fish Audio follows parenthetical / bracket style instructions well.
+    Build Fish Audio input with natural-language style cues.
+
+    Explicit mood/character from the UI win; otherwise infer from hint_text.
     """
-    mood = detect_voice_mood(hint_text)
-    character = detect_voice_character(hint_text) or "auto"
-    cue_parts = [MOOD_PRESETS[mood].get("fish_cue", "natural narration")]
-    if character == "female":
+    resolved_mood: VoiceMood = mood if mood in MOOD_PRESETS else detect_voice_mood(hint_text)
+    resolved_character: VoiceCharacter = character
+    if character == "auto":
+        resolved_character = detect_voice_character(hint_text) or "auto"
+    cue_parts = [MOOD_PRESETS[resolved_mood].get("fish_cue", "natural narration")]
+    if resolved_character == "female":
         cue_parts.append("female speaker")
-    elif character == "male":
+    elif resolved_character == "male":
         cue_parts.append("male speaker")
-    elif character == "kid":
+    elif resolved_character == "kid":
         cue_parts.append("child kid voice")
     cue = ", ".join(cue_parts)
     styled = f"({cue})\n{script}"
-    return styled, mood, character  # type: ignore[return-value]
+    return styled, resolved_mood, resolved_character
 
 
 async def generate_voice_async(
@@ -578,10 +588,9 @@ async def generate_voice_async(
         raise ContentGenerationError("Script is too short for voice generation.")
 
     lang = get_language(language)
-    # Tone + character come from the prompt when UI dropdowns are removed.
-    resolved_mood: VoiceMood = mood or detect_voice_mood(text)
-    resolved_character: VoiceCharacter = character
-    if character == "auto":
+    resolved_mood: VoiceMood = mood if mood in MOOD_PRESETS else detect_voice_mood(text)
+    resolved_character: VoiceCharacter = character if character in ("male", "female", "kid") else "auto"
+    if resolved_character == "auto":
         resolved_character = detect_voice_character(text) or "auto"
 
     logger.info(
@@ -593,7 +602,12 @@ async def generate_voice_async(
         if provider == "fish":
             from app.llm.openrouter_tts import synthesize_openrouter_speech
 
-            styled, resolved_mood, resolved_character = _fish_styled_input(script, text)
+            styled, resolved_mood, resolved_character = _fish_styled_input(
+                script,
+                text,
+                mood=resolved_mood,
+                character=resolved_character,
+            )
             audio_bytes = synthesize_openrouter_speech(styled)
             voice_id = settings.OPENROUTER_FISH_MODEL.strip() or "fish-audio"
         else:

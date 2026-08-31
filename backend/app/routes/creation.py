@@ -54,6 +54,8 @@ from app.services.product_knowledge import (
 )
 from app.services.voice_tts import (
     generate_voice_async,
+    list_voice_characters,
+    list_voice_moods,
     list_voice_providers,
 )
 from app.utils.exceptions import ContentGenerationError, LLMConnectionError
@@ -173,8 +175,8 @@ async def list_creation_models():
         gemini_image_configured=bool(get_image_gemini_api_key()),
         creation_api_keys_loaded=len(get_creation_gemini_api_keys()),
         voice_ready=True,
-        voice_moods=[],
-        voice_characters=[],
+        voice_moods=list_voice_moods(),
+        voice_characters=list_voice_characters(),
         fish_voice_configured=bool(settings.OPENROUTER_FISH_API_KEY.strip()),
         voice_providers=list_voice_providers(
             fish_configured=bool(settings.OPENROUTER_FISH_API_KEY.strip())
@@ -544,7 +546,9 @@ async def creation_generate_voice(request: Request, body: VoiceGenerateRequest):
     try:
         result = await generate_voice_async(
             body.text,
+            mood=None if body.mood == "auto" else body.mood,  # type: ignore[arg-type]
             language=body.language,
+            character=body.character,  # type: ignore[arg-type]
             provider=provider,  # type: ignore[arg-type]
         )
         record_auto_event(

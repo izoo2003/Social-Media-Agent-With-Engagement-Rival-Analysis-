@@ -89,10 +89,10 @@ const MANUAL_SECTIONS: ManualSection[] = [
         title: 'Create voice',
         steps: [
           'Select Create voice mode.',
-          'Describe the voice-over — length, product, tone (e.g. warm, energetic, trustworthy).',
-          'Choose a Voice mood from the toolbar dropdown when available.',
+          'Describe the voice-over — length, product, and any script details.',
+          'Choose Character (male / female / kid) and Tone (professional, calm, energetic, warm, promo) in the toolbar. These control the spoken audio.',
           'Send your message. The AI writes a script in the chat.',
-          'When satisfied, click Generate voice to produce audio using free text-to-speech.',
+          'When satisfied, click Generate voice to produce audio with the selected character and tone.',
           'Play or download the audio from the message bubble.',
         ],
         tips: ['You can edit the script in chat before generating voice.'],

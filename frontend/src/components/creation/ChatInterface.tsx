@@ -66,7 +66,7 @@ const CREATION_MODES: {
     icon: Mic,
     description: 'Write a voice-over script — click Generate voice when ready',
     placeholder:
-      'Describe the voice-over — e.g. 20s promo, calm female voice, warm tone for Himalayan pink salt…',
+      'Describe the voice-over — e.g. 20s promo for Himalayan pink salt. Pick character and tone in the toolbar.',
   },
   {
     id: 'general_chat',
@@ -86,7 +86,32 @@ const CREATION_MODES: {
 ];
 
 const IMAGE_PROVIDER_PREF_KEY = 'creation_image_provider';
+const VOICE_CHARACTER_PREF_KEY = 'creation_voice_character';
+const VOICE_MOOD_PREF_KEY = 'creation_voice_mood';
 type ImageProviderChoice = 'cloudflare' | 'gemini';
+type VoiceOption = { id: string; label: string };
+
+const FALLBACK_VOICE_CHARACTERS: VoiceOption[] = [
+  { id: 'auto', label: 'Auto (from prompt)' },
+  { id: 'male', label: 'Male' },
+  { id: 'female', label: 'Female' },
+  { id: 'kid', label: 'Kid / child' },
+];
+
+const FALLBACK_VOICE_MOODS: VoiceOption[] = [
+  { id: 'auto', label: 'Auto (from prompt)' },
+  { id: 'professional', label: 'Professional' },
+  { id: 'calm', label: 'Calm & soothing' },
+  { id: 'energetic', label: 'Energetic' },
+  { id: 'warm', label: 'Warm & friendly' },
+  { id: 'promo', label: 'Promo / sales' },
+];
+
+function readStoredVoiceOption(key: string, allowed: string[], fallback: string): string {
+  if (typeof window === 'undefined') return fallback;
+  const raw = window.localStorage.getItem(key);
+  return raw && allowed.includes(raw) ? raw : fallback;
+}
 
 type ChatModelChoice = 'gemini' | 'chatgpt' | 'deepseek' | 'claude';
 
@@ -322,6 +347,22 @@ export default function ChatInterface() {
     { id: 'fish', label: 'Fish Audio' },
   ]);
   const [voiceProvider, setVoiceProvider] = useState<string>('edge');
+  const [voiceCharacters, setVoiceCharacters] = useState<VoiceOption[]>(FALLBACK_VOICE_CHARACTERS);
+  const [voiceMoods, setVoiceMoods] = useState<VoiceOption[]>(FALLBACK_VOICE_MOODS);
+  const [voiceCharacter, setVoiceCharacter] = useState<string>(() =>
+    readStoredVoiceOption(
+      VOICE_CHARACTER_PREF_KEY,
+      FALLBACK_VOICE_CHARACTERS.map((c) => c.id),
+      'female'
+    )
+  );
+  const [voiceMood, setVoiceMood] = useState<string>(() =>
+    readStoredVoiceOption(
+      VOICE_MOOD_PREF_KEY,
+      FALLBACK_VOICE_MOODS.map((m) => m.id),
+      'professional'
+    )
+  );
   const [fishVoiceConfigured, setFishVoiceConfigured] = useState(false);
   const [creationLanguage, setCreationLanguage] = useState<string>(() => readStoredCreationLanguage());
   const [languageOptions, setLanguageOptions] = useState<CreationLanguageOption[]>(
@@ -409,6 +450,12 @@ export default function ChatInterface() {
       );
       if (data.voice_providers?.length) {
         setVoiceProviders(data.voice_providers);
+      }
+      if (data.voice_characters?.length) {
+        setVoiceCharacters(data.voice_characters);
+      }
+      if (data.voice_moods?.length) {
+        setVoiceMoods(data.voice_moods);
       }
       setFishVoiceConfigured(Boolean(data.fish_voice_configured));
       if (data.languages?.length) {
@@ -798,6 +845,8 @@ export default function ChatInterface() {
           text: scriptText,
           provider: voiceProvider,
           language: creationLanguage,
+          character: voiceCharacter,
+          mood: voiceMood,
         }),
         signal: AbortSignal.timeout(API_CONFIG.timeout),
       });
@@ -811,10 +860,11 @@ export default function ChatInterface() {
           i === index ? { ...m, generatedAudioUrl: data.media_url } : m
         )
       );
+      const speaker = data.character && data.character !== 'auto' ? data.character : voiceCharacter;
       toast.success(
         `Voice-over generated (${data.provider || voiceProvider}${
-          data.mood ? `, ${data.mood}` : ''
-        })`
+          speaker ? `, ${speaker}` : ''
+        }${data.mood ? `, ${data.mood}` : ''})`
       );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Voice generation failed');
@@ -848,7 +898,16 @@ export default function ChatInterface() {
   const generateVoice = async (index: number) => {
     const msg = messages[index];
     if (!msg || msg.role !== 'assistant') return;
-    await runGenerateVoice(index, msg.content);
+    let userHint = '';
+    for (let i = index - 1; i >= 0; i -= 1) {
+      const prev = messages[i];
+      if (prev.role === 'user') {
+        userHint = prev.content || '';
+        break;
+      }
+    }
+    const text = userHint ? `User request: ${userHint}\n\n${msg.content}` : msg.content;
+    await runGenerateVoice(index, text);
   };
 
   const copyMessage = async (text: string, index: number) => {
@@ -1042,7 +1101,7 @@ export default function ChatInterface() {
               setVoiceProvider(next);
             }}
             className="shrink-0 text-sm rounded-lg border border-brand-200 bg-white px-2 py-1.5 text-brand-800 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100"
-            title="Voice-over engine — write tone/gender in your prompt (calm, female, kid…)"
+            title="Voice-over engine"
           >
             {voiceProviders.map((p) => (
               <option key={p.id} value={p.id}>
@@ -1051,6 +1110,42 @@ export default function ChatInterface() {
             ))}
           </select>
         )}
+        <select
+          value={voiceCharacter}
+          onChange={(e) => {
+            const next = e.target.value;
+            setVoiceCharacter(next);
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(VOICE_CHARACTER_PREF_KEY, next);
+            }
+          }}
+          className="shrink-0 text-sm rounded-lg border border-brand-200 bg-white px-2 py-1.5 text-brand-800 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100"
+          title="Speaker for Generate voice — male, female, or kid"
+        >
+          {voiceCharacters.map((c) => (
+            <option key={c.id} value={c.id}>
+              Character: {c.label}
+            </option>
+          ))}
+        </select>
+        <select
+          value={voiceMood}
+          onChange={(e) => {
+            const next = e.target.value;
+            setVoiceMood(next);
+            if (typeof window !== 'undefined') {
+              window.localStorage.setItem(VOICE_MOOD_PREF_KEY, next);
+            }
+          }}
+          className="shrink-0 text-sm rounded-lg border border-brand-200 bg-white px-2 py-1.5 text-brand-800 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100"
+          title="Delivery tone for Generate voice"
+        >
+          {voiceMoods.map((m) => (
+            <option key={m.id} value={m.id}>
+              Tone: {m.label}
+            </option>
+          ))}
+        </select>
         {messages.length > 0 && (
           <button
             onClick={startNewChat}
@@ -1296,7 +1391,7 @@ export default function ChatInterface() {
                   </div>
                 )}
                 {!isUser && msgIntent === 'create_voice' && (
-                  <div className="flex flex-wrap gap-2 pt-1">
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => generateVoice(index)}
@@ -1310,6 +1405,11 @@ export default function ChatInterface() {
                       )}
                       Generate voice
                     </button>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {voiceCharacters.find((c) => c.id === voiceCharacter)?.label ?? voiceCharacter}
+                      {' · '}
+                      {voiceMoods.find((m) => m.id === voiceMood)?.label ?? voiceMood}
+                    </span>
                     <button
                       type="button"
                       onClick={() => handleSavePrompt(msg.content)}
