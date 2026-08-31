@@ -312,7 +312,7 @@ const MANUAL_SECTIONS: ManualSection[] = [
     title: 'KPIs',
     href: '/dashboard/kpis',
     intro:
-      'Designer work report. Auto cards count activity in this agent. Manual entries cover work done in other tools. Guidelines uses Gemini to judge whether a 9-hour shift looks filled. Senior accounts only. Days use Asia/Karachi.',
+      'Designer work report. Auto cards count activity in this agent. Manual entries cover work done in other tools. KPI Reports tracks each metric by day, week, or month. Guidelines uses Gemini to judge whether a 9-hour shift looks filled. Senior accounts only. Days use Asia/Karachi.',
     steps: [],
     subsections: [
       {
@@ -337,12 +337,21 @@ const MANUAL_SECTIONS: ManualSection[] = [
           'In Manual entry, pick a catalog KPI or a custom card, enter quantity and date, add an optional note, then Add entry.',
           'Use this for work done outside the agent (Canva, Photoshop, other software).',
           'Create a Custom KPI with a name (for example “Canva graphics”) when the catalog does not cover it. Fill that card with manual entries.',
-          'Edit or delete a manual row from the Manual log. Archive a custom card if you no longer need it — old entries stay in history.',
-          'The daily report table shows Auto + Manual totals for every day in the selected range.',
+          'Create a Website Maintenance KPI the same way (for example “Plugin updates” or “Backup check”). Those cards sit in their own grid and are filled with manual entries only.',
+          'Edit or delete a manual row from the Manual log. Archive a custom or Website Maintenance card if you no longer need it — old entries stay in history.',
         ],
       },
       {
         number: '7.3',
+        title: 'Website Maintenance',
+        steps: [
+          'On the KPIs page, use Website Maintenance KPI (below Custom KPI) and enter a name, then Add.',
+          'Pick that card in Manual entry (Website Maintenance group), enter quantity and date, then Add entry.',
+          'Cards show in Website Maintenance cards on KPIs and as their own sections on KPI Reports.',
+        ],
+      },
+      {
+        number: '7.4',
         title: 'KPI Guidelines',
         steps: [
           'Open KPI Guidelines from the sidebar (nested under KPIs). Senior accounts only.',
@@ -355,6 +364,20 @@ const MANUAL_SECTIONS: ManualSection[] = [
         tips: [
           'Add manual Canva/Photoshop counts in KPI Creation first so Guidelines can count that work.',
           'Guidelines uses the same Gemini posting API keys as Content Posting. If keys are missing, the page will say AI is unavailable.',
+        ],
+      },
+      {
+        number: '7.5',
+        title: 'KPI Reports',
+        steps: [
+          'Open KPI Reports from the sidebar (nested under KPIs, next to KPI Guidelines). Senior accounts only.',
+          'Daily is the default and shows today. Use Weekly or Monthly, or pick a From–To range.',
+          'Each KPI has its own section with Auto, Manual, and Total. Posts published also splits images vs reels/video.',
+          'The table in each section follows the selected grouping: one row per day, week, or month.',
+          'Click Generate summary for a written breakdown of the selected day, week, month, or custom range.',
+        ],
+        tips: [
+          'KPI Creation is still where you add manual entries. Reports only displays and summarizes them.',
         ],
       },
     ],

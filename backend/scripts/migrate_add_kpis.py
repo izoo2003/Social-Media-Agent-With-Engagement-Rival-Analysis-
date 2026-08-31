@@ -11,10 +11,28 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from sqlalchemy import inspect
+from sqlalchemy import inspect, text
 
 from app.database.db import engine
 from app.database import models  # noqa: F401
+
+
+def _ensure_kind_column() -> None:
+    inspector = inspect(engine)
+    if "kpi_custom_definition" not in inspector.get_table_names():
+        return
+    columns = {col["name"] for col in inspector.get_columns("kpi_custom_definition")}
+    if "kind" in columns:
+        print("Column already exists: kpi_custom_definition.kind")
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "ALTER TABLE kpi_custom_definition "
+                "ADD COLUMN kind VARCHAR(40) DEFAULT 'custom' NOT NULL"
+            )
+        )
+    print("Added column: kpi_custom_definition.kind")
 
 
 def migrate():
@@ -45,6 +63,7 @@ def migrate():
 
     if created:
         print(f"Created table(s): {', '.join(created)}")
+    _ensure_kind_column()
     print("Migration complete.")
 
 

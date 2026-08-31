@@ -1,9 +1,11 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import toast from 'react-hot-toast';
 import {
   CalendarDays,
+  Globe,
   ImageIcon,
   Loader2,
   Megaphone,
@@ -25,7 +27,9 @@ import {
   startOfPktWeek,
 } from '@/lib/kpi-dates';
 import type {
+  KpiCardKind,
   KpiCatalogMetric,
+  KpiCustomMetric,
   KpiManualEntry,
   KpiSummaryResponse,
 } from '@/lib/types';
@@ -38,16 +42,6 @@ const CATALOG_ICONS: Record<string, LucideIcon> = {
   scripts_generated: PenLine,
   campaigns_started: Megaphone,
   rivals_added: Users,
-};
-
-const SHORT_LABELS: Record<string, string> = {
-  posts_published: 'Published',
-  posts_scheduled: 'Scheduled',
-  images_generated: 'Images',
-  voiceovers_generated: 'Voice',
-  scripts_generated: 'Scripts',
-  campaigns_started: 'Campaigns',
-  rivals_added: 'Rivals',
 };
 
 function errorDetail(err: unknown, fallback: string): string {
@@ -71,6 +65,8 @@ export default function KpisPage() {
 
   const [customName, setCustomName] = useState('');
   const [savingCustom, setSavingCustom] = useState(false);
+  const [websiteName, setWebsiteName] = useState('');
+  const [savingWebsite, setSavingWebsite] = useState(false);
 
   const loadSummary = useCallback(async (from: string, to: string) => {
     setLoading(true);
@@ -185,17 +181,23 @@ export default function KpisPage() {
     }
   };
 
-  const createCustom = async () => {
-    const name = customName.trim();
+  const createCard = async (kind: KpiCardKind) => {
+    const isWebsite = kind === 'website_maintenance';
+    const name = (isWebsite ? websiteName : customName).trim();
     if (!name) {
-      toast.error('Enter a name for the custom KPI');
+      toast.error(
+        isWebsite
+          ? 'Enter a name for the Website Maintenance KPI'
+          : 'Enter a name for the custom KPI',
+      );
       return;
     }
-    setSavingCustom(true);
+    const setSaving = isWebsite ? setSavingWebsite : setSavingCustom;
+    setSaving(true);
     try {
       const res = await fetchWithTimeout(API_ENDPOINTS.KPI_CUSTOM, {
         method: 'POST',
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, kind }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
@@ -204,25 +206,36 @@ export default function KpisPage() {
         );
       }
       const created = (await res.json()) as { id: number };
-      setCustomName('');
+      if (isWebsite) {
+        setWebsiteName('');
+      } else {
+        setCustomName('');
+      }
       setManualTarget(`custom:${created.id}`);
-      toast.success('Custom KPI added');
+      toast.success(isWebsite ? 'Website Maintenance KPI added' : 'Custom KPI added');
       await loadSummary(fromDate, toDate);
     } catch (e) {
-      toast.error(errorDetail(e, 'Could not create custom KPI'));
+      toast.error(
+        errorDetail(
+          e,
+          isWebsite ? 'Could not create Website Maintenance KPI' : 'Could not create custom KPI',
+        ),
+      );
     } finally {
-      setSavingCustom(false);
+      setSaving(false);
     }
   };
 
-  const archiveCustom = async (id: number) => {
-    if (!confirm('Archive this custom KPI? Past manual entries are kept.')) return;
+  const archiveCard = async (id: number, kind: KpiCardKind) => {
+    const isWebsite = kind === 'website_maintenance';
+    const label = isWebsite ? 'Website Maintenance KPI' : 'custom KPI';
+    if (!confirm(`Archive this ${label}? Past manual entries are kept.`)) return;
     try {
       const res = await fetchWithTimeout(API_ENDPOINTS.KPI_CUSTOM_DETAIL(id), {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Archive failed');
-      toast.success('Custom KPI archived');
+      toast.success(isWebsite ? 'Website Maintenance KPI archived' : 'Custom KPI archived');
       await loadSummary(fromDate, toDate);
     } catch (e) {
       toast.error(errorDetail(e, 'Could not archive KPI'));
@@ -230,10 +243,10 @@ export default function KpisPage() {
   };
 
   const catalog = summary?.catalog ?? [];
-  const custom = summary?.custom ?? [];
-  const daily = summary?.daily ?? [];
+  const namedCards = summary?.custom ?? [];
+  const customCards = namedCards.filter((c) => (c.kind || 'custom') !== 'website_maintenance');
+  const websiteCards = namedCards.filter((c) => c.kind === 'website_maintenance');
   const entries = summary?.manual_entries ?? [];
-  const isSingleDay = fromDate === toDate;
 
   const metricLabel = (entry: KpiManualEntry) => {
     if (entry.custom_name) return entry.custom_name;
@@ -254,7 +267,14 @@ export default function KpisPage() {
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
             Auto counts work done in this agent. Add manual numbers for work done in
-            other tools. Totals are Auto + Manual. Days use Asia/Karachi.
+            other tools, plus custom and Website Maintenance cards. Totals are Auto + Manual. Open{' '}
+            <Link
+              href="/dashboard/kpis/reports"
+              className="font-semibold text-brand-800 underline-offset-2 hover:underline dark:text-gold-300"
+            >
+              KPI Reports
+            </Link>{' '}
+            for daily / weekly / monthly tracking. Days use Asia/Karachi.
           </p>
         </div>
 
@@ -341,16 +361,31 @@ export default function KpisPage() {
                   onChange={(e) => setManualTarget(e.target.value)}
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                 >
-                  {catalog.map((m) => (
-                    <option key={m.key} value={`catalog:${m.key}`}>
-                      {m.label}
-                    </option>
-                  ))}
-                  {custom.map((c) => (
-                    <option key={c.id} value={`custom:${c.id}`}>
-                      {c.name}
-                    </option>
-                  ))}
+                  <optgroup label="Catalog">
+                    {catalog.map((m) => (
+                      <option key={m.key} value={`catalog:${m.key}`}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {customCards.length > 0 ? (
+                    <optgroup label="Custom">
+                      {customCards.map((c) => (
+                        <option key={c.id} value={`custom:${c.id}`}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
+                  {websiteCards.length > 0 ? (
+                    <optgroup label="Website Maintenance">
+                      {websiteCards.map((c) => (
+                        <option key={c.id} value={`custom:${c.id}`}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null}
                 </select>
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -427,7 +462,7 @@ export default function KpisPage() {
               />
               <button
                 type="button"
-                onClick={() => void createCustom()}
+                onClick={() => void createCard('custom')}
                 disabled={savingCustom}
                 className="inline-flex items-center gap-1 rounded-lg bg-brand-800 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
               >
@@ -436,42 +471,48 @@ export default function KpisPage() {
               </button>
             </div>
           </div>
+
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+            <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+              <Globe className="h-4 w-4 text-brand-700 dark:text-gold-400" />
+              Website Maintenance KPI
+            </h2>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Add a named card for site work this agent cannot count automatically.
+            </p>
+            <div className="mt-3 flex gap-2">
+              <input
+                value={websiteName}
+                onChange={(e) => setWebsiteName(e.target.value)}
+                placeholder="e.g. Plugin updates"
+                className="min-w-0 flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+              />
+              <button
+                type="button"
+                onClick={() => void createCard('website_maintenance')}
+                disabled={savingWebsite}
+                className="inline-flex items-center gap-1 rounded-lg bg-brand-800 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60"
+              >
+                {savingWebsite ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Add
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-4 xl:col-span-2">
-          {custom.length > 0 ? (
-            <div>
-              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
-                Custom cards
-              </h2>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {custom.map((card) => (
-                  <div
-                    key={card.id}
-                    className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-800"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-slate-900 dark:text-slate-100">{card.name}</h3>
-                      <button
-                        type="button"
-                        onClick={() => void archiveCustom(card.id)}
-                        className="rounded p-1 text-slate-400 hover:text-red-600"
-                        title="Archive"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                    <p className="mt-3 text-3xl font-bold text-slate-900 dark:text-slate-100">
-                      {card.total}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Manual only · {card.manual} in range
-                    </p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : null}
+          <NamedCardGrid
+            title="Custom cards"
+            cards={customCards}
+            kind="custom"
+            onArchive={archiveCard}
+          />
+          <NamedCardGrid
+            title="Website Maintenance cards"
+            cards={websiteCards}
+            kind="website_maintenance"
+            onArchive={archiveCard}
+          />
 
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
             <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
@@ -517,56 +558,55 @@ export default function KpisPage() {
           </div>
         </div>
       </section>
+    </div>
+  );
+}
 
-      <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
-          {isSingleDay ? `Daily report · ${formatKpiDay(fromDate)}` : 'Daily report'}
-        </h2>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Totals per day (Auto + Manual). Scroll sideways on smaller screens.
-        </p>
-        <div className="mt-4 overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 text-xs uppercase tracking-wide text-slate-500 dark:border-slate-700 dark:text-slate-400">
-                <th className="whitespace-nowrap py-2 pr-4 font-semibold">Date</th>
-                {catalog.map((m) => (
-                  <th key={m.key} className="whitespace-nowrap py-2 px-2 font-semibold">
-                    {SHORT_LABELS[m.key] || m.label}
-                  </th>
-                ))}
-                {custom.map((c) => (
-                  <th key={c.id} className="whitespace-nowrap py-2 px-2 font-semibold">
-                    {c.name}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {daily.map((row) => (
-                <tr
-                  key={row.date}
-                  className="border-b border-slate-100 last:border-0 dark:border-slate-700"
-                >
-                  <td className="whitespace-nowrap py-2 pr-4 font-medium text-slate-800 dark:text-slate-200">
-                    {formatKpiDay(row.date)}
-                  </td>
-                  {catalog.map((m) => (
-                    <td key={m.key} className="whitespace-nowrap py-2 px-2 text-slate-700 dark:text-slate-300">
-                      {row.catalog[m.key]?.total ?? 0}
-                    </td>
-                  ))}
-                  {custom.map((c) => (
-                    <td key={c.id} className="whitespace-nowrap py-2 px-2 text-slate-700 dark:text-slate-300">
-                      {row.custom[String(c.id)]?.total ?? 0}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </section>
+function NamedCardGrid({
+  title,
+  cards,
+  kind,
+  onArchive,
+}: {
+  title: string;
+  cards: KpiCustomMetric[];
+  kind: KpiCardKind;
+  onArchive: (id: number, kind: KpiCardKind) => void;
+}) {
+  if (cards.length === 0) return null;
+  const Icon = kind === 'website_maintenance' ? Globe : Target;
+  return (
+    <div>
+      <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+        <Icon className="h-4 w-4 text-brand-700 dark:text-gold-400" />
+        {title}
+      </h2>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {cards.map((card) => (
+          <div
+            key={card.id}
+            className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-800"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100">{card.name}</h3>
+              <button
+                type="button"
+                onClick={() => void onArchive(card.id, kind)}
+                className="rounded p-1 text-slate-400 hover:text-red-600"
+                title="Archive"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="mt-3 text-3xl font-bold text-slate-900 dark:text-slate-100">
+              {card.total}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Manual only · {card.manual} in range
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

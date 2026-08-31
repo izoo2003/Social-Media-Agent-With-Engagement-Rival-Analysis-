@@ -435,6 +435,7 @@ class KpiCustomDefinition(Base):
 
     id = Column(Integer, primary_key=True)
     name = Column(String(150), nullable=False)
+    kind = Column(String(40), nullable=False, default="custom", server_default="custom", index=True)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

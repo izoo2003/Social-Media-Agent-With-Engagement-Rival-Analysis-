@@ -127,9 +127,39 @@ def test_custom_kpi_manual_only(db):
     summary = service.get_summary(day, day)
     assert len(summary["custom"]) == 1
     assert summary["custom"][0]["name"] == "Canva graphics"
+    assert summary["custom"][0]["kind"] == "custom"
     assert summary["custom"][0]["auto"] == 0
     assert summary["custom"][0]["manual"] == 4
     assert summary["custom"][0]["total"] == 4
+
+
+def test_website_maintenance_kpi_manual_only(db):
+    day = date(2026, 8, 28)
+    service = KpiService(db)
+    card = service.create_custom("Plugin updates", kind="website_maintenance")
+    service.create_manual(
+        metric_key=None,
+        custom_definition_id=card.id,
+        quantity=2,
+        note="WordPress plugins",
+        occurred_on=day,
+        created_by="designer",
+    )
+
+    summary = service.get_summary(day, day)
+    assert len(summary["custom"]) == 1
+    assert summary["custom"][0]["name"] == "Plugin updates"
+    assert summary["custom"][0]["kind"] == "website_maintenance"
+    assert summary["custom"][0]["auto"] == 0
+    assert summary["custom"][0]["manual"] == 2
+    assert summary["custom"][0]["total"] == 2
+    assert summary["manual_entries"][0]["custom_kind"] == "website_maintenance"
+
+
+def test_create_custom_rejects_invalid_kind(db):
+    service = KpiService(db)
+    with pytest.raises(ValueError):
+        service.create_custom("Oops", kind="not_a_kind")
 
 
 def test_archive_hides_custom_card(db):
@@ -145,6 +175,23 @@ def test_archive_hides_custom_card(db):
         created_by="designer",
     )
     service.archive_custom(custom.id)
+    summary = service.get_summary(day, day)
+    assert summary["custom"] == []
+
+
+def test_archive_hides_website_maintenance_card(db):
+    day = date(2026, 8, 28)
+    service = KpiService(db)
+    card = service.create_custom("Backup check", kind="website_maintenance")
+    service.create_manual(
+        metric_key=None,
+        custom_definition_id=card.id,
+        quantity=1,
+        note=None,
+        occurred_on=day,
+        created_by="designer",
+    )
+    service.archive_custom(card.id)
     summary = service.get_summary(day, day)
     assert summary["custom"] == []
 

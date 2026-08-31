@@ -97,6 +97,119 @@ def _snap_to_window(local_dt: datetime) -> datetime:
     return min(candidates, key=lambda c: abs((c - local_dt).total_seconds()))
 
 
+# Prefer one post per day. Extra AI items become a 2nd slot on some days,
+# still spanning the full duration — never 2/day for half the window.
+MAX_POSTS_PER_DAY = 2
+
+
+def assign_campaign_day_indices(count: int, duration_days: int) -> list[int]:
+    """Spread `count` posts across days 0..duration_days-1, covering the last day."""
+    if count <= 0 or duration_days <= 0:
+        return []
+
+    if count == 1:
+        return [0]
+
+    if count <= duration_days:
+        raw = [
+            int(round(i * (duration_days - 1) / (count - 1)))
+            for i in range(count)
+        ]
+        used: set[int] = set()
+        unique: list[int] = []
+        for idx in raw:
+            idx = max(0, min(idx, duration_days - 1))
+            if idx in used:
+                shifted = next(
+                    (
+                        candidate
+                        for candidate in list(range(idx + 1, duration_days))
+                        + list(range(idx - 1, -1, -1))
+                        if candidate not in used
+                    ),
+                    idx,
+                )
+                idx = shifted
+            used.add(idx)
+            unique.append(idx)
+        unique.sort()
+        return unique
+
+    base, extra = divmod(count, duration_days)
+    extra_days = set(assign_campaign_day_indices(extra, duration_days)) if extra else set()
+    result: list[int] = []
+    for day in range(duration_days):
+        copies = base + (1 if day in extra_days else 0)
+        result.extend([day] * copies)
+    while len(result) < count:
+        result.append(len(result) % duration_days)
+    return result[:count]
+
+
+def _windows_for_day_count(n: int) -> list[time]:
+    """Pick distinct PKT posting windows for n posts on the same calendar day."""
+    n = max(1, n)
+    windows = PKT_POSTING_WINDOWS
+    if n == 1:
+        return [windows[2]]  # 20:00 — strongest international overlap
+    if n == 2:
+        return [windows[0], windows[2]]  # 13:00 and 20:00
+    if n >= len(windows):
+        return [windows[i % len(windows)] for i in range(n)]
+    picks = [
+        int(round(i * (len(windows) - 1) / (n - 1)))
+        for i in range(n)
+    ]
+    return [windows[i] for i in picks]
+
+
+def spread_campaign_schedule(
+    items: list,
+    *,
+    start_date: date,
+    duration_days: int,
+) -> list:
+    """Rewrite item datetimes so posts span the full campaign window."""
+    if not items or duration_days < 1:
+        return items
+
+    items.sort(
+        key=lambda i: (
+            getattr(i, "scheduled_at_utc", None) or datetime.min,
+            getattr(i, "sort_order", 0),
+        )
+    )
+    cap = duration_days * MAX_POSTS_PER_DAY
+    if len(items) > cap:
+        del items[cap:]
+
+    day_indices = assign_campaign_day_indices(len(items), duration_days)
+    per_day = Counter(day_indices)
+    windows_by_day = {
+        day: _windows_for_day_count(per_day[day]) for day in per_day
+    }
+    slot_on_day: Counter[int] = Counter()
+
+    for item, day_index in zip(items, day_indices):
+        slot = slot_on_day[day_index]
+        slot_on_day[day_index] += 1
+        windows = windows_by_day[day_index]
+        clock = windows[min(slot, len(windows) - 1)]
+        local_dt = datetime.combine(
+            start_date + timedelta(days=day_index),
+            clock,
+            tzinfo=PKT,
+        )
+        utc_dt = local_dt.astimezone(timezone.utc)
+        item.day_index = day_index
+        item.scheduled_at_utc = to_naive_utc(utc_dt)
+        item.scheduled_at_pkt = local_dt.isoformat()
+
+    for i, item in enumerate(items):
+        item.sort_order = i
+    return items
+
+
 def _build_summary(items: list[CampaignItem]) -> dict[str, int]:
     counts: Counter[str] = Counter()
     for item in items:
@@ -247,11 +360,8 @@ class CampaignService:
         end_date = request.start_date + timedelta(days=request.duration_days - 1)
         windows = ", ".join(w.strftime("%H:%M") for w in PKT_POSTING_WINDOWS)
         products_json = json.dumps(products, ensure_ascii=False)
-        # Rough cadence: ~1–2 posts per day scaled by product count
-        target_posts = max(
-            request.duration_days,
-            min(request.duration_days * 2, request.duration_days * max(1, len(products))),
-        )
+        target_posts = request.duration_days
+        last_day_index = request.duration_days - 1
 
         return f"""You are a social media strategist for Kafi Commodities (Pakistan-based spice/rice/food brand).
 Create a complete multi-day content campaign plan optimized so posts from Karachi reach as much international audience as possible.
@@ -259,7 +369,7 @@ Create a complete multi-day content campaign plan optimized so posts from Karach
 CAMPAIGN INPUT
 - Start date (PKT calendar): {request.start_date.isoformat()}
 - End date (PKT calendar): {end_date.isoformat()}
-- Duration: {request.duration_days} days
+- Duration: {request.duration_days} days (day_index 0 through {last_day_index})
 - Platforms: {", ".join(platforms)}
 - Products/categories (product may be null — plan for the category): {products_json}
 - Timezone for all times: Asia/Karachi (PKT, UTC+5)
@@ -269,13 +379,15 @@ POSTING WINDOWS (PKT) — ONLY use these clock times:
 Rationale: 13:00 Gulf midday / early EU; 16:00 EU afternoon; 20:00–22:00 US morning coverage.
 
 REQUIREMENTS
-1. Return ~{target_posts} items spread across the date range (not all on one day).
-2. Mix asset types: reel, post_image, story, graphic, animation, video.
-3. Cover every provided category/product at least once when possible.
-4. Each item needs a short topic/hook, draft title, and draft caption body suitable for the platforms.
-5. Prefer Instagram Reels / TikTok for short video; LinkedIn more professional tone; Facebook broader.
-6. Captions should be ready to post (no placeholders like [INSERT]).
-7. scheduled_at_pkt must be ISO 8601 with offset +05:00 and a clock time from the windows above.
+1. Return exactly {target_posts} items — one post per calendar day from {request.start_date.isoformat()} through {end_date.isoformat()}.
+2. day_index must run 0, 1, 2, … {last_day_index}. The LAST item must fall on {end_date.isoformat()} (day_index {last_day_index}).
+3. Do NOT put two posts on the same day. Do NOT pack the first half of the campaign and leave later days empty.
+4. Mix asset types: reel, post_image, story, graphic, animation, video.
+5. Cover every provided category/product at least once when possible (rotate across days, do not double-post).
+6. Each item needs a short topic/hook, draft title, and draft caption body suitable for the platforms.
+7. Prefer Instagram Reels / TikTok for short video; LinkedIn more professional tone; Facebook broader.
+8. Captions should be ready to post (no placeholders like [INSERT]).
+9. scheduled_at_pkt must be ISO 8601 with offset +05:00 and a clock time from the windows above.
 
 Respond with JSON ONLY in this shape:
 {{
@@ -376,9 +488,11 @@ Respond with JSON ONLY in this shape:
                 )
             )
 
-        items.sort(key=lambda i: (i.scheduled_at_utc, i.sort_order))
-        for i, item in enumerate(items):
-            item.sort_order = i
+        spread_campaign_schedule(
+            items,
+            start_date=start_date,
+            duration_days=duration_days,
+        )
         return items
 
     def _resolve_pkt_datetime(

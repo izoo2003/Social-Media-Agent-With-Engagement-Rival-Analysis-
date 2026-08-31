@@ -140,7 +140,7 @@ class CreationModelsResponse(BaseModel):
     models: list[ModelInfo]
     gemini_web_url: str
     meta_ai_web_url: str = "https://www.meta.ai/"
-    elevenlabs_web_url: str = "https://elevenlabs.io/app/speech-synthesis/text-to-speech"
+    elevenlabs_web_url: str = "https://elevenlabs.io/"
     google_flow_characters_url: str = (
         "https://labs.google/fx/tools/flow/project/cc16a3ce-33ec-4248-bb1a-3341c7817479/characters"
     )

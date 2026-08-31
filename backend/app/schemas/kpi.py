@@ -30,6 +30,7 @@ class KpiCatalogMetric(KpiCounts):
 class KpiCustomMetric(KpiCounts):
     id: int
     name: str
+    kind: str = "custom"
     is_active: bool = True
 
 
@@ -50,6 +51,7 @@ class KpiManualEntryResponse(BaseModel):
     metric_key: Optional[str] = None
     custom_definition_id: Optional[int] = None
     custom_name: Optional[str] = None
+    custom_kind: Optional[str] = None
     quantity: int
     note: Optional[str] = None
     occurred_on: date
@@ -62,6 +64,7 @@ class KpiCustomDefinitionResponse(BaseModel):
 
     id: int
     name: str
+    kind: str = "custom"
     is_active: bool
     created_at: datetime
 
@@ -124,12 +127,17 @@ class KpiManualUpdate(BaseModel):
 
 class KpiCustomCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=150)
+    kind: str = Field(default="custom", description="custom | website_maintenance")
 
     @model_validator(mode="after")
     def strip_name(self):
         self.name = self.name.strip()
         if not self.name:
             raise ValueError("name is required")
+        cleaned = (self.kind or "custom").strip().lower()
+        if cleaned not in {"custom", "website_maintenance"}:
+            raise ValueError("kind must be custom or website_maintenance")
+        self.kind = cleaned
         return self
 
 
@@ -174,6 +182,38 @@ class KpiGuidelinesResponse(BaseModel):
     images_reviewed: int = 0
     generated_at: datetime
     model: Optional[str] = None
+    message: Optional[str] = None
+
+
+class KpiReportMetric(BaseModel):
+    key: str
+    label: str
+    description: str = ""
+    auto: int = 0
+    manual: int = 0
+    total: int = 0
+    breakdown: Optional[dict[str, int]] = None
+    days_with_activity: int = 0
+    days_in_range: int = 0
+    daily_average: float = 0
+    peak_day: Optional[str] = None
+    peak_total: int = 0
+
+
+class KpiReportResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True, ser_json_by_alias=True)
+
+    from_date: date = Field(alias="from")
+    to_date: date = Field(alias="to")
+    timezone: str = "Asia/Karachi"
+    period_label: str
+    overview: str
+    highlights: list[str] = Field(default_factory=list)
+    metrics: list[KpiReportMetric] = Field(default_factory=list)
+    custom: list[KpiReportMetric] = Field(default_factory=list)
+    generated_at: datetime
+    model: Optional[str] = None
+    source: str = "computed"
     message: Optional[str] = None
 
 

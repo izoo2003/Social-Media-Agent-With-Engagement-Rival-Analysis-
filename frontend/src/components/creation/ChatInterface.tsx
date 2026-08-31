@@ -16,8 +16,9 @@ import {
   MessageCircle,
   Paperclip,
   X,
-  Bookmark,
+    Bookmark,
   BookmarkCheck,
+  ExternalLink,
 } from 'lucide-react';
 import { API_ENDPOINTS, API_CONFIG, API_BASE_URL, apiFetch, fetchWithTimeout } from '@/lib/api-client';
 import {
@@ -84,6 +85,8 @@ const CREATION_MODES: {
       'Ask for a prompt — product, packaging, platform, mood, image or video…',
   },
 ];
+
+const ELEVENLABS_VOICEOVER_URL = 'https://elevenlabs.io/';
 
 const IMAGE_PROVIDER_PREF_KEY = 'creation_image_provider';
 const VOICE_CHARACTER_PREF_KEY = 'creation_voice_character';
@@ -364,6 +367,7 @@ export default function ChatInterface() {
     )
   );
   const [fishVoiceConfigured, setFishVoiceConfigured] = useState(false);
+  const [elevenLabsUrl, setElevenLabsUrl] = useState(ELEVENLABS_VOICEOVER_URL);
   const [creationLanguage, setCreationLanguage] = useState<string>(() => readStoredCreationLanguage());
   const [languageOptions, setLanguageOptions] = useState<CreationLanguageOption[]>(
     FALLBACK_CREATION_LANGUAGES
@@ -458,6 +462,9 @@ export default function ChatInterface() {
         setVoiceMoods(data.voice_moods);
       }
       setFishVoiceConfigured(Boolean(data.fish_voice_configured));
+      if (data.elevenlabs_web_url?.trim()) {
+        setElevenLabsUrl(data.elevenlabs_web_url.trim());
+      }
       if (data.languages?.length) {
         setLanguageOptions(data.languages);
       }
@@ -1146,6 +1153,16 @@ export default function ChatInterface() {
             </option>
           ))}
         </select>
+        <a
+          href={elevenLabsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex shrink-0 items-center gap-1 text-sm rounded-lg border border-brand-200 bg-white px-2 py-1.5 text-brand-800 hover:bg-brand-50 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100 dark:hover:bg-slate-600"
+          title="Create voiceovers with ElevenLabs"
+        >
+          <ExternalLink className="w-3.5 h-3.5" />
+          ElevenLabs
+        </a>
         {messages.length > 0 && (
           <button
             onClick={startNewChat}
@@ -1410,6 +1427,16 @@ export default function ChatInterface() {
                       {' · '}
                       {voiceMoods.find((m) => m.id === voiceMood)?.label ?? voiceMood}
                     </span>
+                    <a
+                      href={elevenLabsUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-medium rounded-lg px-2.5 py-1.5 border border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-500 dark:text-slate-200 dark:hover:bg-slate-700"
+                      title="Create voiceovers with ElevenLabs"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      ElevenLabs
+                    </a>
                     <button
                       type="button"
                       onClick={() => handleSavePrompt(msg.content)}
@@ -1488,6 +1515,16 @@ export default function ChatInterface() {
               </button>
             );
           })}
+          <a
+            href={elevenLabsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] sm:text-xs font-medium text-slate-600 hover:border-brand-300 hover:bg-slate-50 hover:text-brand-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
+            title="Create voiceovers with ElevenLabs"
+          >
+            <ExternalLink className="w-3 h-3" />
+            ElevenLabs voiceovers
+          </a>
         </div>
 
         <div className="flex items-end gap-1.5 sm:gap-2">

@@ -97,7 +97,10 @@ const FULL_NAV_ITEMS: NavItemConfig[] = [
   {
     href: '/dashboard/kpis',
     label: 'KPIs',
-    children: [{ href: '/dashboard/kpis/guidelines', label: 'KPI Guidelines' }],
+    children: [
+      { href: '/dashboard/kpis/guidelines', label: 'KPI Guidelines' },
+      { href: '/dashboard/kpis/reports', label: 'KPI Reports' },
+    ],
   },
   { href: '/dashboard/analytics', label: 'Analytics' },
   { href: '/dashboard/qa', label: 'QA Checker' },

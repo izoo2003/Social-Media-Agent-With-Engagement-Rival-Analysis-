@@ -201,7 +201,7 @@ class Settings(BaseSettings):
     # Meta AI — where the team pastes generated image/video prompts
     META_AI_WEB_URL: str = "https://www.meta.ai/"
     # ElevenLabs — text-to-speech for video voice-overs
-    ELEVENLABS_WEB_URL: str = "https://elevenlabs.io/app/speech-synthesis/text-to-speech"
+    ELEVENLABS_WEB_URL: str = "https://elevenlabs.io/"
     # Google Flow — character creation for video projects
     GOOGLE_FLOW_CHARACTERS_URL: str = (
         "https://labs.google/fx/tools/flow/project/cc16a3ce-33ec-4248-bb1a-3341c7817479/characters"

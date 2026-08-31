@@ -601,9 +601,12 @@ export interface KpiCatalogMetric extends KpiCounts {
   description?: string;
 }
 
+export type KpiCardKind = 'custom' | 'website_maintenance';
+
 export interface KpiCustomMetric extends KpiCounts {
   id: number;
   name: string;
+  kind?: KpiCardKind | string;
   is_active: boolean;
 }
 
@@ -618,6 +621,7 @@ export interface KpiManualEntry {
   metric_key?: string | null;
   custom_definition_id?: number | null;
   custom_name?: string | null;
+  custom_kind?: KpiCardKind | string | null;
   quantity: number;
   note?: string | null;
   occurred_on: string;
@@ -628,6 +632,7 @@ export interface KpiManualEntry {
 export interface KpiCustomDefinition {
   id: number;
   name: string;
+  kind?: KpiCardKind | string;
   is_active: boolean;
   created_at: string;
 }
@@ -681,5 +686,35 @@ export interface KpiGuidelinesResponse {
   images_reviewed: number;
   generated_at: string;
   model?: string | null;
+  message?: string | null;
+}
+
+export interface KpiReportMetric {
+  key: string;
+  label: string;
+  description?: string;
+  auto: number;
+  manual: number;
+  total: number;
+  breakdown?: Record<string, number> | null;
+  days_with_activity: number;
+  days_in_range: number;
+  daily_average: number;
+  peak_day?: string | null;
+  peak_total: number;
+}
+
+export interface KpiReportResponse {
+  from: string;
+  to: string;
+  timezone: string;
+  period_label: string;
+  overview: string;
+  highlights: string[];
+  metrics: KpiReportMetric[];
+  custom: KpiReportMetric[];
+  generated_at: string;
+  model?: string | null;
+  source?: string;
   message?: string | null;
 }

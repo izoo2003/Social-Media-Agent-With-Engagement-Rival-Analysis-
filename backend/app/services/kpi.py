@@ -33,6 +33,9 @@ from app.utils.logger import logger
 
 PKT = ZoneInfo("Asia/Karachi")
 KPI_TZ = "Asia/Karachi"
+KPI_KIND_CUSTOM = "custom"
+KPI_KIND_WEBSITE = "website_maintenance"
+VALID_KPI_CARD_KINDS = {KPI_KIND_CUSTOM, KPI_KIND_WEBSITE}
 
 CATALOG: list[dict[str, str]] = [
     {
@@ -127,6 +130,25 @@ def _add_manual(bucket: dict[str, int], amount: int) -> None:
     bucket["total"] += amount
 
 
+def _ensure_kpi_card_kind_column() -> None:
+    """Add kind on kpi_custom_definition when upgrading an older database."""
+    try:
+        inspector = inspect(engine)
+        if "kpi_custom_definition" not in inspector.get_table_names():
+            return
+        columns = {col["name"] for col in inspector.get_columns("kpi_custom_definition")}
+        if "kind" in columns:
+            return
+        with engine.begin() as conn:
+            conn.exec_driver_sql(
+                "ALTER TABLE kpi_custom_definition "
+                "ADD COLUMN kind VARCHAR(40) DEFAULT 'custom' NOT NULL"
+            )
+        logger.info("Added kpi_custom_definition.kind")
+    except Exception as exc:
+        logger.warning(f"Could not add kpi_custom_definition.kind: {exc}")
+
+
 def ensure_kpi_tables() -> None:
     """Create KPI tables if missing (idempotent)."""
     global _TABLES_READY
@@ -144,6 +166,7 @@ def ensure_kpi_tables() -> None:
             if table.name not in existing:
                 table.create(bind=engine)
                 logger.info(f"Created KPI table {table.name}")
+        _ensure_kpi_card_kind_column()
         _TABLES_READY = True
     except Exception as exc:
         logger.warning(f"Could not ensure KPI tables: {exc}")
@@ -317,6 +340,7 @@ class KpiService:
                 {
                     "id": d.id,
                     "name": d.name,
+                    "kind": getattr(d, "kind", None) or "custom",
                     "is_active": True,
                     **counts,
                 }
@@ -617,9 +641,12 @@ class KpiService:
         self.db.delete(entry)
         self.db.commit()
 
-    def create_custom(self, name: str) -> KpiCustomDefinition:
+    def create_custom(self, name: str, kind: str = "custom") -> KpiCustomDefinition:
         ensure_kpi_tables()
-        definition = KpiCustomDefinition(name=name, is_active=True)
+        cleaned_kind = (kind or "custom").strip().lower()
+        if cleaned_kind not in VALID_KPI_CARD_KINDS:
+            raise ValueError("Invalid KPI card type. Use custom or website_maintenance.")
+        definition = KpiCustomDefinition(name=name, kind=cleaned_kind, is_active=True)
         self.db.add(definition)
         self.db.commit()
         self.db.refresh(definition)
@@ -646,13 +673,16 @@ class KpiService:
 
     def _entry_dict(self, entry: KpiManualEntry) -> dict[str, Any]:
         custom_name = None
+        custom_kind = None
         if entry.custom_definition is not None:
             custom_name = entry.custom_definition.name
+            custom_kind = getattr(entry.custom_definition, "kind", None) or "custom"
         return {
             "id": entry.id,
             "metric_key": entry.metric_key,
             "custom_definition_id": entry.custom_definition_id,
             "custom_name": custom_name,
+            "custom_kind": custom_kind,
             "quantity": entry.quantity,
             "note": entry.note,
             "occurred_on": entry.occurred_on,

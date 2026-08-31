@@ -10,6 +10,7 @@ POST   /kpis/custom
 PATCH  /kpis/custom/{id}
 DELETE /kpis/custom/{id}
 POST   /kpis/guidelines?from=&to=
+POST   /kpis/reports/summary?from=&to=
 """
 
 from datetime import date
@@ -27,6 +28,7 @@ from app.schemas.kpi import (
     KpiCustomUpdate,
     KpiGuidelinesResponse,
     KpiManualCreate,
+    KpiReportResponse,
     KpiManualEntryResponse,
     KpiManualUpdate,
     KpiSummaryResponse,
@@ -34,6 +36,7 @@ from app.schemas.kpi import (
 from app.services import auth_service
 from app.services.kpi import CATALOG, KpiService, pkt_today
 from app.services.kpi_guidelines import generate_guidelines
+from app.services.kpi_reports import generate_kpi_report
 from app.utils.logger import logger
 
 router = APIRouter()
@@ -163,7 +166,7 @@ def create_custom_kpi(
     _ = request
     _require_senior(role)
     try:
-        return KpiService(db).create_custom(body.name)
+        return KpiService(db).create_custom(body.name, kind=body.kind)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
@@ -233,3 +236,27 @@ def create_kpi_guidelines(
     except Exception as e:
         logger.error(f"KPI guidelines error: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate KPI guidelines")
+
+
+@router.post("/kpis/reports/summary", response_model=KpiReportResponse)
+@limiter.limit("8/minute")
+def create_kpi_report_summary(
+    request: Request,
+    from_date: Optional[date] = Query(default=None, alias="from"),
+    to_date: Optional[date] = Query(default=None, alias="to"),
+    db: Session = Depends(get_db),
+    role: str = Depends(get_current_user_role),
+):
+    """Detailed KPI breakdown for the selected day, week, month, or custom range."""
+    _ = request
+    _require_senior(role)
+    today = pkt_today()
+    start = from_date or today
+    end = to_date or start
+    try:
+        return generate_kpi_report(db, start, end)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"KPI report summary error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate KPI report")
