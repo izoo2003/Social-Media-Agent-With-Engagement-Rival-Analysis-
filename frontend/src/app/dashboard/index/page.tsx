@@ -205,7 +205,7 @@ const INDEX_SECTIONS: IndexSection[] = [
         number: '7.4',
         title: 'KPI Guidelines',
         href: '/dashboard/kpis/guidelines',
-        description: 'Open from the sidebar under KPIs. Gemini judges logged KPIs and recent posts against a 9-hour shift.',
+        description: 'Open from the sidebar under KPIs. Gemini uses KPI Reports numbers plus posts to judge a 9-hour shift, check if logged work is valid, and give a section-by-section improvement brief.',
         icon: ClipboardCheck,
       },
       {

@@ -356,9 +356,10 @@ const MANUAL_SECTIONS: ManualSection[] = [
         steps: [
           'Open KPI Guidelines from the sidebar (nested under KPIs). Senior accounts only.',
           'Keep or change the date range (Today, This week, This month, or From–To).',
-          'Click Review KPIs. Gemini reads Auto + Manual totals and recent published posts in that range.',
+          'Click Review KPIs. Gemini reads KPI Reports analysis (every catalog, custom, and Website Maintenance card: Auto, Manual, totals, quiet days, peaks) plus recent published posts.',
           'Up to three published images are sent for visual review. Reels and videos are judged from captions and media type, not the video file.',
-          'Read the verdict: enough, partial, or not enough for that many 9-hour shifts. Use Still needed for leftover tasks and Improvements for what to change.',
+          'Read the verdict: enough, partial, or not enough for that many 9-hour shifts. Work validity says whether the logged numbers look honest and complete.',
+          'Review by KPI section covers each card. Final detailed review is the closing brief. How to improve is personal craft and logging habits. Still needed and Improvements are leftover tasks.',
           'Notes on published posts call out specific captions or images. Posts included in this review lists what Gemini actually saw.',
         ],
         tips: [

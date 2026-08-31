@@ -654,6 +654,18 @@ export interface KpiGuidelinesImprovement {
   priority: string;
 }
 
+export interface KpiGuidelinesSectionReview {
+  section: string;
+  assessment: string;
+  valid: boolean;
+  improve: string;
+}
+
+export interface KpiGuidelinesWorkValidity {
+  status: 'valid' | 'questionable' | 'insufficient' | string;
+  notes: string;
+}
+
 export interface KpiGuidelinesPostNote {
   content_id?: number | null;
   title: string;
@@ -682,6 +694,10 @@ export interface KpiGuidelinesResponse {
   more_needed: string[];
   improvements: KpiGuidelinesImprovement[];
   post_notes: KpiGuidelinesPostNote[];
+  section_reviews?: KpiGuidelinesSectionReview[];
+  self_improvement?: string[];
+  final_review?: string;
+  work_validity?: KpiGuidelinesWorkValidity;
   reviewed_posts: KpiReviewedPost[];
   images_reviewed: number;
   generated_at: string;

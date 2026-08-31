@@ -1,8 +1,9 @@
 """
 KPI Guidelines — Gemini review of designer KPIs vs a 9-hour shift.
 
-Uses posting/campaign Gemini keys. Looks at KPI totals plus recent published
-posts (captions and, when possible, a few product images).
+Uses posting Gemini keys. Looks at KPI Reports analysis (per-section totals,
+peaks, quiet days) plus recent published posts (captions and, when possible,
+a few product images).
 """
 
 from __future__ import annotations
@@ -19,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.config import get_posting_gemini_api_keys, get_posting_gemini_models
 from app.llm.ollama_client import LLMClient
 from app.services.kpi import KpiService
+from app.services.kpi_reports import build_report_analysis
 from app.services.media import MediaService
 from app.utils.exceptions import ContentGenerationError, LLMConnectionError
 from app.utils.logger import logger
@@ -42,6 +44,25 @@ _VERDICT_LABELS = {
     "not_enough": "Not enough for the shift",
 }
 
+_VALIDITY_STATUSES = {"valid", "questionable", "insufficient"}
+
+
+def _slim_report_metric(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "key": item.get("key"),
+        "label": item.get("label"),
+        "description": item.get("description") or "",
+        "auto": item.get("auto", 0),
+        "manual": item.get("manual", 0),
+        "total": item.get("total", 0),
+        "breakdown": item.get("breakdown"),
+        "days_with_activity": item.get("days_with_activity", 0),
+        "days_in_range": item.get("days_in_range", 0),
+        "daily_average": item.get("daily_average", 0),
+        "peak_day": item.get("peak_day"),
+        "peak_total": item.get("peak_total", 0),
+    }
+
 
 def _compact_summary(summary: dict[str, Any]) -> dict[str, Any]:
     catalog = [
@@ -56,7 +77,12 @@ def _compact_summary(summary: dict[str, Any]) -> dict[str, Any]:
         for m in summary.get("catalog") or []
     ]
     custom = [
-        {"name": c["name"], "manual": c.get("manual", 0), "total": c.get("total", 0)}
+        {
+            "name": c["name"],
+            "kind": c.get("kind") or "custom",
+            "manual": c.get("manual", 0),
+            "total": c.get("total", 0),
+        }
         for c in summary.get("custom") or []
     ]
     manual_notes = [
@@ -68,6 +94,7 @@ def _compact_summary(summary: dict[str, Any]) -> dict[str, Any]:
         }
         for e in (summary.get("manual_entries") or [])[:20]
     ]
+    analysis = build_report_analysis(summary)
     return {
         "from": str(summary.get("from")),
         "to": str(summary.get("to")),
@@ -75,6 +102,10 @@ def _compact_summary(summary: dict[str, Any]) -> dict[str, Any]:
         "catalog": catalog,
         "custom": custom,
         "manual_notes": manual_notes,
+        "report": {
+            "catalog": [_slim_report_metric(m) for m in analysis.get("metrics") or []],
+            "named_cards": [_slim_report_metric(m) for m in analysis.get("custom") or []],
+        },
     }
 
 
@@ -126,6 +157,11 @@ work for Kafi Commodities (Pakistani spice, rice, and chutney brand selling
 internationally). Judge whether the recorded KPIs plus recent published posts
 are enough for {shift_days} design shift(s) of {SHIFT_HOURS} hours each.
 
+Use KPI REPORTS ANALYSIS as the in-depth source of truth. It has every catalog
+KPI and every named card (custom + website maintenance) with Auto, Manual,
+Total, daily average, days with activity, and peak day. Do not skip a section
+even if the total is 0 — say that section is empty and whether that is acceptable.
+
 Benchmarks for ONE 9-hour designer shift (adjust if judging several days):
 - Published posts/reels: 2–4 is a solid live output; 0–1 is light unless they
   spent the day producing many assets for later.
@@ -133,9 +169,12 @@ Benchmarks for ONE 9-hour designer shift (adjust if judging several days):
 - Voiceovers + scripts: expected when reels/videos went out.
 - Posts scheduled: a healthy pipeline for the next day.
 - Campaigns/rivals: strategic extras, not required every single shift.
-- Manual KPI notes mean work done in Photoshop/Canva/other tools — count them.
+- Custom KPI cards: work this agent cannot auto-count (e.g. Canva).
+- Website Maintenance cards: site work (plugins, backups). Manual only.
+- Manual KPI notes mean work done in Photoshop/Canva/other tools — count them,
+  but flag them if they look inflated, undated, or contradict Auto counts.
 
-KPI TOTALS (Auto from this agent + Manual the designer typed):
+KPI TOTALS AND REPORTS ANALYSIS (Auto from this agent + Manual the designer typed):
 {json.dumps(compact, indent=2, default=str)}
 
 RECENT PUBLISHED POSTS in this range (captions and media type).
@@ -145,14 +184,34 @@ RECENT PUBLISHED POSTS in this range (captions and media type).
 If images are attached, comment on product clarity, brand look, text-on-image,
 and whether they look ready for Instagram/Facebook/LinkedIn.
 
+Check whether the designer's logged work looks VALID:
+- Auto counts should match published/generated work in this range.
+- Manual counts need a plausible note or mix (Canva/Photoshop vs zero auto).
+- Empty catalog sections with busy custom/website cards can still be valid.
+- Huge manual numbers with no notes or no published posts are questionable.
+
 Return ONLY a JSON object (no markdown) with exactly these keys:
 - "verdict": one of "enough", "partial", "not_enough"
-- "summary": 2-4 sentences. Say clearly if the 9-hour shift(s) look filled or
-  if more work is still needed.
-- "more_needed": array of 0-6 short strings — concrete leftover tasks if output
-  is light (empty array if the shift is enough).
-- "improvements": array of 3-6 objects, each with:
-    "area" (e.g. volume, mix, captions, visuals, scheduling),
+- "summary": 3-6 sentences. Say clearly if the 9-hour shift(s) look filled.
+- "work_validity": object with:
+    "status": "valid" | "questionable" | "insufficient",
+    "notes": 2-4 sentences on whether the logged KPIs look honest and complete
+- "section_reviews": array covering EVERY catalog KPI and EVERY named card in
+  the report (including zeros). Each object:
+    "section" (the KPI / card label),
+    "assessment" (what the numbers and mix show),
+    "valid" (true if this section's logging looks consistent),
+    "improve" (one concrete next step for this section; empty string if solid)
+- "final_review": 1-3 short paragraphs. This is the closing brief for the
+  designer: pull every section together, say what was real work, what is
+  missing, and the priority order to improve. Be specific, not generic.
+- "self_improvement": array of 3-6 strings — habits, craft, and logging
+  practices the designer should build (time blocking, caption craft, reel
+  pipeline, honest manual notes, quieter-day planning).
+- "more_needed": array of 0-8 short strings — leftover tasks if output is
+  light (empty array if the shift is enough).
+- "improvements": array of 4-8 objects, each with:
+    "area" (e.g. volume, mix, captions, visuals, scheduling, logging, website),
     "finding" (what you noticed),
     "action" (what the designer should do next),
     "priority" ("high" | "medium" | "low")
@@ -162,7 +221,7 @@ Return ONLY a JSON object (no markdown) with exactly these keys:
     "comment" (how to improve that post/image/video)
 
 Be direct and practical. Do not invent posts or KPIs that are not in the data.
-If there are no published posts, still judge generation/scheduling KPIs."""
+If there are no published posts, still judge generation/scheduling/custom/website KPIs."""
 
 
 def _extract_json_object(raw: str) -> str:
@@ -174,6 +233,32 @@ def _extract_json_object(raw: str) -> str:
     if start >= 0 and end > start:
         return text[start : end + 1]
     return text
+
+
+def _as_bool(value: Any, default: bool = True) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"true", "yes", "valid", "1"}:
+            return True
+        if lowered in {"false", "no", "invalid", "0"}:
+            return False
+    if value is None:
+        return default
+    return bool(value)
+
+
+def _parse_work_validity(raw: Any) -> dict[str, str]:
+    if not isinstance(raw, dict):
+        return {"status": "questionable", "notes": ""}
+    status = str(raw.get("status") or "questionable").strip().lower()
+    if status not in _VALIDITY_STATUSES:
+        status = "questionable"
+    return {
+        "status": status,
+        "notes": str(raw.get("notes") or "").strip()[:800],
+    }
 
 
 def parse_guidelines(raw: str) -> Optional[dict[str, Any]]:
@@ -198,8 +283,8 @@ def parse_guidelines(raw: str) -> Optional[dict[str, Any]]:
         improvements.append(
             {
                 "area": str(item.get("area") or "general")[:80],
-                "finding": str(item.get("finding") or "")[:400],
-                "action": str(item.get("action") or "")[:400],
+                "finding": str(item.get("finding") or "")[:600],
+                "action": str(item.get("action") or "")[:600],
                 "priority": str(item.get("priority") or "medium").lower()[:12],
             }
         )
@@ -221,19 +306,44 @@ def parse_guidelines(raw: str) -> Optional[dict[str, Any]]:
             {
                 "content_id": cid_int,
                 "title": str(item.get("title") or "")[:200],
-                "comment": str(item.get("comment") or "")[:400],
+                "comment": str(item.get("comment") or "")[:600],
             }
         )
+    section_reviews = []
+    for item in data.get("section_reviews") or []:
+        if not isinstance(item, dict):
+            continue
+        section = str(item.get("section") or "").strip()
+        if not section:
+            continue
+        section_reviews.append(
+            {
+                "section": section[:120],
+                "assessment": str(item.get("assessment") or "").strip()[:800],
+                "valid": _as_bool(item.get("valid"), default=True),
+                "improve": str(item.get("improve") or "").strip()[:400],
+            }
+        )
+    self_improvement = [
+        str(x).strip()[:400]
+        for x in (data.get("self_improvement") or [])
+        if str(x).strip()
+    ]
     summary = str(data.get("summary") or "").strip()
     if not summary:
         return None
+    final_review = str(data.get("final_review") or "").strip()
     return {
         "verdict": verdict,
         "verdict_label": _VERDICT_LABELS[verdict],
-        "summary": summary[:2000],
+        "summary": summary[:4000],
         "more_needed": more_needed[:8],
-        "improvements": improvements[:8],
+        "improvements": improvements[:10],
         "post_notes": post_notes[:6],
+        "section_reviews": section_reviews[:20],
+        "self_improvement": self_improvement[:8],
+        "final_review": final_review[:8000],
+        "work_validity": _parse_work_validity(data.get("work_validity")),
     }
 
 
@@ -251,6 +361,15 @@ def _public_reviewed_posts(posts: list[dict[str, Any]]) -> list[dict[str, Any]]:
         }
         for p in posts
     ]
+
+
+def _empty_review_fields() -> dict[str, Any]:
+    return {
+        "section_reviews": [],
+        "self_improvement": [],
+        "final_review": "",
+        "work_validity": {"status": "questionable", "notes": ""},
+    }
 
 
 def generate_guidelines(
@@ -313,12 +432,13 @@ def generate_guidelines(
                 ],
                 api_keys=keys,
                 models=models,
+                max_output_tokens=8192,
             )
         else:
             raw = client.generate(
                 prompt,
                 temperature=0.35,
-                max_output_tokens=4096,
+                max_output_tokens=8192,
                 response_mime_type="application/json",
                 api_keys=keys,
                 models=models,
@@ -338,6 +458,7 @@ def generate_guidelines(
             "more_needed": [],
             "improvements": [],
             "post_notes": [],
+            **_empty_review_fields(),
             "reviewed_posts": _public_reviewed_posts(posts),
             "images_reviewed": len(images),
             "generated_at": datetime.utcnow(),
@@ -359,6 +480,7 @@ def generate_guidelines(
             "more_needed": [],
             "improvements": [],
             "post_notes": [],
+            **_empty_review_fields(),
             "reviewed_posts": _public_reviewed_posts(posts),
             "images_reviewed": len(images),
             "generated_at": datetime.utcnow(),
@@ -378,6 +500,10 @@ def generate_guidelines(
         "more_needed": parsed["more_needed"],
         "improvements": parsed["improvements"],
         "post_notes": parsed["post_notes"],
+        "section_reviews": parsed["section_reviews"],
+        "self_improvement": parsed["self_improvement"],
+        "final_review": parsed["final_review"],
+        "work_validity": parsed["work_validity"],
         "reviewed_posts": _public_reviewed_posts(posts),
         "images_reviewed": len(images),
         "generated_at": datetime.utcnow(),

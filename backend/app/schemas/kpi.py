@@ -141,6 +141,18 @@ class KpiCustomCreate(BaseModel):
         return self
 
 
+class KpiGuidelinesSectionReview(BaseModel):
+    section: str
+    assessment: str = ""
+    valid: bool = True
+    improve: str = ""
+
+
+class KpiGuidelinesWorkValidity(BaseModel):
+    status: str = "questionable"
+    notes: str = ""
+
+
 class KpiGuidelinesImprovement(BaseModel):
     area: str
     finding: str
@@ -178,6 +190,12 @@ class KpiGuidelinesResponse(BaseModel):
     more_needed: list[str] = Field(default_factory=list)
     improvements: list[KpiGuidelinesImprovement] = Field(default_factory=list)
     post_notes: list[KpiGuidelinesPostNote] = Field(default_factory=list)
+    section_reviews: list[KpiGuidelinesSectionReview] = Field(default_factory=list)
+    self_improvement: list[str] = Field(default_factory=list)
+    final_review: str = ""
+    work_validity: KpiGuidelinesWorkValidity = Field(
+        default_factory=KpiGuidelinesWorkValidity
+    )
     reviewed_posts: list[KpiReviewedPost] = Field(default_factory=list)
     images_reviewed: int = 0
     generated_at: datetime

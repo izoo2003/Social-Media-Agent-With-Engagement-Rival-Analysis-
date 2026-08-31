@@ -68,6 +68,7 @@ class LLMClient:
         model: str | None = None,
         fallback_model: str | None = None,
         models: list[str] | None = None,
+        max_output_tokens: int | None = None,
     ) -> tuple[str, str]:
         """
         Multi-turn chat via Google Gemini API.
@@ -165,6 +166,7 @@ class LLMClient:
                         model_id,
                         api_key=key,
                         system_instruction=system_instruction,
+                        max_output_tokens=max_output_tokens or settings.MAX_TOKENS,
                     )
                     return reply, model_id
                 except LLMConnectionError as e:
@@ -194,6 +196,7 @@ class LLMClient:
         *,
         api_key: str,
         system_instruction: dict | None = None,
+        max_output_tokens: int | None = None,
     ) -> str:
         """Call Gemini with a multi-turn conversation."""
         logger.info(f"Gemini chat (model: {model}, turns: {len(contents)})")
@@ -208,7 +211,7 @@ class LLMClient:
             "contents": contents,
             "generationConfig": {
                 "temperature": self.temperature,
-                "maxOutputTokens": settings.MAX_TOKENS,
+                "maxOutputTokens": max_output_tokens or settings.MAX_TOKENS,
                 "topP": settings.TOP_P,
             },
         }

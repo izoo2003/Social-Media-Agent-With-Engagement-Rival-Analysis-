@@ -11,7 +11,11 @@ import {
   startOfPktMonth,
   startOfPktWeek,
 } from '@/lib/kpi-dates';
-import type { KpiGuidelinesResponse } from '@/lib/types';
+import type {
+  KpiGuidelinesResponse,
+  KpiGuidelinesSectionReview,
+  KpiGuidelinesWorkValidity,
+} from '@/lib/types';
 
 function errorDetail(err: unknown, fallback: string): string {
   if (err instanceof Error && err.message) return err.message;
@@ -26,6 +30,22 @@ function verdictClasses(verdict: string): string {
     return 'border-red-200 bg-red-50 text-red-800 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200';
   }
   return 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100';
+}
+
+function validityClasses(status: string): string {
+  if (status === 'valid') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-200';
+  }
+  if (status === 'insufficient') {
+    return 'border-red-200 bg-red-50 text-red-800 dark:border-red-800/60 dark:bg-red-950/40 dark:text-red-200';
+  }
+  return 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100';
+}
+
+function validityLabel(status: string): string {
+  if (status === 'valid') return 'Logged work looks valid';
+  if (status === 'insufficient') return 'Not enough evidence the work is complete';
+  return 'Logged work needs a closer look';
 }
 
 function priorityBadge(priority: string): string {
@@ -64,7 +84,7 @@ export default function KpiGuidelinesPage() {
 
   const generate = async () => {
     setLoading(true);
-    const pending = toast.loading('Reviewing KPIs and recent posts with Gemini…');
+    const pending = toast.loading('Reviewing KPI Reports, logged work, and recent posts…');
     try {
       const res = await fetchWithTimeout(API_ENDPOINTS.KPI_GUIDELINES(fromDate, toDate), {
         method: 'POST',
@@ -102,8 +122,9 @@ export default function KpiGuidelinesPage() {
             KPI Guidelines
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-            Gemini reviews the KPIs you logged and recent published posts, then says if a 9-hour
-            shift looks filled and what to improve.
+            Gemini reviews KPI Reports (every catalog, custom, and Website Maintenance
+            card) plus recent published posts, then says if a 9-hour shift looks filled,
+            whether the logged work is valid, and how the designer can improve.
           </p>
         </div>
 
@@ -160,10 +181,11 @@ export default function KpiGuidelinesPage() {
               Shift review
             </h2>
             <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400">
-              Gemini judges Auto + Manual KPIs for this date range against a{' '}
-              <span className="font-semibold">9-hour designer shift</span> per day. It also looks at
-              recent published images, posts, and videos (up to 3 images are sent for visual review;
-              videos are judged from captions and type).
+              Gemini uses the same in-depth numbers as{' '}
+              <span className="font-semibold">KPI Reports</span> — Auto, Manual, totals, quiet
+              days, and peaks for every card — plus published posts, judged against a{' '}
+              <span className="font-semibold">9-hour designer shift</span> per day. Up to 3 images
+              are sent for visual review; videos are judged from captions and type.
             </p>
           </div>
           <button
@@ -210,6 +232,45 @@ export default function KpiGuidelinesPage() {
               </p>
             ) : null}
           </div>
+
+          <WorkValidityCard validity={review.work_validity} />
+
+          {review.section_reviews && review.section_reviews.length > 0 ? (
+            <section>
+              <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+                Review by KPI section
+              </h2>
+              <div className="grid gap-3 md:grid-cols-2">
+                {review.section_reviews.map((item, idx) => (
+                  <SectionReviewCard key={`${item.section}-${idx}`} item={item} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {review.final_review ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+                Final detailed review
+              </h2>
+              <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-slate-700 dark:text-slate-300">
+                {review.final_review}
+              </p>
+            </section>
+          ) : null}
+
+          {review.self_improvement && review.self_improvement.length > 0 ? (
+            <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-slate-900 dark:text-slate-100">
+                How to improve
+              </h2>
+              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-slate-700 dark:text-slate-300">
+                {review.self_improvement.map((item, idx) => (
+                  <li key={`${idx}-${item.slice(0, 40)}`}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
 
           {review.more_needed.length > 0 ? (
             <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-600 dark:bg-slate-800">
@@ -306,6 +367,54 @@ export default function KpiGuidelinesPage() {
             </p>
           ) : null}
         </>
+      ) : null}
+    </div>
+  );
+}
+
+function WorkValidityCard({
+  validity,
+}: {
+  validity?: KpiGuidelinesWorkValidity | null;
+}) {
+  if (!validity) return null;
+  const status = validity.status || 'questionable';
+  if (!validity.notes && status === 'questionable') {
+    return null;
+  }
+  return (
+    <section className={`rounded-xl border p-5 shadow-sm ${validityClasses(status)}`}>
+      <p className="text-xs font-semibold uppercase tracking-wide">Work validity</p>
+      <p className="mt-1 text-lg font-bold">{validityLabel(status)}</p>
+      {validity.notes ? (
+        <p className="mt-2 text-sm leading-relaxed opacity-90">{validity.notes}</p>
+      ) : null}
+    </section>
+  );
+}
+
+function SectionReviewCard({ item }: { item: KpiGuidelinesSectionReview }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-600 dark:bg-slate-800">
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">{item.section}</h3>
+        <span
+          className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
+            item.valid
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-200'
+              : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-100'
+          }`}
+        >
+          {item.valid ? 'Looks valid' : 'Check logging'}
+        </span>
+      </div>
+      {item.assessment ? (
+        <p className="text-sm text-slate-700 dark:text-slate-300">{item.assessment}</p>
+      ) : null}
+      {item.improve ? (
+        <p className="mt-2 rounded-md bg-brand-50 px-3 py-2 text-sm text-brand-900 dark:bg-brand-950/40 dark:text-gold-200">
+          <span className="font-semibold">Do this:</span> {item.improve}
+        </p>
       ) : null}
     </div>
   );
