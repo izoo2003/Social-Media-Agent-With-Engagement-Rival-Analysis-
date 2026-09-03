@@ -2,10 +2,11 @@
 Pydantic Schemas - Content Calendar / Scheduling DTOs
 """
 
+from datetime import date as Date
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.content import ContentPlatform
 
@@ -82,3 +83,48 @@ class CalendarEventResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class CustomHolidayCreate(BaseModel):
+    name: str = Field(..., min_length=1, max_length=150)
+    date: Date
+    note: Optional[str] = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def strip_fields(self):
+        self.name = self.name.strip()
+        if not self.name:
+            raise ValueError("name is required")
+        if self.note is not None:
+            cleaned = self.note.strip()
+            self.note = cleaned or None
+        return self
+
+
+class CustomHolidayUpdate(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=150)
+    date: Optional[Date] = None
+    note: Optional[str] = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def strip_fields(self):
+        if self.name is not None:
+            self.name = self.name.strip()
+            if not self.name:
+                raise ValueError("name cannot be empty")
+        if self.note is not None:
+            cleaned = self.note.strip()
+            self.note = cleaned or None
+        return self
+
+
+class CustomHolidayResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    name: str
+    date: Date
+    note: Optional[str] = None
+    created_by: Optional[str] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None

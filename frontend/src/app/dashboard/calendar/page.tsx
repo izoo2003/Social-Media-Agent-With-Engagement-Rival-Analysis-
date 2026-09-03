@@ -14,17 +14,19 @@ import {
   subMonths,
 } from 'date-fns';
 import { API_ENDPOINTS, fetchWithTimeout } from '@/lib/api-client';
-import { CalendarEvent } from '@/lib/types';
+import { CalendarEvent, CustomHoliday } from '@/lib/types';
 import ScheduleModal from '@/components/calendar/ScheduleModal';
 import EventDetailModal from '@/components/calendar/EventDetailModal';
 import HolidayReminderModal from '@/components/calendar/HolidayReminderModal';
+import HolidayFormModal from '@/components/calendar/HolidayFormModal';
 import {
+  customHolidayToCalendar,
   dismissHolidayReminder,
   getPakistanHolidaysInRange,
-  getUpcomingHolidayReminders,
   holidaysByDateMap,
   isHolidayReminderDismissed,
-  type PakistanHoliday,
+  remindersFromHolidays,
+  type CalendarHoliday,
 } from '@/lib/pakistan-holidays';
 
 const PLATFORM_ICONS: Record<string, string> = {
@@ -56,9 +58,26 @@ const STATUS_CHIP: Record<string, string> = {
 
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+function dayCellClass(hasPk: boolean, hasCustom: boolean, inMonth: boolean): string {
+  if (hasPk) {
+    return inMonth
+      ? 'bg-emerald-50/80 border-emerald-200 hover:border-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800'
+      : 'bg-emerald-50/40 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900';
+  }
+  if (hasCustom) {
+    return inMonth
+      ? 'bg-indigo-50/80 border-indigo-200 hover:border-indigo-400 dark:bg-indigo-950/30 dark:border-indigo-800'
+      : 'bg-indigo-50/40 border-indigo-100 dark:bg-indigo-950/20 dark:border-indigo-900';
+  }
+  return inMonth
+    ? 'bg-white border-gray-200 hover:border-brand-300 dark:bg-slate-800 dark:border-slate-600 dark:hover:border-gold-500/50'
+    : 'bg-gray-50 border-gray-100 dark:bg-slate-900/50 dark:border-slate-700';
+}
+
 export default function CalendarPage() {
   const [cursor, setCursor] = useState<Date>(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [customHolidays, setCustomHolidays] = useState<CustomHoliday[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [scheduleOpen, setScheduleOpen] = useState(false);
@@ -66,8 +85,12 @@ export default function CalendarPage() {
   const [presetDate, setPresetDate] = useState<Date | null>(null);
   const [detailEvent, setDetailEvent] = useState<CalendarEvent | null>(null);
   const [reminderHoliday, setReminderHoliday] = useState<
-    (PakistanHoliday & { daysUntil: number }) | null
+    (CalendarHoliday & { daysUntil: number }) | null
   >(null);
+
+  const [holidayFormOpen, setHolidayFormOpen] = useState(false);
+  const [editHoliday, setEditHoliday] = useState<CustomHoliday | null>(null);
+  const [holidayPresetDate, setHolidayPresetDate] = useState<string | null>(null);
 
   // Grid covers full weeks around the current month
   const gridStart = useMemo(
@@ -80,10 +103,16 @@ export default function CalendarPage() {
     [gridStart, gridEnd]
   );
 
-  const holidaysInView = useMemo(
-    () => getPakistanHolidaysInRange(gridStart, gridEnd),
-    [gridStart, gridEnd]
-  );
+  const holidaysInView = useMemo(() => {
+    const pk = getPakistanHolidaysInRange(gridStart, gridEnd);
+    const startKey = format(gridStart, 'yyyy-MM-dd');
+    const endKey = format(gridEnd, 'yyyy-MM-dd');
+    const custom = customHolidays
+      .map(customHolidayToCalendar)
+      .filter((h) => h.date >= startKey && h.date <= endKey);
+    return [...pk, ...custom];
+  }, [gridStart, gridEnd, customHolidays]);
+
   const holidaysByDay = useMemo(
     () => holidaysByDateMap(holidaysInView),
     [holidaysInView]
@@ -93,8 +122,24 @@ export default function CalendarPage() {
     const today = new Date();
     const end = new Date(today);
     end.setDate(end.getDate() + 20);
-    return getPakistanHolidaysInRange(today, end).slice(0, 5);
-  }, [cursor]);
+    const startKey = format(today, 'yyyy-MM-dd');
+    const endKey = format(end, 'yyyy-MM-dd');
+    const pk = getPakistanHolidaysInRange(today, end);
+    const custom = customHolidays
+      .map(customHolidayToCalendar)
+      .filter((h) => h.date >= startKey && h.date <= endKey);
+    return [...pk, ...custom].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 8);
+  }, [customHolidays]);
+
+  const reminderPool = useMemo(() => {
+    const today = new Date();
+    const end = new Date(today);
+    end.setDate(end.getDate() + 7);
+    return [
+      ...getPakistanHolidaysInRange(today, end),
+      ...customHolidays.map(customHolidayToCalendar),
+    ];
+  }, [customHolidays]);
 
   const fetchEvents = useCallback(async (options?: { background?: boolean }) => {
     if (!options?.background) setLoading(true);
@@ -122,16 +167,38 @@ export default function CalendarPage() {
     }
   }, [gridStart, gridEnd]);
 
+  const fetchCustomHolidays = useCallback(async () => {
+    const today = new Date();
+    const upcomingEnd = new Date(today);
+    upcomingEnd.setDate(upcomingEnd.getDate() + 20);
+    const from = format(gridStart < today ? gridStart : today, 'yyyy-MM-dd');
+    const to = format(gridEnd > upcomingEnd ? gridEnd : upcomingEnd, 'yyyy-MM-dd');
+    try {
+      const res = await fetchWithTimeout(
+        `${API_ENDPOINTS.CALENDAR_HOLIDAYS}?from=${from}&to=${to}`,
+      );
+      if (res.ok) {
+        const data: CustomHoliday[] = await res.json();
+        setCustomHolidays(data);
+      }
+    } catch {
+      // keep last good list
+    }
+  }, [gridStart, gridEnd]);
+
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
 
-  // Popup when a Pakistan holiday is within 7 days (once per holiday until dismissed)
   useEffect(() => {
-    const upcoming = getUpcomingHolidayReminders(7);
+    fetchCustomHolidays();
+  }, [fetchCustomHolidays]);
+
+  useEffect(() => {
+    const upcoming = remindersFromHolidays(reminderPool, 7);
     const next = upcoming.find((h) => !isHolidayReminderDismissed(h.id));
     setReminderHoliday(next || null);
-  }, []);
+  }, [reminderPool]);
 
   // Refresh while events are pending/publishing; back off when idle (less load in dev)
   useEffect(() => {
@@ -182,6 +249,30 @@ export default function CalendarPage() {
     setScheduleOpen(true);
   };
 
+  const openAddHoliday = (dateKey?: string) => {
+    setEditHoliday(null);
+    setHolidayPresetDate(dateKey ?? null);
+    setHolidayFormOpen(true);
+  };
+
+  const openEditHoliday = (holiday: CustomHoliday) => {
+    setEditHoliday(holiday);
+    setHolidayPresetDate(null);
+    setHolidayFormOpen(true);
+  };
+
+  const deleteCustomHoliday = async (holiday: CustomHoliday) => {
+    if (!window.confirm('Delete this holiday? It will disappear for everyone.')) return;
+    try {
+      const res = await fetchWithTimeout(API_ENDPOINTS.CALENDAR_HOLIDAY(holiday.id), {
+        method: 'DELETE',
+      });
+      if (res.ok) fetchCustomHolidays();
+    } catch {
+      // ignore
+    }
+  };
+
   const handleScheduled = () => {
     fetchEvents();
   };
@@ -193,16 +284,24 @@ export default function CalendarPage() {
         <div className="min-w-0">
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">Content Calendar</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Schedule posts in advance — they publish automatically. Pakistan national
-            holidays are marked so designers can plan special creatives.
+            Schedule posts in advance — they publish automatically. Pakistan holidays
+            and your own dates are marked so designers can plan special creatives.
           </p>
         </div>
-        <button
-          onClick={() => openNewSchedule()}
-          className="bg-brand-700 hover:bg-brand-800 text-white font-semibold px-4 sm:px-5 py-2.5 rounded-lg shadow-sm text-sm sm:text-base shrink-0"
-        >
-          + Schedule a Post
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => openAddHoliday()}
+            className="border border-indigo-300 text-indigo-800 bg-indigo-50 hover:bg-indigo-100 font-semibold px-4 sm:px-5 py-2.5 rounded-lg text-sm sm:text-base dark:border-indigo-700 dark:text-indigo-200 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/70"
+          >
+            + Add holiday
+          </button>
+          <button
+            onClick={() => openNewSchedule()}
+            className="bg-brand-700 hover:bg-brand-800 text-white font-semibold px-4 sm:px-5 py-2.5 rounded-lg shadow-sm text-sm sm:text-base"
+          >
+            + Schedule a Post
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -254,22 +353,18 @@ export default function CalendarPage() {
               const key = format(day, 'yyyy-MM-dd');
               const dayEvents = eventsByDay.get(key) || [];
               const dayHolidays = holidaysByDay.get(key) || [];
+              const hasPk = dayHolidays.some((h) => h.kind !== 'custom');
+              const hasCustom = dayHolidays.some((h) => h.kind === 'custom');
               const inMonth = isSameMonth(day, cursor);
+              const holidaySlots = Math.min(dayHolidays.length, 2);
+              const eventSlots = holidaySlots ? Math.max(1, 3 - holidaySlots) : 3;
               return (
                 <div
                   key={key}
                   onClick={() => openNewSchedule(day)}
-                  className={`min-h-[56px] sm:min-h-[96px] rounded-md sm:rounded-lg border p-1 sm:p-1.5 cursor-pointer transition-colors ${
-                    dayHolidays.length
-                      ? inMonth
-                        ? 'bg-emerald-50/80 border-emerald-200 hover:border-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-800'
-                        : 'bg-emerald-50/40 border-emerald-100 dark:bg-emerald-950/20 dark:border-emerald-900'
-                      : inMonth
-                        ? 'bg-white border-gray-200 hover:border-brand-300 dark:bg-slate-800 dark:border-slate-600 dark:hover:border-gold-500/50'
-                        : 'bg-gray-50 border-gray-100 dark:bg-slate-900/50 dark:border-slate-700'
-                  }`}
+                  className={`min-h-[56px] sm:min-h-[96px] rounded-md sm:rounded-lg border p-1 sm:p-1.5 cursor-pointer transition-colors ${dayCellClass(hasPk, hasCustom, inMonth)}`}
                 >
-                  <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center justify-between mb-1 gap-0.5">
                     <span
                       className={`text-xs font-semibold w-6 h-6 flex items-center justify-center rounded-full ${
                         isToday(day)
@@ -281,28 +376,51 @@ export default function CalendarPage() {
                     >
                       {format(day, 'd')}
                     </span>
-                    {dayHolidays.length > 0 && (
-                      <span
-                        className="text-[9px] font-bold uppercase text-emerald-800 dark:text-emerald-300"
-                        title={dayHolidays.map((h) => h.name).join(', ')}
-                      >
-                        PK
-                      </span>
-                    )}
+                    <span className="flex items-center gap-0.5">
+                      {hasPk && (
+                        <span
+                          className="text-[9px] font-bold uppercase text-emerald-800 dark:text-emerald-300"
+                          title={dayHolidays.filter((h) => h.kind !== 'custom').map((h) => h.name).join(', ')}
+                        >
+                          PK
+                        </span>
+                      )}
+                      {hasCustom && (
+                        <span
+                          className="text-[9px] font-bold uppercase text-indigo-800 dark:text-indigo-300"
+                          title={dayHolidays.filter((h) => h.kind === 'custom').map((h) => h.name).join(', ')}
+                        >
+                          Yours
+                        </span>
+                      )}
+                    </span>
                   </div>
 
                   <div className="space-y-1">
-                    {dayHolidays.slice(0, 1).map((h) => (
-                      <div
-                        key={h.id}
-                        className="text-[10px] leading-tight px-1 py-0.5 rounded bg-emerald-100 text-emerald-900 border border-emerald-200 truncate dark:bg-emerald-900/50 dark:text-emerald-200 dark:border-emerald-700"
-                        title={`${h.name} — ${h.tip}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {h.name}
-                      </div>
-                    ))}
-                    {dayEvents.slice(0, dayHolidays.length ? 2 : 3).map((ev) => (
+                    {dayHolidays.slice(0, holidaySlots).map((h) => {
+                      const isCustom = h.kind === 'custom';
+                      return (
+                        <div
+                          key={h.id}
+                          role={isCustom ? 'button' : undefined}
+                          className={`text-[10px] leading-tight px-1 py-0.5 rounded truncate ${
+                            isCustom
+                              ? 'bg-indigo-100 text-indigo-900 border border-indigo-200 cursor-pointer hover:bg-indigo-200 dark:bg-indigo-900/50 dark:text-indigo-200 dark:border-indigo-700'
+                              : 'bg-emerald-100 text-emerald-900 border border-emerald-200 dark:bg-emerald-900/50 dark:text-emerald-200 dark:border-emerald-700'
+                          }`}
+                          title={isCustom ? `${h.name} — click to edit` : `${h.name} — ${h.tip}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isCustom || !h.customId) return;
+                            const raw = customHolidays.find((c) => c.id === h.customId);
+                            if (raw) openEditHoliday(raw);
+                          }}
+                        >
+                          {h.name}
+                        </div>
+                      );
+                    })}
+                    {dayEvents.slice(0, eventSlots).map((ev) => (
                       <button
                         key={ev.id}
                         onClick={(e) => {
@@ -329,9 +447,9 @@ export default function CalendarPage() {
                         <span className="truncate">{ev.content_title}</span>
                       </button>
                     ))}
-                    {dayEvents.length > (dayHolidays.length ? 2 : 3) && (
+                    {dayEvents.length > eventSlots && (
                       <p className="text-[10px] text-gray-400 pl-1">
-                        +{dayEvents.length - (dayHolidays.length ? 2 : 3)} more
+                        +{dayEvents.length - eventSlots} more
                       </p>
                     )}
                   </div>
@@ -344,24 +462,76 @@ export default function CalendarPage() {
         {/* Upcoming sidebar */}
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-lg shadow p-4">
-            <h3 className="text-sm font-bold text-slate-900 mb-3">Upcoming holidays</h3>
+            <div className="flex items-center justify-between gap-2 mb-3">
+              <h3 className="text-sm font-bold text-slate-900">Upcoming holidays</h3>
+              <button
+                type="button"
+                onClick={() => openAddHoliday()}
+                className="text-xs font-semibold text-indigo-700 hover:text-indigo-900 dark:text-indigo-300"
+              >
+                + Add
+              </button>
+            </div>
             {upcomingHolidays.length === 0 ? (
               <p className="text-sm text-gray-400">No holidays in the next 20 days.</p>
             ) : (
               <div className="space-y-2">
-                {upcomingHolidays.map((h) => (
-                  <div
-                    key={h.id}
-                    className="p-2.5 rounded-lg border border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/30"
-                  >
-                    <p className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-                      {h.name}
-                    </p>
-                    <p className="text-[11px] text-emerald-800/80 dark:text-emerald-300/80 mt-0.5">
-                      {format(new Date(h.date + 'T00:00:00'), 'EEE, d MMM yyyy')}
-                    </p>
-                  </div>
-                ))}
+                {upcomingHolidays.map((h) => {
+                  const isCustom = h.kind === 'custom';
+                  return (
+                    <div
+                      key={h.id}
+                      className={`p-2.5 rounded-lg border ${
+                        isCustom
+                          ? 'border-indigo-200 bg-indigo-50/70 dark:border-indigo-800 dark:bg-indigo-950/30'
+                          : 'border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/30'
+                      }`}
+                    >
+                      <p
+                        className={`text-xs font-bold ${
+                          isCustom
+                            ? 'text-indigo-900 dark:text-indigo-200'
+                            : 'text-emerald-900 dark:text-emerald-200'
+                        }`}
+                      >
+                        {h.name}
+                      </p>
+                      <p
+                        className={`text-[11px] mt-0.5 ${
+                          isCustom
+                            ? 'text-indigo-800/80 dark:text-indigo-300/80'
+                            : 'text-emerald-800/80 dark:text-emerald-300/80'
+                        }`}
+                      >
+                        {format(new Date(h.date + 'T00:00:00'), 'EEE, d MMM yyyy')}
+                      </p>
+                      {isCustom && h.customId && (
+                        <div className="flex gap-2 mt-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const raw = customHolidays.find((c) => c.id === h.customId);
+                              if (raw) openEditHoliday(raw);
+                            }}
+                            className="text-[11px] font-semibold text-indigo-700 hover:underline dark:text-indigo-300"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const raw = customHolidays.find((c) => c.id === h.customId);
+                              if (raw) deleteCustomHoliday(raw);
+                            }}
+                            className="text-[11px] font-semibold text-red-600 hover:underline dark:text-red-400"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -415,6 +585,10 @@ export default function CalendarPage() {
                 <span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" />
                 <span className="text-xs text-gray-600">Pakistan holiday</span>
               </div>
+              <div className="flex items-center gap-2">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-indigo-500" />
+                <span className="text-xs text-gray-600">Custom holiday</span>
+              </div>
             </div>
           </div>
         </div>
@@ -435,12 +609,24 @@ export default function CalendarPage() {
         onEdit={openEdit}
       />
 
+      <HolidayFormModal
+        open={holidayFormOpen}
+        onClose={() => {
+          setHolidayFormOpen(false);
+          setEditHoliday(null);
+          setHolidayPresetDate(null);
+        }}
+        onSaved={fetchCustomHolidays}
+        editHoliday={editHoliday}
+        presetDate={holidayPresetDate}
+      />
+
       <HolidayReminderModal
         holiday={reminderHoliday}
         onDismiss={() => {
           if (reminderHoliday) dismissHolidayReminder(reminderHoliday.id);
-          const upcoming = getUpcomingHolidayReminders(7);
-          const next = upcoming.find(
+          const upcomingReminders = remindersFromHolidays(reminderPool, 7);
+          const next = upcomingReminders.find(
             (h) =>
               h.id !== reminderHoliday?.id && !isHolidayReminderDismissed(h.id)
           );

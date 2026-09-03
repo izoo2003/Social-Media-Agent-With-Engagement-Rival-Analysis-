@@ -163,6 +163,20 @@ class CalendarEvent(Base):
     content = relationship("Content", back_populates="calendar_events")
 
 
+class CustomHoliday(Base):
+    """User-created calendar holiday (workspace-wide)."""
+
+    __tablename__ = "custom_holiday"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(150), nullable=False)
+    date = Column(Date, nullable=False)
+    note = Column(String(500), nullable=True)
+    created_by = Column(String(120), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class QAReport(Base):
     """QA/Compliance check results."""
 

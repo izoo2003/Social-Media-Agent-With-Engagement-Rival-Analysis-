@@ -4,6 +4,7 @@ import Link from 'next/link';
 import {
   BarChart3,
   CalendarDays,
+  CalendarPlus,
   Clapperboard,
   ClipboardCheck,
   Globe,
@@ -114,6 +115,12 @@ const INDEX_SECTIONS: IndexSection[] = [
         title: 'Schedule a post to upload',
         description: 'Pick a date and time — posts publish when due.',
         icon: CalendarDays,
+      },
+      {
+        number: '3.2',
+        title: 'Add a holiday',
+        description: 'Mark your own dates next to Pakistan holidays so the team can plan creatives.',
+        icon: CalendarPlus,
       },
     ],
   },

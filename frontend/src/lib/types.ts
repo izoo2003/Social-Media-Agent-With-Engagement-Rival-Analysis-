@@ -148,6 +148,16 @@ export interface CalendarEventCreate {
   notes?: string | null;
 }
 
+export interface CustomHoliday {
+  id: number;
+  name: string;
+  date: string;
+  note?: string | null;
+  created_by?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+}
+
 export interface CalendarEventUpdate {
   scheduled_date?: string;
   platforms?: string[];

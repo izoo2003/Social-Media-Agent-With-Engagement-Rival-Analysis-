@@ -37,7 +37,11 @@ export default function HolidayReminderModal({
           <p className="text-xs font-semibold uppercase tracking-wide text-white/80">
             Designer reminder
           </p>
-          <h2 className="text-lg font-bold mt-0.5">Pakistan holiday coming up</h2>
+          <h2 className="text-lg font-bold mt-0.5">
+            {holiday.kind === 'custom'
+              ? 'Holiday coming up'
+              : 'Pakistan holiday coming up'}
+          </h2>
         </div>
 
         <div className="p-5 space-y-3">
@@ -60,9 +64,11 @@ export default function HolidayReminderModal({
           </div>
 
           <p className="text-[11px] text-gray-500 dark:text-slate-400">
-            {holiday.kind === 'religious'
-              ? 'Religious date is approximate — confirm locally if needed.'
-              : 'National fixed-date holiday in Pakistan.'}
+            {holiday.kind === 'custom'
+              ? 'A holiday added on the Content Calendar.'
+              : holiday.kind === 'religious'
+                ? 'Religious date is approximate — confirm locally if needed.'
+                : 'National fixed-date holiday in Pakistan.'}
           </p>
         </div>
 

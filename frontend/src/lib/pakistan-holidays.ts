@@ -4,15 +4,20 @@
  * for nearby years (approximate official Pakistan observances).
  */
 
+export type HolidayKind = 'national' | 'religious' | 'custom';
+
 export type PakistanHoliday = {
   /** Stable id for dismiss storage, e.g. pakistan-day-2026 */
   id: string;
   name: string;
   /** Local calendar day YYYY-MM-DD (Pakistan) */
   date: string;
-  kind: 'national' | 'religious';
+  kind: HolidayKind;
   tip: string;
+  customId?: number;
 };
+
+export type CalendarHoliday = PakistanHoliday;
 
 const FIXED: Array<{ month: number; day: number; name: string; tip: string }> = [
   {
@@ -235,26 +240,33 @@ export function holidaysByDateMap(
   return map;
 }
 
-/**
- * Upcoming holidays within `withinDays` from today (inclusive of today).
- * Used for designer reminder popups.
- */
-export function getUpcomingHolidayReminders(
+export function customHolidayToCalendar(h: {
+  id: number;
+  name: string;
+  date: string;
+  note?: string | null;
+}): CalendarHoliday {
+  return {
+    id: `custom-${h.id}`,
+    name: h.name,
+    date: h.date.slice(0, 10),
+    kind: 'custom',
+    tip: h.note?.trim() || 'Plan a special creative for this day.',
+    customId: h.id,
+  };
+}
+
+export function remindersFromHolidays(
+  holidays: CalendarHoliday[],
   withinDays = 7,
   today = new Date(),
-): Array<PakistanHoliday & { daysUntil: number }> {
-  const y = today.getFullYear();
-  const startKey = `${y}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+): Array<CalendarHoliday & { daysUntil: number }> {
+  const startKey = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
   const end = new Date(today);
   end.setDate(end.getDate() + withinDays);
   const endKey = `${end.getFullYear()}-${pad(end.getMonth() + 1)}-${pad(end.getDate())}`;
 
-  const pool = [
-    ...getPakistanHolidaysForYear(y),
-    ...getPakistanHolidaysForYear(y + 1),
-  ];
-
-  return pool
+  return holidays
     .filter((h) => h.date >= startKey && h.date <= endKey)
     .map((h) => {
       const [yy, mm, dd] = h.date.split('-').map(Number);
@@ -266,6 +278,18 @@ export function getUpcomingHolidayReminders(
       return { ...h, daysUntil };
     })
     .sort((a, b) => a.daysUntil - b.daysUntil);
+}
+
+export function getUpcomingHolidayReminders(
+  withinDays = 7,
+  today = new Date(),
+): Array<PakistanHoliday & { daysUntil: number }> {
+  const y = today.getFullYear();
+  const pool = [
+    ...getPakistanHolidaysForYear(y),
+    ...getPakistanHolidaysForYear(y + 1),
+  ];
+  return remindersFromHolidays(pool, withinDays, today);
 }
 
 const DISMISS_PREFIX = 'pk-holiday-reminder:';

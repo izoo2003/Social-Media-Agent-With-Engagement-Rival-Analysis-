@@ -66,6 +66,9 @@ export const API_ENDPOINTS = {
     `${API_BASE_URL}/api/${API_VERSION}/calendar/events/${id}`,
   CALENDAR_PUBLISH_NOW: (id: number) =>
     `${API_BASE_URL}/api/${API_VERSION}/calendar/events/${id}/publish-now`,
+  CALENDAR_HOLIDAYS: `${API_BASE_URL}/api/${API_VERSION}/calendar/holidays`,
+  CALENDAR_HOLIDAY: (id: number) =>
+    `${API_BASE_URL}/api/${API_VERSION}/calendar/holidays/${id}`,
 
   // Analytics
   ANALYTICS_OVERVIEW: `${API_BASE_URL}/api/${API_VERSION}/analytics/overview`,

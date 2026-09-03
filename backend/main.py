@@ -89,6 +89,13 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning(f"Could not ensure KPI tables: {exc}")
 
+        try:
+            from app.services.custom_holiday import ensure_custom_holiday_table
+
+            ensure_custom_holiday_table()
+        except Exception as exc:
+            logger.warning(f"Could not ensure custom holiday table: {exc}")
+
         from app.services.scheduler import start_scheduler
         start_scheduler()
     else:

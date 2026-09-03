@@ -203,6 +203,22 @@ const MANUAL_SECTIONS: ManualSection[] = [
           'The background worker checks for due posts roughly every 30 seconds.',
         ],
       },
+      {
+        number: '3.2',
+        title: 'Add a holiday',
+        steps: [
+          'Open Calendar from the sidebar (senior accounts).',
+          'Click Add holiday in the header, or Add in the Upcoming holidays panel.',
+          'Enter a name, date, and optional note, then save. The day is marked in indigo with a Yours badge.',
+          'Click a custom holiday chip on the grid, or Edit on its upcoming card, to change or delete it.',
+          'Pakistan national and religious holidays stay on the calendar and cannot be edited.',
+          'A reminder popup appears when any holiday — Pakistan or yours — is within 7 days.',
+        ],
+        tips: [
+          'Custom holidays are shared with the whole workspace, not just your browser.',
+          'Clicking a day still opens Schedule a Post — click the holiday chip itself to edit a custom holiday.',
+        ],
+      },
     ],
   },
   {
