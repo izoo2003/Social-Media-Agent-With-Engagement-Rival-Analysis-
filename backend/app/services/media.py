@@ -385,19 +385,21 @@ class MediaService:
     def _upload_bytes(self, relative_path: str, content: bytes, mime_type: str) -> str:
         """
         Upload bytes to Supabase when configured; fall back to local disk if the
-        network cannot reach Supabase (common on restricted DNS / offline dev).
+        upload fails for any reason (DNS/offline dev, or Supabase itself being
+        down/paused/rate-limited in production — the supabase-py client raises
+        httpx exceptions here, not `requests` ones, so a narrow allowlist of
+        "network" error types silently misses real outages and hard-fails
+        every upload instead of degrading to local disk).
         """
         if self.is_supabase_configured:
             try:
                 return self.supabase.upload(relative_path, content, mime_type)
             except ContentGenerationError as exc:
-                if _is_supabase_network_error(exc):
-                    logger.warning(
-                        "Supabase unreachable (%s); saving to local uploads instead.",
-                        exc,
-                    )
-                    return self.local.upload(relative_path, content, mime_type)
-                raise
+                logger.warning(
+                    "Supabase upload failed (%s); saving to local uploads instead.",
+                    exc,
+                )
+                return self.local.upload(relative_path, content, mime_type)
         return self.local.upload(relative_path, content, mime_type)
 
     def _download_bytes(self, media_path: str) -> bytes:
