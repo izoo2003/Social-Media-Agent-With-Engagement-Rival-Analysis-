@@ -4,6 +4,7 @@ Handles file uploads, storage, validation, and retrieval to/from Supabase Storag
 (or local disk when Supabase is not configured).
 """
 
+import asyncio
 import os
 import socket
 import uuid
@@ -466,8 +467,13 @@ class MediaService:
         # Get MIME type
         mime_type = EXTENSION_TO_MIME.get(extension, "application/octet-stream")
 
-        # Upload to storage (Supabase with local network fallback)
-        media_url = self._upload_bytes(relative_path, content, mime_type)
+        # Upload to storage (Supabase with local network fallback).
+        # Run off the event loop — the Supabase client makes a blocking network
+        # call, and this server runs a single Uvicorn worker, so a slow upload
+        # here would otherwise freeze every other request until it finishes.
+        media_url = await asyncio.to_thread(
+            self._upload_bytes, relative_path, content, mime_type
+        )
 
         logger.info(
             f"Media uploaded: {file.filename} -> {relative_path} "
