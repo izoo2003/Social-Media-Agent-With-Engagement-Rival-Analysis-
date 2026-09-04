@@ -89,22 +89,40 @@ def publish_content(
 
     if content.get("media_path"):
         media_type_val = content.get("media_type")
+        upload_dir = Path(__file__).parent.parent.parent / "uploads"
+        local_media_path = upload_dir / content["media_path"]
 
         if media_service.is_supabase_configured:
             try:
                 temp_file_path = media_service.download_to_temp(content["media_path"])
                 media_file_path = temp_file_path
                 media_supabase_url = media_service.get_public_url(content["media_path"])
+                if not (media_supabase_url or "").startswith("https://"):
+                    # File may have been saved locally due to a Supabase-upload fallback.
+                    if local_media_path.exists():
+                        media_file_path = str(local_media_path.absolute())
+                        media_supabase_url = public_api_url(
+                            f"/uploads/{content['media_path']}"
+                        )
                 logger.info(
                     f"Using Supabase storage: temp={temp_file_path}, url={media_supabase_url}"
                 )
             except Exception as e:
                 logger.error(f"Failed to download media from Supabase: {e}")
+                # Fall back to local uploads — the file may have been stored
+                # there directly if Supabase was down at upload time.
+                if local_media_path.exists():
+                    media_file_path = str(local_media_path.absolute())
+                    media_supabase_url = public_api_url(
+                        f"/uploads/{content['media_path']}"
+                    )
+                    logger.info(
+                        f"Using local media fallback: {media_file_path} "
+                        f"url={media_supabase_url}"
+                    )
         else:
-            upload_dir = Path(__file__).parent.parent.parent / "uploads"
-            full_path = upload_dir / content["media_path"]
-            if full_path.exists():
-                media_file_path = str(full_path.absolute())
+            if local_media_path.exists():
+                media_file_path = str(local_media_path.absolute())
 
     meta_data = content.get("meta_data") or {}
     if isinstance(meta_data, str):
