@@ -250,9 +250,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           </button>
 
           <div
-            className={`flex min-h-0 flex-1 flex-col overflow-auto p-3 sm:p-4 md:p-6 ${
-              sidebarCollapsed ? 'pt-14' : 'max-md:pt-14'
-            }`}
+            className={
+              pathname === '/dashboard/creation' || pathname.startsWith('/dashboard/creation/')
+                ? `flex min-h-0 flex-1 flex-col overflow-hidden p-0 ${
+                    sidebarCollapsed ? 'pt-14' : 'max-md:pt-14'
+                  }`
+                : `flex min-h-0 flex-1 flex-col overflow-auto p-3 sm:p-4 md:p-6 ${
+                    sidebarCollapsed ? 'pt-14' : 'max-md:pt-14'
+                  }`
+            }
           >
             {children}
           </div>

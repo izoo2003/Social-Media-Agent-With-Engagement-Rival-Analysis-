@@ -1,7 +1,7 @@
 """
 TikTok OAuth 2.0 routes — Login Kit + Content Posting API.
 
-Live: https://kafi-social-media-agent-production.up.railway.app/api/v1/auth/tiktok
+Live: https://social-media-agent.up.railway.app/api/v1/auth/tiktok
 
 Create an app at https://developers.tiktok.com, enable Login Kit and Content
 Posting API, register the redirect URI below, then authorize with the

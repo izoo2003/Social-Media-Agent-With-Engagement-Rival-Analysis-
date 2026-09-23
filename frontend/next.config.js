@@ -1,4 +1,17 @@
 /** @type {import('next').NextConfig} */
+const PRODUCTION_API_URL = 'https://social-media-agent.up.railway.app';
+
+function defaultApiUrl() {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  // Vercel / production builds: point at Railway so missing env still works.
+  if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+    return PRODUCTION_API_URL;
+  }
+  return 'http://localhost:8000';
+}
+
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
@@ -6,7 +19,7 @@ const nextConfig = {
     styledComponents: true,
   },
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000',
+    NEXT_PUBLIC_API_URL: defaultApiUrl(),
     NEXT_PUBLIC_APP_MODE: process.env.NEXT_PUBLIC_APP_MODE || 'full',
   },
   webpack: (config) => {

@@ -119,24 +119,6 @@ const MANUAL_SECTIONS: ManualSection[] = [
         ],
         tips: ['Saved prompts are text only — images and audio files are not stored.'],
       },
-      {
-        number: '1.5',
-        title: 'Link to Flow (AI video)',
-        steps: [
-          'Click Flow AI Video Creation in the toolbar (top of Prompt Studio).',
-          'Google Flow opens in a new tab for AI video creation.',
-          'Use Write prompt mode first if you need a detailed video prompt to paste into Flow.',
-        ],
-      },
-      {
-        number: '1.6',
-        title: 'Link to Gemini (image creation)',
-        steps: [
-          'Click Gemini Image Creation in the toolbar.',
-          'Gemini opens in a new tab for advanced image work outside the in-app generator.',
-          'Alternatively, switch the image provider dropdown to Gemini for in-app generation when the paid API is connected.',
-        ],
-      },
     ],
   },
   {

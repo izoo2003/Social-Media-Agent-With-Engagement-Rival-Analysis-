@@ -306,7 +306,7 @@ class Settings(BaseSettings):
 
     # Public backend URL used for OAuth callbacks (Railway production).
     # Auth links and redirect URIs are derived from this — no localhost needed.
-    BACKEND_PUBLIC_URL: str = "https://kafi-social-media-agent-production.up.railway.app"
+    BACKEND_PUBLIC_URL: str = "https://social-media-agent.up.railway.app"
 
     # Social Media API Settings
     LINKEDIN_ACCESS_TOKEN: str = ""
@@ -442,9 +442,10 @@ def _bootstrap_public_oauth_urls(settings: "Settings") -> None:
     legacy_hosts = (
         "kafi-social-agent.up.railway.app",
         "kafi-social-media-agent.up.railway.app",
+        "kafi-social-media-agent-production.up.railway.app",
     )
     if any(host in base for host in legacy_hosts):
-        base = "https://kafi-social-media-agent-production.up.railway.app"
+        base = "https://social-media-agent.up.railway.app"
         settings.BACKEND_PUBLIC_URL = base
 
     derived = {

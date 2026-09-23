@@ -4,9 +4,9 @@ An end-to-end, in-house social media operations platform built for Kafi Commodit
 
 ## 🔗 Live Links & Repository
 
-* **Live Dashboard (Frontend):** [Kafi Social Agent on Vercel](https://kafi-social-media-agent.vercel.app/)
+* **Live Dashboard (Frontend):** [Kafi Social Agent on Vercel](https://kafi-social-media.vercel.app/)
 * **GitHub Repository:** [izoo2003/Social-Media-Agent-With-Engagement-Rival-Analysis-](https://github.com/izoo2003/Social-Media-Agent-With-Engagement-Rival-Analysis-)
-* **Backend API:** Deployed via Railway (FastAPI)
+* **Backend API:** [Railway](https://social-media-agent.up.railway.app) (FastAPI)
 
 ---
 
@@ -195,7 +195,7 @@ npm run dev
 
 **Frontend (`.env.local`)**
 
-* `NEXT_PUBLIC_API_URL`: Points to backend (e.g., Railway URL in production or `http://localhost:8000`).
+* `NEXT_PUBLIC_API_URL`: Points to backend (`https://social-media-agent.up.railway.app` in production, or `http://localhost:8000` locally). On Vercel, if unset, the app falls back to the Railway URL.
 
 ### New / recently added (Railway checklist)
 

@@ -1352,7 +1352,7 @@ class YouTubeClient:
                         "error_message": (
                             "YouTube token lacks upload permission. Your refresh token was "
                             "authorized without the youtube.upload scope. Re-authorize at "
-                            "https://kafi-social-media-agent-production.up.railway.app/api/v1/auth/youtube "
+                            "https://social-media-agent.up.railway.app/api/v1/auth/youtube "
                             "(token auto-saves; no .env paste needed)."
                         ),
                     }

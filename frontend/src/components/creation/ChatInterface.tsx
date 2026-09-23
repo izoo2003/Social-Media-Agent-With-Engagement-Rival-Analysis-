@@ -492,7 +492,7 @@ export default function ChatInterface() {
     return (
       `Image API not ready on ${backend}. ` +
       'Hard-refresh (Ctrl+Shift+R), confirm Vercel NEXT_PUBLIC_API_URL is ' +
-      'https://kafi-social-media-agent-production.up.railway.app, then redeploy Vercel.'
+      'https://social-media-agent.up.railway.app, then redeploy Vercel.'
     );
   };
 
@@ -997,8 +997,8 @@ export default function ChatInterface() {
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col h-full min-h-0 overflow-hidden dark:bg-slate-800 dark:border-slate-600">
-      {/* Toolbar — scrolls horizontally on narrow screens */}
-      <div className="flex flex-nowrap items-center gap-2 px-3 py-2 sm:px-4 sm:py-2.5 border-b border-slate-200 overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch] shrink-0 dark:border-slate-600">
+      {/* Toolbar — wraps on narrow screens instead of horizontal scroll */}
+      <div className="flex flex-wrap items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-2 border-b border-slate-200 shrink-0 dark:border-slate-600">
         <select
           value={chatModel}
           onChange={(e) => {
@@ -1092,8 +1092,6 @@ export default function ChatInterface() {
               : imageModelLabel}
           </span>
         ) : null}
-
-        <div className="flex-1 min-w-2" />
 
         {voiceProviders.length > 0 && (
           <select
@@ -1211,9 +1209,10 @@ export default function ChatInterface() {
       ) : null}
 
       {/* Messages — min-h-0 so this flex child can shrink and scroll */}
-      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 space-y-4">
+      <div ref={scrollRef} className="flex-1 min-h-0 overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl space-y-4 px-3 py-3 sm:px-4 sm:py-4">
         {messages.length === 0 && (
-          <div className="h-full flex flex-col items-center justify-center text-center text-slate-400 px-1">
+          <div className="flex min-h-[50vh] flex-col items-center justify-center text-center text-slate-400 px-1">
             <Bot className="w-9 h-9 mb-2 text-slate-300" />
             <p className="text-xs sm:text-sm max-w-sm mb-3">
               Pick a mode below, then describe what you need. Chat history stays until you click{' '}
@@ -1487,12 +1486,13 @@ export default function ChatInterface() {
             </div>
           </div>
         )}
+        </div>
       </div>
 
-      {/* Composer — kept fully visible so Fix spelling / Improve wording stay clickable */}
-      <div className="relative z-10 border-t border-slate-200 dark:border-slate-600 px-3 pt-2 pb-3 sm:px-4 sm:pt-2.5 sm:pb-3 space-y-2 shrink-0 bg-white dark:bg-slate-800">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 mr-0.5">
+      {/* Composer — slim chrome so messages keep most of the viewport */}
+      <div className="relative z-10 border-t border-slate-200 dark:border-slate-600 px-2.5 pt-1.5 pb-2 sm:px-3 sm:pt-2 sm:pb-2.5 space-y-1.5 shrink-0 bg-white dark:bg-slate-800">
+        <div className="mx-auto flex w-full max-w-3xl flex-wrap items-center gap-1">
+          <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400 mr-0.5">
             Mode:
           </span>
           {CREATION_MODES.map((mode) => {
@@ -1504,7 +1504,7 @@ export default function ChatInterface() {
                 type="button"
                 onClick={() => setCreationIntent(mode.id)}
                 title={mode.description}
-                className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] sm:text-xs font-medium transition-colors ${
+                className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
                   selected
                     ? 'border-brand-600 bg-brand-50 text-brand-800 ring-1 ring-brand-500/20 dark:border-gold-400 dark:bg-brand-900/50 dark:text-gold-200'
                     : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700'
@@ -1515,19 +1515,9 @@ export default function ChatInterface() {
               </button>
             );
           })}
-          <a
-            href={elevenLabsUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-[11px] sm:text-xs font-medium text-slate-600 hover:border-brand-300 hover:bg-slate-50 hover:text-brand-700 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-700"
-            title="Create voiceovers with ElevenLabs"
-          >
-            <ExternalLink className="w-3 h-3" />
-            ElevenLabs voiceovers
-          </a>
         </div>
 
-        <div className="flex items-end gap-1.5 sm:gap-2">
+        <div className="mx-auto flex w-full max-w-3xl items-end gap-1.5 sm:gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -1582,7 +1572,7 @@ export default function ChatInterface() {
                   : activeMode.placeholder
             }
             rows={1}
-            className="flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm max-h-28 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100 dark:placeholder-slate-400"
+            className="flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm max-h-24 focus:outline-none focus:ring-2 focus:ring-brand-500 dark:bg-slate-700 dark:border-slate-500 dark:text-slate-100 dark:placeholder-slate-400"
             disabled={sending}
           />
           <button
@@ -1595,17 +1585,21 @@ export default function ChatInterface() {
           </button>
         </div>
 
-        <TextSuggestionBar
-          value={input}
-          onApply={setInput}
-          context="chat"
-          language={creationLanguage}
-          disabled={sending || isListening}
-          className="pointer-events-auto"
-        />
+        {input.trim() ? (
+          <div className="mx-auto w-full max-w-3xl">
+            <TextSuggestionBar
+              value={input}
+              onApply={setInput}
+              context="chat"
+              language={creationLanguage}
+              disabled={sending || isListening}
+              className="pointer-events-auto"
+            />
+          </div>
+        ) : null}
 
         {pendingAttachments.length > 0 && (
-          <div className="rounded-lg border border-brand-200 bg-brand-50/80 px-3 py-2 dark:border-slate-500 dark:bg-slate-700/60 space-y-2">
+          <div className="mx-auto w-full max-w-3xl rounded-lg border border-brand-200 bg-brand-50/80 px-3 py-2 dark:border-slate-500 dark:bg-slate-700/60 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-medium text-slate-700 dark:text-slate-200">
                 Reference images ({pendingAttachments.length}/{MAX_REFERENCE_IMAGES})
@@ -1645,7 +1639,7 @@ export default function ChatInterface() {
           </div>
         )}
         {isListening && (
-          <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5">
+          <p className="mx-auto w-full max-w-3xl text-xs text-red-600 dark:text-red-400 flex items-center gap-1.5">
             <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             Voice typing active — click the mic again to stop.
           </p>

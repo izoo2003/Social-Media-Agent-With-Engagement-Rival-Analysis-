@@ -27,19 +27,32 @@ function isJuniorDashboardPath(pathname: string): boolean {
   );
 }
 
+const PRODUCTION_API_URL = 'https://social-media-agent.up.railway.app';
+
+const RETIRED_API_HOSTS = [
+  'kafi-social-agent.up.railway.app',
+  'kafi-social-media-agent.up.railway.app',
+  'kafi-social-media-agent-production.up.railway.app',
+];
+
+function defaultApiBaseUrl(): string {
+  if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+    return PRODUCTION_API_URL;
+  }
+  return 'http://localhost:8000';
+}
+
 function resolveApiBaseUrl(): string {
-  const raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').trim();
+  const fallback = defaultApiBaseUrl();
+  const raw = (process.env.NEXT_PUBLIC_API_URL || fallback).trim();
   let url = raw.startsWith('NEXT_PUBLIC_API_URL=')
     ? raw.slice('NEXT_PUBLIC_API_URL='.length).trim().replace(/\/$/, '')
     : raw.replace(/\/$/, '');
   // Retired Railway hosts → current production backend
-  if (
-    url.includes('kafi-social-agent.up.railway.app') ||
-    url.includes('kafi-social-media-agent.up.railway.app')
-  ) {
-    url = 'https://kafi-social-media-agent-production.up.railway.app';
+  if (RETIRED_API_HOSTS.some((host) => url.includes(host))) {
+    url = PRODUCTION_API_URL;
   }
-  return url || 'http://localhost:8000';
+  return url || fallback;
 }
 
 /** Reject empty / legacy forgeable cookie values like "1". */

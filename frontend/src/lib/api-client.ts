@@ -5,16 +5,27 @@
 import { getAuthHeaders, clearSession } from './auth';
 
 /** Live Railway backend — remaps retired hostnames so reconnect links stay valid. */
-const PRODUCTION_API_URL = 'https://kafi-social-media-agent-production.up.railway.app';
+const PRODUCTION_API_URL = 'https://social-media-agent.up.railway.app';
 
 const RETIRED_API_HOSTS = [
   'kafi-social-agent.up.railway.app',
   'kafi-social-media-agent.up.railway.app',
+  'kafi-social-media-agent-production.up.railway.app',
 ];
+
+function defaultApiBaseUrl(): string {
+  // On Vercel / production builds, fall back to Railway so missing NEXT_PUBLIC_API_URL
+  // does not leave the app pointing at localhost.
+  if (process.env.VERCEL === '1' || process.env.NODE_ENV === 'production') {
+    return PRODUCTION_API_URL;
+  }
+  return 'http://localhost:8000';
+}
 
 /** Normalize API base URL (handles Vercel env pasted as `NEXT_PUBLIC_API_URL=https://...`). */
 function resolveApiBaseUrl(): string {
-  let raw = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').trim();
+  const fallback = defaultApiBaseUrl();
+  let raw = (process.env.NEXT_PUBLIC_API_URL || fallback).trim();
   if (raw.startsWith('NEXT_PUBLIC_API_URL=')) {
     raw = raw.slice('NEXT_PUBLIC_API_URL='.length).trim();
   }
@@ -22,7 +33,7 @@ function resolveApiBaseUrl(): string {
   if (RETIRED_API_HOSTS.some((host) => raw.includes(host))) {
     return PRODUCTION_API_URL;
   }
-  return raw || 'http://localhost:8000';
+  return raw || fallback;
 }
 
 const API_BASE_URL = resolveApiBaseUrl();
